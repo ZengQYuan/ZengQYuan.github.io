@@ -19,8 +19,10 @@
             margin: 0 auto;
             padding: 20px;
         }
-        h1, h2, h3 {
+        h1, h2, h3, h4 {
             color: #004080; /* A professional blue */
+        }
+        h2 {
             border-bottom: 2px solid #e0e0e0;
             padding-bottom: 10px;
             margin-top: 40px;
@@ -42,15 +44,44 @@
             top: 0;
             z-index: 1000;
         }
-        .header h1 {
+
+        /* --- ADDED FOR PROFILE PHOTO LAYOUT --- */
+        .profile-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 30px; /* Space between photo and text */
+            margin-bottom: 15px; /* Space below name/photo block */
+        }
+        .profile-photo {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%; /* Makes the photo circular */
+            object-fit: cover; /* Prevents image distortion */
+        }
+        .profile-text {
+            text-align: left; /* Aligns text to the left */
+        }
+        .profile-text h1 {
             margin: 0;
-            padding: 0;
             font-size: 2.5em;
             border: none;
         }
-        .header p {
-            margin: 5px 0;
+        .profile-text p {
+            margin: 5px 0 0 0;
             color: #666;
+        }
+        /* --- END OF ADDED STYLES --- */
+        
+        .review-tag {
+            display: inline-block;
+            background-color: #ffe2e2; /* Light red background */
+            color: #d93025; /* Dark red text */
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-left: 5px;
         }
         nav {
             margin-top: 15px;
@@ -65,10 +96,10 @@
             color: #0056b3;
             text-decoration: none;
         }
-        /* --- Section Styling --- */
+        /* --- Section Styling (MODIFIED) --- */
         section {
-            padding: 40px 20px;
-            margin-bottom: 20px;
+            padding: 20px 20px; /* Reduced top/bottom padding */
+            margin-bottom: 10px; /* Reduced bottom margin */
         }
         /* --- About Section --- */
         .about-grid {
@@ -92,89 +123,71 @@
             font-size: 1.4em;
             color: #343a40;
         }
-        .education-item {
-            margin-bottom: 15px;
-        }
-        .education-item h4 {
-            margin: 0 0 5px 0;
-            font-size: 1.1em;
-            color: #004080;
-        }
-        .education-item p {
-            margin: 0;
-            color: #555;
-            font-size: 0.95em;
-        }
-        /* --- Research Section --- */
-        .research-item {
+        .education-item { margin-bottom: 15px; }
+        .education-item h4 { margin: 0 0 5px 0; font-size: 1.1em; }
+        .education-item p { margin: 0; color: #555; font-size: 0.95em; }
+        
+        /* --- Research & Experience Section --- */
+        .item-list .item {
             margin-bottom: 25px;
         }
-        .research-item h3 {
-            font-size: 1.4em;
-            margin-bottom: 10px;
+        /* --- MODIFIED STYLE FOR SUBHEADINGS --- */
+        .item-list .item h3 {
+            font-family: 'Georgia', 'Times New Roman', serif; /* Classic serif font for contrast */
+            color: #333333; /* Darker color to differentiate from main h2 */
+            font-weight: 600; /* Refined bold look */
+            font-size: 1.3em; /* Slightly adjusted size */
+            margin-bottom: 5px;
             border: none;
             padding-bottom: 5px;
         }
-        .research-item p {
+        .item-list .item p {
             margin-top: 0;
         }
-        /* --- Publications Section --- */
-        .publication-list {
-            list-style: none;
-            padding-left: 0;
-        }
-        .publication-list li {
-            margin-bottom: 20px;
-            padding-left: 25px;
-            position: relative;
-        }
-        .publication-list li::before {
-            content: "•";
-            position: absolute;
-            left: 0;
-            color: #004080;
-            font-size: 1.4em;
-            line-height: 1.4;
-        }
-        .publication-list .authors {
-            font-weight: bold;
-        }
-        .publication-list .venue {
-            font-style: italic;
+        .item-list .item .meta {
+            font-size: 0.9em;
             color: #555;
+            font-style: italic;
         }
-        .ccf-tag {
-            display: inline-block;
-            background-color: #e2edff;
-            color: #004080;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.8em;
-            font-weight: bold;
-            margin-left: 5px;
+
+        /* --- Awards Section --- */
+        .awards-list {
+            list-style-type: '🏆';
+            padding-left: 30px;
         }
+        .awards-list li {
+            padding-left: 15px;
+            margin-bottom: 10px;
+        }
+        
+        /* --- Publications Section --- */
+        .publication-list { list-style: none; padding-left: 0; }
+        .publication-list li { margin-bottom: 20px; padding-left: 25px; position: relative; }
+        .publication-list li::before { content: "•"; position: absolute; left: 0; color: #004080; font-size: 1.4em; line-height: 1.4; }
+        .publication-list .authors { font-weight: normal; } /* Changed from bold to normal */
+        .publication-list .venue { font-style: italic; color: #555; }
+        .ccf-tag { display: inline-block; background-color: #e2edff; color: #004080; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; margin-left: 5px; }
+        
         /* --- Footer --- */
-        footer {
-            text-align: center;
-            padding: 30px;
-            background-color: #333;
-            color: #fff;
-        }
-        footer a {
-            color: #fff;
-        }
+        footer { text-align: center; padding: 30px; background-color: #333; color: #fff; }
+        footer a { color: #fff; }
 
         /* --- Responsive Design --- */
         @media (max-width: 768px) {
             .about-grid {
                 flex-direction: column;
             }
-            .header h1 {
+            .profile-header {
+                flex-direction: column; /* Stack photo on top of text on small screens */
+                gap: 15px;
+            }
+            .profile-text {
+                text-align: center; /* Center text on small screens */
+            }
+            .profile-text h1 {
                 font-size: 2em;
             }
-            nav a {
-                margin: 0 10px;
-            }
+            nav a { margin: 0 8px; font-size: 1em; }
         }
     </style>
 </head>
@@ -182,12 +195,19 @@
 
     <header class="header">
         <div class="container">
-            [cite_start]<h1>Qingyuan Zeng [cite: 1]</h1>
-            [cite_start]<p>Institute of Artificial Intelligence, Xiamen University [cite: 2]</p>
+            <div class="profile-header">
+                <img src="xjpic.do.jpeg" alt="Qingyuan Zeng" class="profile-photo">
+                <div class="profile-text">
+                    <h1>Qingyuan Zeng</h1>
+                    <p>Institute of Artificial Intelligence, Xiamen University</p>
+                </div>
+            </div>
             <nav>
                 <a href="#about">About Me</a>
                 <a href="#research">Research</a>
                 <a href="#publications">Publications</a>
+                <a href="#awards">Awards</a>
+                <a href="#experience">Experience</a>
                 <a href="#contact">Contact</a>
             </nav>
         </div>
@@ -200,21 +220,23 @@
             <div class="about-grid">
                 <div class="about-text">
                     <p>
-                        [cite_start]I am a Master's student in Artificial Intelligence at Xiamen University [cite: 4, 5][cite_start], advised by Prof. <a href="mailto:minjiang@xmu.edu.cn">Min Jiang</a>. [cite: 45, 72] [cite_start]My research is centered on building trustworthy AI algorithms, with a focus on enhancing their security, robustness, interpretability, and fairness. [cite: 21] [cite_start]I am also passionate about applying these advanced algorithms to solve real-world clinical challenges in medicine. [cite: 22]
+                        I am a Master's student in Artificial Intelligence at Xiamen University, advised by Prof. <a href="mailto:minjiang@xmu.edu.cn">Min Jiang</a>. My research is centered on building trustworthy AI algorithms, with a focus on enhancing their security, robustness, interpretability, and fairness. I am also passionate about applying these advanced algorithms to solve real-world clinical challenges in medicine.
                     </p>
                     <p>
-                        [cite_start]I hold a Bachelor's degree in Computer Science and Technology from Guangzhou University of Chinese Medicine. [cite: 10] My interests lie at the intersection of machine learning theory and its practical applications in high-stakes domains.
+                        I hold a Bachelor's degree in Computer Science and Technology from Guangzhou University of Chinese Medicine. My interests lie at the intersection of machine learning theory and its practical applications in high-stakes domains.
                     </p>
                 </div>
                 <div class="education-box">
                     <h3>Education</h3>
                     <div class="education-item">
-                        [cite_start]<h4>Master of Artificial Intelligence [cite: 5]</h4>
-                        [cite_start]<p>Xiamen University [cite: 4] | [cite_start]Sep. 2022 - Present [cite: 7]</p>
+                        <h4>Master of Artificial Intelligence</h4>
+                        <p>Xiamen University </p>
+                        <p>Sep. 2022 - Jun. 2025</p>
                     </div>
                     <div class="education-item">
-                        [cite_start]<h4>Bachelor of Computer Science [cite: 10]</h4>
-                        [cite_start]<p>Guangzhou University of Chinese Medicine [cite: 9] | [cite_start]Sep. 2018 - Jun. 2022 [cite: 12]</p>
+                        <h4>Bachelor of Computer Science</h4>
+                        <p>Guangzhou University of Chinese Medicine </p>
+                        <p> Sep. 2018 - Jun. 2022</p>
                     </div>
                 </div>
             </div>
@@ -222,71 +244,115 @@
 
         <section id="research">
             <h2>Research Experience</h2>
-            <div class="research-item">
-                [cite_start]<h3>Security and Robustness of AI Algorithms [cite: 46]</h3>
-                <p>
-                    [cite_start]This research reveals how attackers can subtly and efficiently alter AI outputs, like image captioning and object detection, without internal model access. [cite: 48, 49] [cite_start]Associated publications include [1, 3, 8]. [cite: 50]
-                </p>
-            </div>
-            <div class="research-item">
-                [cite_start]<h3>Interpretability and Fairness of AI Algorithms [cite: 51]</h3>
-                <p>
-                    [cite_start]This research underscores the need for fairness in ML algorithms, examining how subgraph patterns cause bias in Graph Neural Networks (GNNs) and suggesting mitigation strategies for ML practitioners. [cite: 53] [cite_start]Associated publications include [2, 4]. [cite: 54]
-                </p>
-            </div>
-            <div class="research-item">
-                [cite_start]<h3>AI Algorithms for Clinical Tumor Characterization [cite: 56]</h3>
-                <p>
-                    [cite_start]This research exposes the shortcomings of conventional mathematical models in DWI and DCE-MRI for tumor analysis, proposing an AI model with spatiotemporal attention for direct prediction. [cite: 58] [cite_start]Associated publications include [5, 6, 7]. [cite: 59]
-                </p>
+            <div class="item-list">
+                <div class="item">
+                    <h3>Security and Robustness of AI Algorithms</h3>
+                    <p class="meta">Supervisor: Professor Min Jiang | Feb. 2023 - present</p>
+                    <p>This research reveals how attackers can subtly and efficiently alter AI outputs, like image captioning and object detection, without internal model access.</p>
+                </div>
+                <div class="item">
+                    <h3>Interpretability and Fairness of AI Algorithms</h3>
+                    <p class="meta">Supervisor: Professor Min Jiang | Sep. 2022 - Feb. 2024</p>
+                    <p>This research underscores the need for fairness in ML algorithms, examining how subgraph patterns cause bias in GNNs and suggesting mitigation strategies.</p>
+                </div>
+                <div class="item">
+                    <h3>AI Algorithms for Clinical Tumor Characterization</h3>
+                    <p class="meta">Supervisor: Professor Wu Zhou | Sep. 2020 - Jun. 2022</p>
+                    <p>This research exposes the shortcomings of conventional mathematical models in DWI and DCE-MRI for tumor analysis, proposing an AI model with spatiotemporal attention for direct prediction. </p>
+                </div>
             </div>
         </section>
-
+        
         <section id="publications">
             <h2>Publications</h2>
-            <p>(* denotes corresponding author, co-first authors are equally contributed.)</p>
+            <p><strong>Publication Summary:</strong> <span style="color: #d93025;">7</span> first-author papers and <span style="color: #d93025;">5</span> second-author papers.</p>
+             <p>(* denotes corresponding author, co-first authors are equally contributed.)</p>
             <ul class="publication-list">
                 <li>
-                    <p class="authors">Gong, Y., Zeng, Q., Xu, D., Wang, Z., Jiang, M.*</p>
-                    <p>Adversarial Attacks Boosted by Gradient-Evolutionary Multiform Optimization. (2025) <span class="ccf-tag">Under Review</span></p>
-                    [cite_start]<p class="venue">In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR). [cite: 41, 42]</p>
-                </li>
-                 <li>
-                    <p class="authors">Zeng, Q., Wang, Z., Cheung Y, Jiang, M.*</p>
-                    <p>Ask, Attend, Attack: An Effective Decision-Based Black-Box Targeted Attack for Image-to-Text Models. (2024) <span class="ccf-tag">CCF-A</span></p>
-                    [cite_start]<p class="venue">In Proceedings of the Neural Information Processing Systems (NeurIPS). [cite: 24, 25]</p>
+                    <p class="authors"><b>Zeng, Q.</b>, Wang, Z., Cheung Y., Jiang, M.*</p>
+                    <p>Ask, Attend, Attack: An Effective Decision-Based Black-Box Targeted Attack for Image-to-Text Models. (2024) </p>
+                    <p class="venue">In Proceedings of the Neural Information Processing Systems (NeurIPS). <span class="ccf-tag">CCF-A</span></p>
                 </li>
                 <li>
-                    <p class="authors">Wang, Z., Zeng, Q., Lin, W.*, Jiang, M., Tan, K. C.</p>
-                    <p>Multi-View Subgraph Neural Networks: Self-Supervised Learning with Scarce Labeled Data. (2024) <span class="ccf-tag">JCR-Q1</span></p>
-                    [cite_start]<p class="venue">IEEE Transactions on Neural Networks and Learning Systems (TNNLS). [cite: 26, 27, 28]</p>
+                    <p class="authors">Wang, Z., <b>Zeng, Q.</b>, Lin, W.*, Jiang, M., Tan, K. C.</p>
+                    <p>Multi-View Subgraph Neural Networks: Self-Supervised Learning with Scarce Labeled Data. (2024) </p>
+                    <p class="venue">IEEE Transactions on Neural Networks and Learning Systems (TNNLS). <span class="ccf-tag">JCR-Q1</span></p>
                 </li>
                 <li>
-                    <p class="authors">Zeng, Q., Gong Y., Jiang M.*</p>
-                    <p>Cross-Task Attack: A Self-Supervision Generative Framework Based on Attention Shift. (2024) <span class="ccf-tag">CCF-C</span></p>
-                    [cite_start]<p class="venue">In Proceedings of the International Joint Conference on Neural Networks (IJCNN). [cite: 29, 30]</p>
+                    <p class="authors"><b>Zeng, Q.</b>, Gong Y., Jiang M.*</p>
+                    <p>Cross-Task Attack: A Self-Supervision Generative Framework Based on Attention Shift. (2024) </p>
+                    <p class="venue">In Proceedings of the International Joint Conference on Neural Networks (IJCNN). <span class="ccf-tag">CCF-C</span></p>
                 </li>
                 <li>
-                    <p class="authors">Wang, Z., Zeng, Q., Lin, W.*, Jiang, M., & Tan, K. C.</p>
-                    <p>Generating diagnostic and actionable explanations for fair graph neural networks. (2024) <span class="ccf-tag">CCF-A</span></p>
-                    [cite_start]<p class="venue">In Proceedings of the AAAI Conference on Artificial Intelligence (AAAI). [cite: 31, 32, 33]</p>
+                    <p class="authors">Wang, Z., <b>Zeng, Q.</b>, Lin, W.*, Jiang, M., & Tan, K. C.</p>
+                    <p>Generating diagnostic and actionable explanations for fair graph neural networks. (2024) </p>
+                    <p class="venue">In Proceedings of the AAAI Conference on Artificial Intelligence (AAAI). <span class="ccf-tag">CCF-A</span></p>
                 </li>
                 <li>
-                    <p class="authors">Liu, B., Zeng, Q. (co-first author), Huang, J., et al.</p>
-                    <p>IVIM using convolutional neural networks predicts microvascular invasion in HCC. (2022) <span class="ccf-tag">JCR-Q1</span></p>
-                    [cite_start]<p class="venue">European Radiology. [cite: 34, 35]</p>
+                    <p class="authors">Liu, B., <b>Zeng, Q.</b> (co-first author), Huang, J., et al.</p>
+                    <p>IVIM using convolutional neural networks predicts microvascular invasion in HCC. (2022) </p>
+                    <p class="venue">European Radiology. <span class="ccf-tag">JCR-Q1</span></p>
                 </li>
                 <li>
-                    <p class="authors">Zeng, Q., Liu, B., Xu, Y. and Zhou, W.</p>
-                    <p>An attention-based deep learning model for predicting microvascular invasion of hepatocellular carcinoma using an intra-voxel incoherent motion model of diffusion-weighted magnetic resonance imaging. (2021) <span class="ccf-tag">JCR-Q1</span></p>
-                    [cite_start]<p class="venue">Physics in Medicine and Biology. [cite: 36, 37, 38]</p>
+                    <p class="authors"><b>Zeng, Q.</b>, Liu, B., Xu, Y. and Zhou, W.</p>
+                    <p>An attention-based deep learning model for predicting microvascular invasion of hepatocellular carcinoma using an intra-voxel incoherent motion model of diffusion-weighted magnetic resonance imaging. (2021) </p>
+                    <p class="venue">Physics in Medicine and Biology. <span class="ccf-tag">JCR-Q1</span></p>
                 </li>
                 <li>
-                    <p class="authors">Zeng, Q., and Zhou, W.</p>
-                    <p>An attention based deep learning model for direct estimation of pharmacokinetic maps from DCE-MRI images. (2021) <span class="ccf-tag">CCF-B</span></p>
-                    [cite_start]<p class="venue">In 2021 IEEE International Conference on Bioinformatics and Biomedicine (BIBM). [cite: 39, 40]</p>
+                    <p class="authors"><b>Zeng, Q.</b>, and Zhou, W.</p>
+                    <p>An attention based deep learning model for direct estimation of pharmacokinetic maps from DCE-MRI images. (2021) </p>
+                    <p class="venue">In 2021 IEEE International Conference on Bioinformatics and Biomedicine (BIBM). <span class="ccf-tag">CCF-B</span></p>
+                </li>
+                
+                <li>
+                    <p class="authors">Gong, Y., <b>Zeng, Q.</b>, Liu, C., Guan, J.*, Lin, J., Zhang, C., Hou, Y., Huang, Y., Wang, Z., Li, X., Feng, X., Jiang, M.</p>
+                    <p>Inducing Implicit Focus through Structured Irrelevance for Robust Neural PDE Solvers. (2025)  </p>
+                    <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Data Science (MIND). <span class="review-tag">Accepted</span></p>
+                </li>
+                <li>
+                    <p class="authors">Zhang, C., <b>Zeng, Q.</b>, Gong, Y., Wang, Z., Lin, J., Jiang, M.</p>
+                    <p>DualCAM++: Dual-saliency Guided Sample Selection for Plug-and-Play Backdoor Enhancement. (2025) </p>
+                    <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Data Science (MIND). <span class="review-tag">Accepted</span></p>
+                </li>
+                <li>
+                    <p class="authors"><b>Zeng, Q.</b>, Gong, Y., Zhang, C., Jiang, S., Wang, Z., Jiang, M.*</p>
+                    <p>Black-Box Watermark Removal Using Diffusion Models and Self-Attention Mechanisms. (2025) </p>
+                    <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Data Science (MIND). <span class="review-tag">Accepted</span></p>
+                </li>
+                <li>
+                    <p class="authors"><b>Zeng, Q.</b>, Jiang, S., Cheung Y., Wang, Z., Jiang, M.*</p>
+                    <p>Fading the Digital Ink: A Universal Black-Box Attack Framework for 3DGS Watermarking Systems. (2026) </p>
+                    <p class="venue">In Proceedings of the AAAI Conference on Artificial Intelligence (AAAI). <span class="ccf-tag">CCF-A</span><span class="review-tag">Under Review</span></p>
+                </li>
+                <li>
+                    <p class="authors">Gong, Y., <b>Zeng, Q.</b>, Xu, D., Wang, Z., Jiang, M.*</p>
+                    <p>Adversarial Attacks Boosted by Gradient-Evolutionary Multiform Optimization. (2026) </p>
+                    <p class="venue">In Proceedings of the AAAI Conference on Artificial Intelligence (AAAI). <span class="ccf-tag">CCF-A</span><span class="review-tag">Under Review</span></p>
                 </li>
             </ul>
+        </section>
+        
+        <section id="awards">
+            <h2>Honors & Awards</h2>
+            <ul class="awards-list">
+                <li>Second Prize in the National Traditional Chinese Medicine College Programming Contest, 2021</li>
+                <li>Third Prize in the China Collegiate Programming Contest - Guangdong Provincial, 2021</li>
+                <li>Provincial Project in the College Students' Innovative Entrepreneurial Training Plan Program, 2021</li>
+                <li>Second Prize in the Blue Bridge Cup National Software and Information Technology Talents Competition, 2020</li>
+                <li>Provincial Excellence Award in the China Undergraduate Mathematical Contest in Modeling (Guangdong), 2020</li>
+                <li>Second Prize in Comprehensive Scholarship of Guangzhou University of Chinese Medicine, 2020</li>
+            </ul>
+        </section>
+
+        <section id="experience">
+            <h2>Work Experience</h2>
+            <div class="item-list">
+                <div class="item">
+                    <h3>Medical Imaging Algorithm Engineer</h3>
+                    <p class="meta">Bayer AG (Top-500 company) | Guangzhou, China | Jun. 2021 - Mar. 2022</p>
+                    <p>Conducted research on Deep Neural Networks (DNN) to accelerate the computation of pharmacokinetic (PK) parameter maps in Dynamic Contrast-Enhanced Magnetic Resonance Imaging (DCE-MRI), enhancing the efficiency and accuracy of diagnostic tools.</p>
+                </div>
+            </div>
         </section>
 
     </main>
@@ -294,9 +360,7 @@
     <footer id="contact">
         <div class="container">
             <h3>Contact</h3>
-            <p>
-                [cite_start]Email: <a href="mailto:36920221153145@stu.xmu.edu.cn">36920221153145@stu.xmu.edu.cn</a> [cite: 2]
-            </p>
+            <p>Email: <a href="mailto:36920221153145@stu.xmu.edu.cn">36920221153145@stu.xmu.edu.cn</a></p>
             <p>&copy; 2025 Qingyuan Zeng. All rights reserved.</p>
         </div>
     </footer>
