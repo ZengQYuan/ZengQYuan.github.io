@@ -36,31 +36,31 @@
         }
         /* --- Header & Navigation --- */
         .header {
-            background: #ffffff;
+            background: #f0f8ff;
             padding: 20px 0;
             text-align: center;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid #ddd;
             position: sticky;
             top: 0;
             z-index: 1000;
         }
 
-        /* --- ADDED FOR PROFILE PHOTO LAYOUT --- */
+        /* --- Profile & Contact Links --- */
         .profile-header {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 30px; /* Space between photo and text */
-            margin-bottom: 15px; /* Space below name/photo block */
+            gap: 30px;
+            margin-bottom: 15px;
         }
         .profile-photo {
             width: 120px;
             height: 120px;
-            border-radius: 50%; /* Makes the photo circular */
-            object-fit: cover; /* Prevents image distortion */
+            border-radius: 50%;
+            object-fit: cover;
         }
         .profile-text {
-            text-align: left; /* Aligns text to the left */
+            text-align: left;
         }
         .profile-text h1 {
             margin: 0;
@@ -71,12 +71,32 @@
             margin: 5px 0 0 0;
             color: #666;
         }
-        /* --- END OF ADDED STYLES --- */
+        .contact-links {
+            margin-top: 10px;
+            display: flex;
+            /* CHANGED: Align links to the start (left) instead of center */
+            justify-content: flex-start;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .contact-links a {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        .contact-links img {
+            width: 20px;
+            height: 20px;
+        }
+        /* --- End of Profile Styles --- */
         
         .review-tag {
             display: inline-block;
-            background-color: #ffe2e2; /* Light red background */
-            color: #d93025; /* Dark red text */
+            background-color: #ffe2e2;
+            color: #d93025;
             padding: 2px 8px;
             border-radius: 12px;
             font-size: 0.8em;
@@ -91,16 +111,34 @@
             font-size: 1.1em;
             color: #333;
             font-weight: 500;
+            padding: 5px 10px;
+            border-radius: 5px;
+            transition: all 0.3s ease-in-out;
         }
         nav a:hover {
             color: #0056b3;
             text-decoration: none;
         }
-        /* --- Section Styling (MODIFIED) --- */
-        section {
-            padding: 20px 20px; /* Reduced top/bottom padding */
-            margin-bottom: 10px; /* Reduced bottom margin */
+        
+        /* --- Style for Active Navigation Link --- */
+        nav a.active-link {
+            background-color: #004080;
+            color: #ffffff;
         }
+        nav a.active-link:hover {
+            color: #ffffff;
+        }
+
+        /* --- Section Styling --- */
+        section {
+            padding: 20px 20px;
+            margin-bottom: 10px;
+        }
+
+        section[id] {
+            scroll-margin-top: 200px; 
+        }
+        
         /* --- About Section --- */
         .about-grid {
             display: flex;
@@ -131,12 +169,11 @@
         .item-list .item {
             margin-bottom: 25px;
         }
-        /* --- MODIFIED STYLE FOR SUBHEADINGS --- */
         .item-list .item h3 {
-            font-family: 'Georgia', 'Times New Roman', serif; /* Classic serif font for contrast */
-            color: #333333; /* Darker color to differentiate from main h2 */
-            font-weight: 600; /* Refined bold look */
-            font-size: 1.3em; /* Slightly adjusted size */
+            font-family: 'Georgia', 'Times New Roman', serif;
+            color: #333333;
+            font-weight: 600;
+            font-size: 1.3em;
             margin-bottom: 5px;
             border: none;
             padding-bottom: 5px;
@@ -164,11 +201,11 @@
         .publication-list { list-style: none; padding-left: 0; }
         .publication-list li { margin-bottom: 20px; padding-left: 25px; position: relative; }
         .publication-list li::before { content: "•"; position: absolute; left: 0; color: #004080; font-size: 1.4em; line-height: 1.4; }
-        .publication-list .authors { font-weight: normal; } /* Changed from bold to normal */
+        .publication-list .authors { font-weight: normal; }
         .publication-list .venue { font-style: italic; color: #555; }
         .ccf-tag { display: inline-block; background-color: #e2edff; color: #004080; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; margin-left: 5px; }
 
-        /* --- NEW STYLES FOR SERVICE & SKILLS LISTS --- */
+        /* --- Service & Skills Lists --- */
         .detail-list {
             list-style: none;
             padding-left: 0;
@@ -179,32 +216,45 @@
             margin-bottom: 10px;
         }
         .detail-list li::before {
-            content: "■"; /* A solid square for a clean look */
+            content: "■";
             position: absolute;
             left: 0;
-            color: #004080; /* Use the theme color */
+            color: #004080;
             font-size: 0.8em;
-            line-height: 1.8; /* Align with text */
+            line-height: 1.8;
         }
         
         /* --- Footer --- */
-        footer { text-align: center; padding: 30px; background-color: #333; color: #fff; }
-        footer a { color: #fff; }
+        footer { 
+            text-align: center; 
+            padding: 30px; 
+            background-color: #333; 
+            color: #fff; 
+        }
+        footer p {
+            margin: 0;
+        }
+        footer a { 
+            color: #fff; 
+        }
 
         /* --- Responsive Design --- */
         @media (max-width: 768px) {
-            .about-grid {
+            .about-grid, .profile-header {
                 flex-direction: column;
             }
             .profile-header {
-                flex-direction: column; /* Stack photo on top of text on small screens */
                 gap: 15px;
             }
             .profile-text {
-                text-align: center; /* Center text on small screens */
+                text-align: center;
             }
             .profile-text h1 {
                 font-size: 2em;
+            }
+            /* Make contact links centered on mobile for better look */
+            .contact-links {
+                justify-content: center;
             }
             nav a { margin: 0 8px; font-size: 1em; }
         }
@@ -219,17 +269,28 @@
                 <div class="profile-text">
                     <h1>Qingyuan Zeng</h1>
                     <p>Institute of Artificial Intelligence, Xiamen University</p>
+                    
+                    <div class="contact-links">
+                        <a href="mailto:36920221153145@stu.xmu.edu.cn">
+                            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzMzMyIgd2lkdGg9IjI0cHgiIGhlaWdodD0iMjRweCI+PHBhdGggZD0iTTAgMGgyNHYyNEgweiIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik0yMCA0SDRjLTEuMSAwLTIgLjktMiAydjEyYzAgMS4xLjkgMiAyIDJoMTZjMS4xIDAgMi0uOSAyLTJWNmMwLTEuMS0uOS0yLTItMnpNMTggOGwtNCAyLjUtNCAyLjVWMGgxNnYxMnoiLz48L3N2Zz4=" alt="Email">
+                            <span>36920221153145@stu.xmu.edu.cn</span>
+                        </a>
+                        <a href="https://scholar.google.com/citations?user=kf0TSbAAAAAJ&hl=zh-CN" target="_blank" rel="noopener noreferrer">
+                            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzMzMyIgd2lkdGg9IjI0cHgiIGhlaWdodD0iMjRweCI+PHBhdGggZD0iTTAgMGgyNHYyNEgweiIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik01IDEzLjE4VjE5aDE0di01LjgybC03LTQuNDctNyA0LjQ3ek0xMiAxbC0xMSAxLjY0djkuNzNsMTEgNi42MyAxMS02LjYzVjIuNjRMMTIgMXoiLz48L3N2Zz4=" alt="Google Scholar">
+                            <span>Google Scholar</span>
+                        </a>
+                    </div>
                 </div>
             </div>
+            
             <nav>
                 <a href="#about">About Me</a>
                 <a href="#research">Research</a>
                 <a href="#publications">Publications</a>
+                <a href="#service">Service</a>
                 <a href="#awards">Awards</a>
                 <a href="#experience">Experience</a>
-                <a href="#service">Service</a>
                 <a href="#skills">Skills</a>
-                <a href="#contact">Contact</a>
             </nav>
         </div>
     </header>
@@ -251,13 +312,13 @@
                     <h3>Education</h3>
                     <div class="education-item">
                         <h4>Master of Artificial Intelligence</h4>
-                        <p>Xiamen University </p>
+                        <p>Xiamen University</p>
                         <p>Sep. 2022 - Jun. 2025</p>
                     </div>
                     <div class="education-item">
                         <h4>Bachelor of Computer Science</h4>
-                        <p>Guangzhou University of Chinese Medicine </p>
-                        <p> Sep. 2018 - Jun. 2022</p>
+                        <p>Guangzhou University of Chinese Medicine</p>
+                        <p>Sep. 2018 - Jun. 2022</p>
                     </div>
                 </div>
             </div>
@@ -279,7 +340,7 @@
                 <div class="item">
                     <h3>AI Algorithms for Clinical Tumor Characterization</h3>
                     <p class="meta">Supervisor: Professor Wu Zhou | Sep. 2020 - Jun. 2022</p>
-                    <p>This research exposes the shortcomings of conventional mathematical models in DWI and DCE-MRI for tumor analysis, proposing an AI model with spatiotemporal attention for direct prediction. </p>
+                    <p>This research exposes the shortcomings of conventional mathematical models in DWI and DCE-MRI for tumor analysis, proposing an AI model with spatiotemporal attention for direct prediction.</p>
                 </div>
             </div>
         </section>
@@ -291,69 +352,69 @@
             <ul class="publication-list">
                 <li>
                     <p class="authors"><b>Zeng, Q.</b>, Wang, Z., Cheung Y., Jiang, M.*</p>
-                    <p>Ask, Attend, Attack: An Effective Decision-Based Black-Box Targeted Attack for Image-to-Text Models. (2024) </p>
+                    <p>Ask, Attend, Attack: An Effective Decision-Based Black-Box Targeted Attack for Image-to-Text Models. (2024)</p>
                     <p class="venue">In Proceedings of the Neural Information Processing Systems (NeurIPS). <span class="ccf-tag">CCF-A</span></p>
                 </li>
                 <li>
                     <p class="authors">Wang, Z., <b>Zeng, Q.</b>, Lin, W.*, Jiang, M., Tan, K. C.</p>
-                    <p>Multi-View Subgraph Neural Networks: Self-Supervised Learning with Scarce Labeled Data. (2024) </p>
+                    <p>Multi-View Subgraph Neural Networks: Self-Supervised Learning with Scarce Labeled Data. (2024)</p>
                     <p class="venue">IEEE Transactions on Neural Networks and Learning Systems (TNNLS). <span class="ccf-tag">JCR-Q1</span></p>
                 </li>
                 <li>
                     <p class="authors"><b>Zeng, Q.</b>, Gong Y., Jiang M.*</p>
-                    <p>Cross-Task Attack: A Self-Supervision Generative Framework Based on Attention Shift. (2024) </p>
+                    <p>Cross-Task Attack: A Self-Supervision Generative Framework Based on Attention Shift. (2024)</p>
                     <p class="venue">In Proceedings of the International Joint Conference on Neural Networks (IJCNN). <span class="ccf-tag">CCF-C</span></p>
                 </li>
                 <li>
                     <p class="authors">Wang, Z., <b>Zeng, Q.</b>, Lin, W.*, Jiang, M., & Tan, K. C.</p>
-                    <p>Generating diagnostic and actionable explanations for fair graph neural networks. (2024) </p>
+                    <p>Generating diagnostic and actionable explanations for fair graph neural networks. (2024)</p>
                     <p class="venue">In Proceedings of the AAAI Conference on Artificial Intelligence (AAAI). <span class="ccf-tag">CCF-A</span></p>
                 </li>
                 <li>
                     <p class="authors">Liu, B., <b>Zeng, Q.</b> (co-first author), Huang, J., et al.</p>
-                    <p>IVIM using convolutional neural networks predicts microvascular invasion in HCC. (2022) </p>
+                    <p>IVIM using convolutional neural networks predicts microvascular invasion in HCC. (2022)</p>
                     <p class="venue">European Radiology. <span class="ccf-tag">JCR-Q1</span></p>
                 </li>
                 <li>
                     <p class="authors"><b>Zeng, Q.</b>, Liu, B., Xu, Y. and Zhou, W.</p>
-                    <p>An attention-based deep learning model for predicting microvascular invasion of hepatocellular carcinoma using an intra-voxel incoherent motion model of diffusion-weighted magnetic resonance imaging. (2021) </p>
+                    <p>An attention-based deep learning model for predicting microvascular invasion of hepatocellular carcinoma using an intra-voxel incoherent motion model of diffusion-weighted magnetic resonance imaging. (2021)</p>
                     <p class="venue">Physics in Medicine and Biology. <span class="ccf-tag">JCR-Q1</span></p>
                 </li>
                 <li>
                     <p class="authors"><b>Zeng, Q.</b>, and Zhou, W.</p>
-                    <p>An attention based deep learning model for direct estimation of pharmacokinetic maps from DCE-MRI images. (2021) </p>
+                    <p>An attention based deep learning model for direct estimation of pharmacokinetic maps from DCE-MRI images. (2021)</p>
                     <p class="venue">In 2021 IEEE International Conference on Bioinformatics and Biomedicine (BIBM). <span class="ccf-tag">CCF-B</span></p>
                 </li>
                 
                 <li>
                     <p class="authors">Gong, Y., <b>Zeng, Q.</b>, Liu, C., Guan, J.*, Lin, J., Zhang, C., Hou, Y., Huang, Y., Wang, Z., Li, X., Feng, X., Jiang, M.</p>
-                    <p>Inducing Implicit Focus through Structured Irrelevance for Robust Neural PDE Solvers. (2025)  </p>
+                    <p>Inducing Implicit Focus through Structured Irrelevance for Robust Neural PDE Solvers. (2025)</p>
                     <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Data Science (MIND). <span class="review-tag">Accepted</span></p>
                 </li>
                 <li>
                     <p class="authors">Zhang, C., <b>Zeng, Q.</b>, Gong, Y., Wang, Z., Lin, J., Jiang, M.</p>
-                    <p>DualCAM++: Dual-saliency Guided Sample Selection for Plug-and-Play Backdoor Enhancement. (2025) </p>
+                    <p>DualCAM++: Dual-saliency Guided Sample Selection for Plug-and-Play Backdoor Enhancement. (2025)</p>
                     <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Data Science (MIND). <span class="review-tag">Accepted</span></p>
                 </li>
                 <li>
                     <p class="authors"><b>Zeng, Q.</b>, Gong, Y., Zhang, C., Jiang, S., Wang, Z., Jiang, M.*</p>
-                    <p>Black-Box Watermark Removal Using Diffusion Models and Self-Attention Mechanisms. (2025) </p>
+                    <p>Black-Box Watermark Removal Using Diffusion Models and Self-Attention Mechanisms. (2025)</p>
                     <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Data Science (MIND). <span class="review-tag">Accepted</span></p>
                 </li>
                 <li>
                     <p class="authors"><b>Zeng, Q.</b>, Jiang, S., Cheung Y., Wang, Z., Jiang, M.*</p>
-                    <p>Fading the Digital Ink: A Universal Black-Box Attack Framework for 3DGS Watermarking Systems. (2026) </p>
+                    <p>Fading the Digital Ink: A Universal Black-Box Attack Framework for 3DGS Watermarking Systems. (2026)</p>
                     <p class="venue">In Proceedings of the AAAI Conference on Artificial Intelligence (AAAI). <span class="ccf-tag">CCF-A</span><span class="review-tag">Under Review</span></p>
                 </li>
                 <li>
                     <p class="authors">Gong, Y., <b>Zeng, Q.</b>, Xu, D., Wang, Z., Jiang, M.*</p>
-                    <p>Adversarial Attacks Boosted by Gradient-Evolutionary Multiform Optimization. (2026) </p>
+                    <p>Adversarial Attacks Boosted by Gradient-Evolutionary Multiform Optimization. (2026)</p>
                     <p class="venue">In Proceedings of the AAAI Conference on Artificial Intelligence (AAAI). <span class="ccf-tag">CCF-A</span><span class="review-tag">Under Review</span></p>
                 </li>
             </ul>
         </section>
         
-          <section id="service">
+        <section id="service">
             <h2>Academic Service</h2>
             <ul class="detail-list">
                 <li>Reviewer for IEEE Transactions on Neural Networks and Learning Systems (TNNLS)</li>
@@ -385,8 +446,6 @@
             </div>
         </section>
 
-
-
         <section id="skills">
             <h2>Skills</h2>
             <ul class="detail-list">
@@ -397,13 +456,38 @@
 
     </main>
 
-    <footer id="contact">
+    <footer>
         <div class="container">
-            <h3>Contact</h3>
-            <p>Email: <a href="mailto:36920221153145@stu.xmu.edu.cn">36920221153145@stu.xmu.edu.cn</a></p>
             <p>&copy; 2025 Qingyuan Zeng. All rights reserved.</p>
         </div>
     </footer>
 
+<script>
+    // The JavaScript remains the same and does not need any changes.
+    document.addEventListener('DOMContentLoaded', () => {
+        const navLinks = document.querySelectorAll('nav a');
+        const sections = document.querySelectorAll('main section');
+        const header = document.querySelector('.header');
+        const headerHeight = header ? header.offsetHeight : 0;
+        
+        const changeLinkState = () => {
+            let currentSectionId = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop - headerHeight - 50; 
+                if (window.scrollY >= sectionTop) {
+                    currentSectionId = section.getAttribute('id');
+                }
+            });
+            navLinks.forEach(link => {
+                link.classList.remove('active-link');
+                if (link.getAttribute('href') === `#${currentSectionId}`) {
+                    link.classList.add('active-link');
+                }
+            });
+        };
+        changeLinkState();
+        window.addEventListener('scroll', changeLinkState);
+    });
+</script>
 </body>
 </html>
