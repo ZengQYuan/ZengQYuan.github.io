@@ -167,6 +167,25 @@
         .publication-list .authors { font-weight: normal; } /* Changed from bold to normal */
         .publication-list .venue { font-style: italic; color: #555; }
         .ccf-tag { display: inline-block; background-color: #e2edff; color: #004080; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; margin-left: 5px; }
+
+        /* --- NEW STYLES FOR SERVICE & SKILLS LISTS --- */
+        .detail-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        .detail-list li {
+            padding-left: 25px;
+            position: relative;
+            margin-bottom: 10px;
+        }
+        .detail-list li::before {
+            content: "■"; /* A solid square for a clean look */
+            position: absolute;
+            left: 0;
+            color: #004080; /* Use the theme color */
+            font-size: 0.8em;
+            line-height: 1.8; /* Align with text */
+        }
         
         /* --- Footer --- */
         footer { text-align: center; padding: 30px; background-color: #333; color: #fff; }
@@ -208,6 +227,8 @@
                 <a href="#publications">Publications</a>
                 <a href="#awards">Awards</a>
                 <a href="#experience">Experience</a>
+                <a href="#service">Service</a>
+                <a href="#skills">Skills</a>
                 <a href="#contact">Contact</a>
             </nav>
         </div>
@@ -332,6 +353,15 @@
             </ul>
         </section>
         
+          <section id="service">
+            <h2>Academic Service</h2>
+            <ul class="detail-list">
+                <li>Reviewer for IEEE Transactions on Neural Networks and Learning Systems (TNNLS)</li>
+                <li>Reviewer for IEEE Computational Intelligence Magazine (CIM)</li>
+                <li>Reviewer for IEEE Transactions on Evolutionary Computation (TEVC)</li>
+            </ul>
+        </section>
+        
         <section id="awards">
             <h2>Honors & Awards</h2>
             <ul class="awards-list">
@@ -353,6 +383,16 @@
                     <p>Conducted research on Deep Neural Networks (DNN) to accelerate the computation of pharmacokinetic (PK) parameter maps in Dynamic Contrast-Enhanced Magnetic Resonance Imaging (DCE-MRI), enhancing the efficiency and accuracy of diagnostic tools.</p>
                 </div>
             </div>
+        </section>
+
+
+
+        <section id="skills">
+            <h2>Skills</h2>
+            <ul class="detail-list">
+                <li><strong>English Level:</strong> IELTS score (Overall = 6.5, Listening = 7, Reading = 8, Writing = 6, Speaking = 5.5)</li>
+                <li><strong>Programming Skill:</strong> Python, C++, Unity, Pytorch, Tensorflow</li>
+            </ul>
         </section>
 
     </main>
