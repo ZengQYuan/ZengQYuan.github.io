@@ -79,17 +79,54 @@
             gap: 20px;
             flex-wrap: wrap;
         }
-        .contact-links a {
+        .contact-links a, .wechat-trigger {
             display: flex;
             align-items: center;
             gap: 8px;
             color: #333;
             font-weight: 500;
+            cursor: pointer;
+            position: relative; /* 为二维码定位提供参考 */
         }
         .contact-links img {
             width: 20px;
             height: 20px;
         }
+
+        /* --- WeChat Hover Styles --- */
+        .wechat-qr-container {
+            display: none; /* 默认隐藏 */
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            border: 1px solid #eee;
+            z-index: 1100;
+        }
+        .wechat-qr-container img {
+            width: 150px; /* 控制二维码显示的宽度 */
+            height: 150px;
+            display: block;
+        }
+        .wechat-qr-container::after {
+            /* 二维码上方的小箭头 */
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 0 10px 10px 10px;
+            border-style: solid;
+            border-color: transparent transparent white transparent;
+        }
+        .wechat-trigger:hover .wechat-qr-container {
+            display: block; /* 鼠标悬停时显示 */
+        }
+
         /* --- End of Profile Styles --- */
         
         .review-tag {
@@ -119,7 +156,6 @@
             text-decoration: none;
         }
         
-        /* --- Style for Active Navigation Link --- */
         nav a.active-link {
             background-color: #004080;
             color: #ffffff;
@@ -128,7 +164,6 @@
             color: #ffffff;
         }
 
-        /* --- Section Styling --- */
         section {
             padding: 20px 20px;
             margin-bottom: 10px;
@@ -138,7 +173,6 @@
             scroll-margin-top: 200px; 
         }
         
-        /* --- About Section --- */
         .about-grid {
             display: flex;
             align-items: flex-start;
@@ -164,7 +198,6 @@
         .education-item h4 { margin: 0 0 5px 0; font-size: 1.1em; }
         .education-item p { margin: 0; color: #555; font-size: 0.95em; }
         
-        /* --- Research & Experience Section --- */
         .item-list .item {
             margin-bottom: 25px;
         }
@@ -186,7 +219,6 @@
             font-style: italic;
         }
 
-        /* --- Awards Section --- */
         .awards-list {
             list-style-type: '🏆';
             padding-left: 30px;
@@ -196,7 +228,6 @@
             margin-bottom: 10px;
         }
         
-        /* --- Publications Section --- */
         .publication-list { list-style: none; padding-left: 0; }
         .publication-list li { margin-bottom: 20px; padding-left: 25px; position: relative; }
         .publication-list li::before { content: "•"; position: absolute; left: 0; color: #004080; font-size: 1.4em; line-height: 1.4; }
@@ -204,7 +235,6 @@
         .publication-list .venue { font-style: italic; color: #555; }
         .ccf-tag { display: inline-block; background-color: #e2edff; color: #004080; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; margin-left: 5px; }
 
-        /* --- Service & Skills Lists --- */
         .detail-list {
             list-style: none;
             padding-left: 0;
@@ -223,7 +253,6 @@
             line-height: 1.8;
         }
         
-        /* --- Footer --- */
         footer { 
             text-align: center; 
             padding: 30px; 
@@ -237,7 +266,6 @@
             color: #fff; 
         }
 
-        /* --- Responsive Design --- */
         @media (max-width: 768px) {
             .about-grid, .profile-header {
                 flex-direction: column;
@@ -255,6 +283,9 @@
                 justify-content: center;
             }
             nav a { margin: 0 8px; font-size: 1em; }
+            .wechat-qr-container {
+                left: 50%; /* 移动端保持居中 */
+            }
         }
     </style>
 </head>
@@ -266,7 +297,7 @@
                 <img src="xjpic.do.jpeg" alt="Qingyuan Zeng" class="profile-photo">
                 <div class="profile-text">
                     <h1>Qingyuan Zeng</h1>
-                    <p>AI Thrust, The Hong Kong University of Science and Technology (Guangzhou)</p>
+                    <p>The Hong Kong University of Science and Technology (Guangzhou)</p>
                     
                     <div class="contact-links">
                         <a href="mailto:qzeng664@connect.hkust-gz.edu.cn">
@@ -277,6 +308,14 @@
                             <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzMzMyIgd2lkdGg9IjI0cHgiIGhlaWdodD0iMjRweCI+PHBhdGggZD0iTTAgMGgyNHYyNEgweiIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik01IDEzLjE4VjE5aDE0di01LjgybC03LTQuNDctNyA0LjQ3ek0xMiAxbC0xMSAxLjY0djkuNzNsMTEgNi42MyAxMS02LjYzVjIuNjRMMTIgMXoiLz48L3N2Zz4=" alt="Google Scholar">
                             <span>Google Scholar</span>
                         </a>
+                        
+                        <div class="wechat-trigger">
+                            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzMzMyI+PHBhdGggZD0iTTguNSAxNWMtLjgzIDAtMS41LS42Ny0xLjUtMS41cy42Ny0xLjUgMS41LTEuNCAxLjUuNjcgMS41IDEuNS0uNjcgMS41LTEuNSAxLjV6bTcgMGMtLjgzIDAtMS41LS42Ny0xLjUtMS41cy42Ny0xLjUgMS41LTEuNCAxLjUuNjcgMS41IDEuNS0uNjcgMS41LTEuNSAxLjV6TTIyIDkuNWMwLTUuMjUtNC43LTkuNS0xMC41LTkuNVMxIDQuMjUgMSA5LjVjMCAzLjIyIDIuMzUgNi4wNiA1Ljc2IDcuOTUtLjIzLjkxLTEuMDYgMi42My0xLjA2IDIuNjNMMTAgMTcuNWMuNjYuMDYgMS4zMy4xIDIgLjEgNS44IDAgMTAuNS00LjI1IDEwLjUtOS41eiIvPjwvc3ZnPg==" alt="WeChat">
+                            <span>WeChat</span>
+                            <div class="wechat-qr-container">
+                                <img src="IMG_5474.JPG" alt="WeChat QR Code">
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
