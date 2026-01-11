@@ -74,7 +74,6 @@
         .contact-links {
             margin-top: 10px;
             display: flex;
-            /* CHANGED: Align links to the start (left) instead of center */
             justify-content: flex-start;
             align-items: center;
             gap: 20px;
@@ -120,7 +119,6 @@
             text-decoration: none;
         }
         
-        /* --- Style for Active Navigation Link --- */
         nav a.active-link {
             background-color: #004080;
             color: #ffffff;
@@ -252,7 +250,6 @@
             .profile-text h1 {
                 font-size: 2em;
             }
-            /* Make contact links centered on mobile for better look */
             .contact-links {
                 justify-content: center;
             }
@@ -268,7 +265,7 @@
                 <img src="xjpic.do.jpeg" alt="Qingyuan Zeng" class="profile-photo">
                 <div class="profile-text">
                     <h1>Qingyuan Zeng</h1>
-                    <p>Institute of Artificial Intelligence, Xiamen University</p>
+                    <p>Hong Kong University of Science and Technology (Guangzhou)</p>
                     
                     <div class="contact-links">
                         <a href="mailto:36920221153145@stu.xmu.edu.cn">
@@ -302,14 +299,19 @@
             <div class="about-grid">
                 <div class="about-text">
                     <p>
-                        I am a Master's student in Artificial Intelligence at Xiamen University, advised by Prof. <a href="mailto:minjiang@xmu.edu.cn">Min Jiang</a>. My research is centered on building trustworthy AI algorithms, with a focus on enhancing their security, robustness, interpretability, and fairness. I am also passionate about applying these advanced algorithms to solve real-world clinical challenges in medicine.
+                        I am a PhD student at the Hong Kong University of Science and Technology (Guangzhou), advised by <b>Dr. Jintai Chen</b>. Previously, I obtained my Master's degree in Artificial Intelligence from Xiamen University, advised by <b>Min Jiang</b>.
                     </p>
                     <p>
-                        I hold a Bachelor's degree in Computer Science and Technology from Guangzhou University of Chinese Medicine. My interests lie at the intersection of machine learning theory and its practical applications in high-stakes domains.
+                        My current research focuses on <b>Trustworthy AI</b> and its applications in <b>Healthcare</b>, including ECG analysis, rule mining for clinical trial tabular data, and drug molecule discovery. I am dedicated to enhancing the security, robustness, and interpretability of AI algorithms to solve high-stakes real-world challenges.
                     </p>
                 </div>
                 <div class="education-box">
                     <h3>Education</h3>
+                    <div class="education-item">
+                        <h4>PhD in [Your Major]</h4>
+                        <p>HKUST (Guangzhou)</p>
+                        <p>Jan. 2026 - Present</p>
+                    </div>
                     <div class="education-item">
                         <h4>Master of Artificial Intelligence</h4>
                         <p>Xiamen University</p>
@@ -328,18 +330,23 @@
             <h2>Research Experience</h2>
             <div class="item-list">
                 <div class="item">
+                    <h3>Clinical Intelligence and Rule Mining</h3>
+                    <p class="meta">Supervisor: Dr. Jintai Chen | Nov. 2025 - Present</p>
+                    <p>Developing advanced AI models for ECG signal classification and automated rule discovery from complex clinical trial tabular data.</p>
+                </div>
+                <div class="item">
                     <h3>Security and Robustness of AI Algorithms</h3>
-                    <p class="meta">Supervisor: Professor Min Jiang | Feb. 2023 - present</p>
+                    <p class="meta">Supervisor: Min Jiang | Feb. 2023 - Sep. 2025</p>
                     <p>This research reveals how attackers can subtly and efficiently alter AI outputs, like image captioning and object detection, without internal model access.</p>
                 </div>
                 <div class="item">
                     <h3>Interpretability and Fairness of AI Algorithms</h3>
-                    <p class="meta">Supervisor: Professor Min Jiang | Sep. 2022 - Feb. 2024</p>
+                    <p class="meta">Supervisor: Min Jiang | Sep. 2022 - Feb. 2024</p>
                     <p>This research underscores the need for fairness in ML algorithms, examining how subgraph patterns cause bias in GNNs and suggesting mitigation strategies.</p>
                 </div>
                 <div class="item">
                     <h3>AI Algorithms for Clinical Tumor Characterization</h3>
-                    <p class="meta">Supervisor: Professor Wu Zhou | Sep. 2020 - Jun. 2022</p>
+                    <p class="meta">Supervisor: Wu Zhou | Sep. 2020 - Jun. 2022</p>
                     <p>This research exposes the shortcomings of conventional mathematical models in DWI and DCE-MRI for tumor analysis, proposing an AI model with spatiotemporal attention for direct prediction.</p>
                 </div>
             </div>
@@ -422,9 +429,12 @@
         <section id="service">
             <h2>Academic Service</h2>
             <ul class="detail-list">
+                <li>Program Committee for AAAI Conference on Artificial Intelligence (AAAI)</li>
+                <li>Program Committee for Computer Vision and Pattern Recognition (CVPR)</li>
                 <li>Reviewer for IEEE Transactions on Neural Networks and Learning Systems (TNNLS)</li>
                 <li>Reviewer for IEEE Computational Intelligence Magazine (CIM)</li>
                 <li>Reviewer for IEEE Transactions on Evolutionary Computation (TEVC)</li>
+                <li>Reviewer for IEEE Transactions on Cognitive and Developmental Systems (TCDS)</li>
             </ul>
         </section>
         
@@ -463,13 +473,12 @@
 
     <footer>
         <div class="container">
-            <p>Last updated on July 20, 2025</p>
-            <p>&copy; 2025 Qingyuan Zeng. All rights reserved.</p>
+            <p>Last updated on January 12, 2026</p>
+            <p>&copy; 2026 Qingyuan Zeng. All rights reserved.</p>
         </div>
     </footer>
 
 <script>
-    // The JavaScript remains the same and does not need any changes.
     document.addEventListener('DOMContentLoaded', () => {
         const navLinks = document.querySelectorAll('nav a');
         const sections = document.querySelectorAll('main section');
