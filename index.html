@@ -5,36 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Qingyuan Zeng - Personal Homepage</title>
     <style>
-        /* --- General Styles & Fonts --- */
         body {
-            font-family: 'Segoe UI', Arial, sans-serif;
+            font-family: "Segoe UI", Arial, sans-serif;
             line-height: 1.8;
             margin: 0;
             padding: 0;
             color: #333;
             background-color: #fdfdfd;
         }
+
         .container {
             max-width: 900px;
             margin: 0 auto;
             padding: 20px;
         }
-        h1, h2, h3, h4 {
-            color: #004080; /* A professional blue */
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            color: #004080;
         }
+
         h2 {
             border-bottom: 2px solid #e0e0e0;
             padding-bottom: 10px;
             margin-top: 40px;
         }
+
         a {
             color: #0056b3;
             text-decoration: none;
         }
+
         a:hover {
             text-decoration: underline;
         }
-        /* --- Header & Navigation --- */
+
         .header {
             background: #f0f8ff;
             padding: 20px 0;
@@ -45,7 +52,6 @@
             z-index: 1000;
         }
 
-        /* --- Profile & Contact Links --- */
         .profile-header {
             display: flex;
             align-items: center;
@@ -53,24 +59,29 @@
             gap: 30px;
             margin-bottom: 15px;
         }
+
         .profile-photo {
             width: 120px;
             height: 120px;
             border-radius: 50%;
             object-fit: cover;
         }
+
         .profile-text {
             text-align: left;
         }
+
         .profile-text h1 {
             margin: 0;
             font-size: 2.5em;
             border: none;
         }
+
         .profile-text p {
-            margin: 5px 0 0 0;
+            margin: 5px 0 0;
             color: #666;
         }
+
         .contact-links {
             margin-top: 10px;
             display: flex;
@@ -79,23 +90,25 @@
             gap: 20px;
             flex-wrap: wrap;
         }
-        .contact-links a, .wechat-trigger {
+
+        .contact-links a,
+        .wechat-trigger {
             display: flex;
             align-items: center;
             gap: 8px;
             color: #333;
             font-weight: 500;
             cursor: pointer;
-            position: relative; /* 为二维码定位提供参考 */
+            position: relative;
         }
+
         .contact-links img {
             width: 20px;
             height: 20px;
         }
 
-        /* --- WeChat Hover Styles --- */
         .wechat-qr-container {
-            display: none; /* 默认隐藏 */
+            display: none;
             position: absolute;
             top: 30px;
             left: 50%;
@@ -103,45 +116,62 @@
             background: white;
             padding: 10px;
             border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
             border: 1px solid #eee;
             z-index: 1100;
         }
+
         .wechat-qr-container img {
-            width: 150px; /* 控制二维码显示的宽度 */
+            width: 150px;
             height: 150px;
             display: block;
         }
+
         .wechat-qr-container::after {
-            /* 二维码上方的小箭头 */
-            content: '';
+            content: "";
             position: absolute;
             top: -10px;
             left: 50%;
             transform: translateX(-50%);
-            border-width: 0 10px 10px 10px;
+            border-width: 0 10px 10px;
             border-style: solid;
             border-color: transparent transparent white transparent;
         }
+
         .wechat-trigger:hover .wechat-qr-container {
-            display: block; /* 鼠标悬停时显示 */
+            display: block;
         }
 
-        /* --- End of Profile Styles --- */
-        
-        .review-tag {
+        .review-tag,
+        .oral-tag,
+        .ccf-tag {
             display: inline-block;
-            background-color: #ffe2e2;
-            color: #d93025;
             padding: 2px 8px;
             border-radius: 12px;
             font-size: 0.8em;
             font-weight: bold;
             margin-left: 5px;
         }
+
+        .review-tag {
+            background-color: #ffe2e2;
+            color: #d93025;
+        }
+
+        .oral-tag {
+            background-color: #e6f4ea;
+            color: #137333;
+        }
+
+        .ccf-tag {
+            background-color: #e2edff;
+            color: #004080;
+        }
+
         nav {
             margin-top: 15px;
         }
+
         nav a {
             margin: 0 15px;
             font-size: 1.1em;
@@ -151,36 +181,40 @@
             border-radius: 5px;
             transition: all 0.3s ease-in-out;
         }
+
         nav a:hover {
             color: #0056b3;
             text-decoration: none;
         }
-        
+
         nav a.active-link {
             background-color: #004080;
-            color: #ffffff;
+            color: #fff;
         }
+
         nav a.active-link:hover {
-            color: #ffffff;
+            color: #fff;
         }
 
         section {
-            padding: 20px 20px;
+            padding: 20px;
             margin-bottom: 10px;
         }
 
         section[id] {
-            scroll-margin-top: 200px; 
+            scroll-margin-top: 200px;
         }
-        
+
         .about-grid {
             display: flex;
             align-items: flex-start;
             gap: 30px;
         }
+
         .about-text {
             flex: 3;
         }
+
         .education-box {
             flex: 2;
             background-color: #f8f9fa;
@@ -188,62 +222,110 @@
             border-radius: 8px;
             padding: 20px;
         }
+
         .education-box h3 {
             margin-top: 0;
             border-bottom: none;
             font-size: 1.4em;
             color: #343a40;
         }
-        .education-item { margin-bottom: 15px; }
-        .education-item h4 { margin: 0 0 5px 0; font-size: 1.1em; }
-        .education-item p { margin: 0; color: #555; font-size: 0.95em; }
-        
+
+        .education-item {
+            margin-bottom: 15px;
+        }
+
+        .education-item h4 {
+            margin: 0 0 5px;
+            font-size: 1.1em;
+        }
+
+        .education-item p {
+            margin: 0;
+            color: #555;
+            font-size: 0.95em;
+        }
+
         .item-list .item {
             margin-bottom: 25px;
         }
+
         .item-list .item h3 {
-            font-family: 'Georgia', 'Times New Roman', serif;
-            color: #333333;
+            font-family: Georgia, "Times New Roman", serif;
+            color: #333;
             font-weight: 600;
             font-size: 1.3em;
             margin-bottom: 5px;
             border: none;
             padding-bottom: 5px;
         }
+
         .item-list .item p {
             margin-top: 0;
         }
+
         .item-list .item .meta {
             font-size: 0.9em;
             color: #555;
             font-style: italic;
         }
 
+        .summary-line {
+            background-color: #f8f9fa;
+            border-left: 4px solid #004080;
+            padding: 12px 16px;
+            border-radius: 0 8px 8px 0;
+        }
+
         .awards-list {
-            list-style-type: '🏆';
+            list-style-type: square;
             padding-left: 30px;
         }
+
         .awards-list li {
-            padding-left: 15px;
+            padding-left: 10px;
             margin-bottom: 10px;
         }
-        
-        .publication-list { list-style: none; padding-left: 0; }
-        .publication-list li { margin-bottom: 20px; padding-left: 25px; position: relative; }
-        .publication-list li::before { content: "•"; position: absolute; left: 0; color: #004080; font-size: 1.4em; line-height: 1.4; }
-        .publication-list .authors { font-weight: normal; }
-        .publication-list .venue { font-style: italic; color: #555; }
-        .ccf-tag { display: inline-block; background-color: #e2edff; color: #004080; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; margin-left: 5px; }
+
+        .publication-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .publication-list li {
+            margin-bottom: 20px;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .publication-list li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #004080;
+            font-size: 1.4em;
+            line-height: 1.4;
+        }
+
+        .publication-list .authors {
+            font-weight: normal;
+        }
+
+        .publication-list .venue {
+            font-style: italic;
+            color: #555;
+        }
 
         .detail-list {
             list-style: none;
             padding-left: 0;
         }
+
         .detail-list li {
             padding-left: 25px;
             position: relative;
             margin-bottom: 10px;
         }
+
         .detail-list li::before {
             content: "■";
             position: absolute;
@@ -252,45 +334,52 @@
             font-size: 0.8em;
             line-height: 1.8;
         }
-        
-        footer { 
-            text-align: center; 
-            padding: 30px; 
-            background-color: #333; 
-            color: #fff; 
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            background-color: #333;
+            color: #fff;
         }
+
         footer p {
             margin: 0;
         }
-        footer a { 
-            color: #fff; 
+
+        footer a {
+            color: #fff;
         }
 
         @media (max-width: 768px) {
-            .about-grid, .profile-header {
+            .about-grid,
+            .profile-header {
                 flex-direction: column;
             }
+
             .profile-header {
                 gap: 15px;
             }
+
             .profile-text {
                 text-align: center;
             }
+
             .profile-text h1 {
                 font-size: 2em;
             }
+
             .contact-links {
                 justify-content: center;
             }
-            nav a { margin: 0 8px; font-size: 1em; }
-            .wechat-qr-container {
-                left: 50%; /* 移动端保持居中 */
+
+            nav a {
+                margin: 0 8px;
+                font-size: 1em;
             }
         }
     </style>
 </head>
 <body>
-
     <header class="header">
         <div class="container">
             <div class="profile-header">
@@ -298,17 +387,16 @@
                 <div class="profile-text">
                     <h1>Qingyuan Zeng</h1>
                     <p>The Hong Kong University of Science and Technology (Guangzhou)</p>
-                    
+
                     <div class="contact-links">
                         <a href="mailto:qzeng664@connect.hkust-gz.edu.cn">
                             <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzMzMyIgd2lkdGg9IjI0cHgiIGhlaWdodD0iMjRweCI+PHBhdGggZD0iTTAgMGgyNHYyNEgweiIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik0yMCA0SDRjLTEuMSAwLTIgLjktMiAydjEyYzAgMS4xLjkgMiAyIDJoMTZjMS4xIDAgMi0uOSAyLTJWNmMwLTEuMS0uOS0yLTItMnpNMTggOGwtNCAyLjUtNCAyLjVWMGgxNnYxMnoiLz48L3N2Zz4=" alt="Email">
                             <span>qzeng664@connect.hkust-gz.edu.cn</span>
                         </a>
-                        <a href="https://scholar.google.com/citations?user=kf0TSbAAAAAJ&hl=zh-CN" target="_blank" rel="noopener noreferrer">
+                        <a href="https://scholar.google.com/citations?user=kf0TSbAAAAAJ&amp;hl=zh-CN" target="_blank" rel="noopener noreferrer">
                             <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzMzMyIgd2lkdGg9IjI0cHgiIGhlaWdodD0iMjRweCI+PHBhdGggZD0iTTAgMGgyNHYyNEgweiIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik01IDEzLjE4VjE5aDE0di01LjgybC03LTQuNDctNyA0LjQ3ek0xMiAxbC0xMSAxLjY0djkuNzNsMTEgNi42MyAxMS02LjYzVjIuNjRMMTIgMXoiLz48L3N2Zz4=" alt="Google Scholar">
                             <span>Google Scholar</span>
                         </a>
-                        
                         <div class="wechat-trigger">
                             <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzMzMyI+PHBhdGggZD0iTTguNSAxNWMtLjgzIDAtMS41LS42Ny0xLjUtMS41cy42Ny0xLjUgMS41LTEuNCAxLjUuNjcgMS41IDEuNS0uNjcgMS41LTEuNSAxLjV6bTcgMGMtLjgzIDAtMS41LS42Ny0xLjUtMS41cy42Ny0xLjUgMS41LTEuNCAxLjUuNjcgMS41IDEuNS0uNjcgMS41LTEuNSAxLjV6TTIyIDkuNWMwLTUuMjUtNC43LTkuNS0xMC41LTkuNVMxIDQuMjUgMSA5LjVjMCAzLjIyIDIuMzUgNi4wNiA1Ljc2IDcuOTUtLjIzLjkxLTEuMDYgMi42My0xLjA2IDIuNjNMMTAgMTcuNWMuNjYuMDYgMS4zMy4xIDIgLjEgNS44IDAgMTAuNS00LjI1IDEwLjUtOS41eiIvPjwvc3ZnPg==" alt="WeChat">
                             <span>WeChat</span>
@@ -319,7 +407,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <nav>
                 <a href="#about">About Me</a>
                 <a href="#research">Research</a>
@@ -333,20 +421,13 @@
     </header>
 
     <main class="container">
-
         <section id="about">
             <h2>About Me</h2>
             <div class="about-grid">
                 <div class="about-text">
-                    <p>
-                        I am a Ph.D. student in the Artificial Intelligence Thrust at the Hong Kong University of Science and Technology (Guangzhou), supervised by Dr. Jintai Chen. My current doctoral research focuses on ECG signal analysis, rule mining for tabular data, and drug discovery.
-                    </p>
-                    <p>
-                        I earned my Master's degree in Artificial Intelligence from Xiamen University, where I was advised by Prof. Min Jiang. During my master's studies, I focused on building trustworthy AI algorithms, specifically enhancing their security, robustness, interpretability, and fairness.
-                    </p>
-                    <p>
-                        I hold a Bachelor's degree in Computer Science and Technology from Guangzhou University of Chinese Medicine, where I was advised by Prof. Wu Zhou. My academic journey has been driven by a passion for bridging machine learning theory with practical applications in high-stakes domains, particularly in clinical medicine.
-                    </p>
+                    <p>I am a Ph.D. student in the Artificial Intelligence Thrust at the Hong Kong University of Science and Technology (Guangzhou), supervised by Dr. Jintai Chen. My current research explores trustworthy and clinically grounded AI, including medical image analysis, treatment subgroup discovery, drug discovery, and rule mining for tabular data.</p>
+                    <p>I earned my Master's degree in Artificial Intelligence from Xiamen University, where I was advised by Prof. Min Jiang. During my master's studies, I worked on trustworthy AI algorithms, with a focus on security, robustness, interpretability, and fairness for multimodal and graph learning systems.</p>
+                    <p>I hold a Bachelor's degree in Computer Science and Technology from Guangzhou University of Chinese Medicine, where I was advised by Prof. Wu Zhou. My academic work is driven by a long-term interest in bridging machine learning methodology with high-stakes applications, especially clinical medicine and biomedical discovery.</p>
                 </div>
                 <div class="education-box">
                     <h3>Education</h3>
@@ -358,12 +439,12 @@
                     <div class="education-item">
                         <h4>Master of Artificial Intelligence</h4>
                         <p>Xiamen University</p>
-                        <p>Sep. 2022 - Jun. 2025</p>
+                        <p>Sep. 2022 - Jun. 2025 | GPA: 89.1/100</p>
                     </div>
                     <div class="education-item">
                         <h4>Bachelor of Computer Science</h4>
                         <p>Guangzhou University of Chinese Medicine</p>
-                        <p>Sep. 2018 - Jun. 2022</p>
+                        <p>Sep. 2018 - Jun. 2022 | GPA: 85.3/100</p>
                     </div>
                 </div>
             </div>
@@ -373,19 +454,19 @@
             <h2>Research Experience</h2>
             <div class="item-list">
                 <div class="item">
-                    <h3>AI for Healthcare and Tabular Data Mining</h3>
+                    <h3>AI for Healthcare and Scientific Discovery</h3>
                     <p class="meta">Supervisor: Dr. Jintai Chen | Nov. 2025 - present</p>
-                    <p>Developing advanced deep learning models for precise ECG classification and automated rule mining from clinical trial tabular data.</p>
+                    <p>Developing clinically grounded AI methods for 3D bone collapse prediction, interpretable treatment subgroup discovery, tabular rule mining, and molecular recovery from single-target diffusion models.</p>
                 </div>
                 <div class="item">
                     <h3>Security and Robustness of AI Algorithms</h3>
-                    <p class="meta">Supervisor: Professor Min Jiang | Feb. 2023 - Sep. 2025</p>
-                    <p>This research reveals how attackers can subtly and efficiently alter AI outputs, like image captioning and object detection, without internal model access.</p>
+                    <p class="meta">Supervisor: Professor Min Jiang | Feb. 2023 - Feb. 2025</p>
+                    <p>This research reveals how attackers can subtly and efficiently alter AI outputs, including image captioning and 3DGS watermarking, without internal model access.</p>
                 </div>
                 <div class="item">
                     <h3>Interpretability and Fairness of AI Algorithms</h3>
                     <p class="meta">Supervisor: Professor Min Jiang | Sep. 2022 - Feb. 2024</p>
-                    <p>This research underscores the need for fairness in ML algorithms, examining how subgraph patterns cause bias in GNNs and suggesting mitigation strategies.</p>
+                    <p>This research examines how subgraph patterns cause bias in graph neural networks and develops diagnostic, actionable explanations for fair graph learning.</p>
                 </div>
                 <div class="item">
                     <h3>AI Algorithms for Clinical Tumor Characterization</h3>
@@ -394,15 +475,15 @@
                 </div>
             </div>
         </section>
-        
+
         <section id="publications">
             <h2>Publications</h2>
-            <p><strong>Publication Summary:</strong> total: <span style="color: #d93025;">14</span> papers including <span style="color: #d93025;">8</span> first-author papers</p>
-             <p>(* denotes corresponding author, co-first authors are equally contributed.)</p>
+            <p class="summary-line"><strong>Publication Summary:</strong> total: <span style="color: #d93025;">16</span> papers, including <span style="color: #d93025;">10</span> first-author, <span style="color: #d93025;">5</span> second-author, and <span style="color: #d93025;">1</span> third-author papers.</p>
+            <p>(* denotes corresponding author, co-first authors contributed equally.)</p>
             <ul class="publication-list">
                 <li>
-                    <p class="authors"><b>Zeng, Q.</b>, Jiang, S., Tan, K. C., Wang, Z., Jiang, M.*</p>
-                    <p>Fading the Digital Ink: A Universal Black-Box Attack Framework for 3DGS Watermarking Systems. (2026)</p>
+                    <p class="authors"><b>Zeng, Q.</b>, Jiang, S., Lin, J., Wang, Z., Tan, K. C., Jiang, M.*</p>
+                    <p>Fading the Digital Ink: A Universal Black-Box Attack Framework for 3DGS Watermarking Systems. (2025)</p>
                     <p class="venue">In Proceedings of the AAAI Conference on Artificial Intelligence (AAAI). <span class="ccf-tag">CCF-A</span></p>
                 </li>
                 <li>
@@ -411,8 +492,13 @@
                     <p class="venue">In Proceedings of the Neural Information Processing Systems (NeurIPS). <span class="ccf-tag">CCF-A</span></p>
                 </li>
                 <li>
+                    <p class="authors"><b>Zeng, Q.</b>, Guan, Zixin, et al.</p>
+                    <p>Text as a Compass: Semantic-Navigated 3D Bone Collapse Prediction via Orthogonal Micro-Volume Primitives. (2026)</p>
+                    <p class="venue">In Proceedings of the Medical Image Computing and Computer Assisted Intervention (MICCAI). <span class="ccf-tag">CCF-B</span></p>
+                </li>
+                <li>
                     <p class="authors">Lin, J., Jiang, S., <b>Zeng, Q.</b>, Wang, Z., Jiang, M.*</p>
-                    <p>VisionLaw: Inferring Interpretable Intrinsic Dynamics from Visual Observations via Bilevel Optimization. (2026)</p>
+                    <p>VisionLaw: Inferring Interpretable Intrinsic Dynamics from Visual Observations via Bilevel Optimization. (2025)</p>
                     <p class="venue">In Proceedings of the International Conference on Learning Representations (ICLR). <span class="ccf-tag">CCF-A</span></p>
                 </li>
                 <li>
@@ -426,7 +512,7 @@
                     <p class="venue">In Proceedings of the International Joint Conference on Neural Networks (IJCNN). <span class="ccf-tag">CCF-C</span></p>
                 </li>
                 <li>
-                    <p class="authors">Wang, Z., <b>Zeng, Q.</b>, Lin, W.*, Jiang, M., & Tan, K. C.</p>
+                    <p class="authors">Wang, Z., <b>Zeng, Q.</b>, Lin, W.*, Jiang, M., &amp; Tan, K. C.</p>
                     <p>Generating diagnostic and actionable explanations for fair graph neural networks. (2024)</p>
                     <p class="venue">In Proceedings of the AAAI Conference on Artificial Intelligence (AAAI). <span class="ccf-tag">CCF-A</span></p>
                 </li>
@@ -445,40 +531,46 @@
                     <p>An attention based deep learning model for direct estimation of pharmacokinetic maps from DCE-MRI images. (2021)</p>
                     <p class="venue">In 2021 IEEE International Conference on Bioinformatics and Biomedicine (BIBM). <span class="ccf-tag">CCF-B</span></p>
                 </li>
-                
                 <li>
-                    <p class="authors">Gong, Y., <b>Zeng, Q.</b>, Liu, C., Guan, J., Lin, J., Zhang, C., Hou, Y., Huang, Y., Wang, Z., Li, X., Feng, X., Jiang, M.*</p>
-                    <p>Inducing Implicit Focus through Structured Irrelevance for Robust Neural PDE Solvers. (2025)</p>
-                    <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Data Science (MIND). <span class="review-tag">Accepted</span></p>
-                </li>
-                <li>
-                    <p class="authors">Zhang, C., <b>Zeng, Q.</b>, Gong, Y., Wang, Z., Lin, J., Jiang, M.*</p>
-                    <p>DualCAM++: Dual-saliency Guided Sample Selection for Plug-and-Play Backdoor Enhancement. (2025)</p>
-                    <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Data Science (MIND). <span class="review-tag">Accepted</span></p>
-                </li>
-                <li>
-                    <p class="authors"><b>Zeng, Q.</b>, Gong, Y., Zhang, C., Jiang, S., Wang, Z., Jiang, M.*</p>
+                    <p class="authors"><b>Zeng, Q.</b>, Gong, Y., Zhang, C., Wang, Z., Jiang, M.*</p>
                     <p>Black-Box Watermark Removal Using Diffusion Models and Self-Attention Mechanisms. (2025)</p>
-                    <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Data Science (MIND). <span class="review-tag">Accepted</span></p>
+                    <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Nature-inspired Computing (MIND). <span class="oral-tag">Oral</span></p>
                 </li>
                 <li>
-                    <p class="authors">Gong, Y., Yang, C., <b>Zeng, Q.</b>, Xu, D., Wang, Z., Jiang, M.*</p>
+                    <p class="authors">Zhang, C., <b>Zeng, Q.</b>, Gong, Y., Wang, Z.*, Lin, J., Jiang, M.</p>
+                    <p>DualCAM++: Dual-saliency Guided Sample Selection for Plug-and-Play Backdoor Enhancement. (2025)</p>
+                    <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Nature-inspired Computing (MIND).</p>
+                </li>
+                <li>
+                    <p class="authors">Gong, Y., <b>Zeng, Q.</b>, et al.</p>
+                    <p>Inducing Implicit Focus through Structured Irrelevance for Robust Neural PDE Solvers. (2025)</p>
+                    <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Nature-inspired Computing (MIND).</p>
+                </li>
+                <li>
+                    <p class="authors">Gong, Y., <b>Zeng, Q.</b>, Xu, D., Wang, Z., Jiang, M.*</p>
                     <p>Adversarial Attacks Boosted by Gradient-Evolutionary Multiform Optimization. (2026)</p>
-                    <p class="venue">In Proceedings of IEEE Conference on Computer Vision and Pattern Recognition(CVPR). <span class="ccf-tag">CCF-A</span><span class="review-tag">Under Review</span></p>
+                    <p class="venue">In Proceedings of the Neural Information Processing Systems (NeurIPS). <span class="ccf-tag">CCF-A</span><span class="review-tag">Under Review</span></p>
                 </li>
                 <li>
-                    <p class="authors"><b>Zeng, Q.</b>, Guan, Z., Zhou W.*, Chen J.*</p>
-                    <p>Text as a Compass: Semantic-Navigated 3D Bone Collapse Prediction via Orthogonal Micro-Volume Primitives. (2026)</p>
-                    <p class="venue">In Proceedings of the Medical Image Computing and Computer Assisted Intervention (MICCAI). <span class="ccf-tag">CCF-B</span><span class="review-tag">Under Review</span></p>
+                    <p class="authors"><b>Zeng, Q.</b>, Cai, P., et al.</p>
+                    <p>Don't Retrain, Just Reuse: Recovering Dual-Target Molecules from Single-Target Diffusion Models. (2026)</p>
+                    <p class="venue">In Proceedings of the Neural Information Processing Systems (NeurIPS). <span class="ccf-tag">CCF-A</span><span class="review-tag">Under Review</span></p>
+                </li>
+                <li>
+                    <p class="authors"><b>Zeng, Q.</b>, Chen, Z., et al.</p>
+                    <p>LLM-Guided Evolutionary Search for Interpretable Treatment Subgroup Discovery. (2026)</p>
+                    <p class="venue">In Proceedings of the Neural Information Processing Systems (NeurIPS). <span class="ccf-tag">CCF-A</span><span class="review-tag">Under Review</span></p>
                 </li>
             </ul>
         </section>
-        
+
         <section id="service">
             <h2>Academic Service</h2>
             <ul class="detail-list">
-                <li>Program Committee for AAAI Conference on Artificial Intelligence (AAAI)</li>
-                <li>Program Committee for Computer Vision and Pattern Recognition (CVPR)</li>
+                <li>Reviewer for AAAI Conference on Artificial Intelligence (AAAI)</li>
+                <li>Reviewer for IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</li>
+                <li>Reviewer for Neural Information Processing Systems (NeurIPS)</li>
+                <li>Reviewer for Medical Image Computing and Computer Assisted Intervention (MICCAI)</li>
                 <li>Reviewer for IEEE Transactions on Circuits and Systems for Video Technology (TCSVT)</li>
                 <li>Reviewer for IEEE Transactions on Neural Networks and Learning Systems (TNNLS)</li>
                 <li>Reviewer for IEEE Computational Intelligence Magazine (CIM)</li>
@@ -486,7 +578,7 @@
                 <li>Reviewer for IEEE Transactions on Cognitive and Developmental Systems (TCDS)</li>
             </ul>
         </section>
-        
+
         <section id="awards">
             <h2>Honors & Awards</h2>
             <ul class="awards-list">
@@ -495,7 +587,7 @@
                 <li>Provincial Project in the College Students' Innovative Entrepreneurial Training Plan Program, 2021</li>
                 <li>Second Prize in the Blue Bridge Cup National Software and Information Technology Talents Competition, 2020</li>
                 <li>Provincial Excellence Award in the China Undergraduate Mathematical Contest in Modeling (Guangdong), 2020</li>
-                <li>Second Prize in Comprehensive Scholarship of Guangzhou University of Chinese Medicine, 2020</li>
+                <li>Second Prize / Third Prize in Scholarship of Guangzhou University of Chinese Medicine, 2019, 2020</li>
             </ul>
         </section>
 
@@ -514,44 +606,46 @@
             <h2>Skills</h2>
             <ul class="detail-list">
                 <li><strong>English Level:</strong> IELTS score (Overall = 6.5, Listening = 7, Reading = 8, Writing = 6, Speaking = 5.5)</li>
-                <li><strong>Programming Skill:</strong> Python, C++, Unity, Pytorch, Tensorflow</li>
+                <li><strong>Programming Skill:</strong> Python, C++, Unity, PyTorch, TensorFlow</li>
             </ul>
         </section>
-
     </main>
 
     <footer>
         <div class="container">
-            <p>Last updated on Jan 12, 2026</p>
+            <p>Last updated on May 20, 2026</p>
+            <p><a href="index-modern.html">Redesigned version</a></p>
             <p>&copy; 2026 Qingyuan Zeng. All rights reserved.</p>
         </div>
     </footer>
 
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const navLinks = document.querySelectorAll('nav a');
-        const sections = document.querySelectorAll('main section');
-        const header = document.querySelector('.header');
-        const headerHeight = header ? header.offsetHeight : 0;
-        
-        const changeLinkState = () => {
-            let currentSectionId = '';
-            sections.forEach(section => {
-                const sectionTop = section.offsetTop - headerHeight - 50; 
-                if (window.scrollY >= sectionTop) {
-                    currentSectionId = section.getAttribute('id');
-                }
-            });
-            navLinks.forEach(link => {
-                link.classList.remove('active-link');
-                if (link.getAttribute('href') === `#${currentSectionId}`) {
-                    link.classList.add('active-link');
-                }
-            });
-        };
-        changeLinkState();
-        window.addEventListener('scroll', changeLinkState);
-    });
-</script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const navLinks = document.querySelectorAll("nav a");
+            const sections = document.querySelectorAll("main section");
+            const header = document.querySelector(".header");
+            const headerHeight = header ? header.offsetHeight : 0;
+
+            const changeLinkState = () => {
+                let currentSectionId = "";
+                sections.forEach((section) => {
+                    const sectionTop = section.offsetTop - headerHeight - 50;
+                    if (window.scrollY >= sectionTop) {
+                        currentSectionId = section.getAttribute("id");
+                    }
+                });
+
+                navLinks.forEach((link) => {
+                    link.classList.remove("active-link");
+                    if (link.getAttribute("href") === `#${currentSectionId}`) {
+                        link.classList.add("active-link");
+                    }
+                });
+            };
+
+            changeLinkState();
+            window.addEventListener("scroll", changeLinkState);
+        });
+    </script>
 </body>
 </html>
