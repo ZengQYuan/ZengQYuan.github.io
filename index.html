@@ -1,651 +1,1365 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qingyuan Zeng - Personal Homepage</title>
-    <style>
-        body {
-            font-family: "Segoe UI", Arial, sans-serif;
-            line-height: 1.8;
-            margin: 0;
-            padding: 0;
-            color: #333;
-            background-color: #fdfdfd;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Qingyuan Zeng - Academic homepage: machine learning, trustworthy AI, and AI for healthcare.">
+  <title>Qingyuan Zeng (曾清源) | Academic Homepage</title>
+  
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    :root {
+      --bg: #ffffff;
+      --paper: #ffffff;
+      --ink: #494e52;
+      --muted: #6f777d;
+      --line: #f2f3f3;
+      --soft-line: #efefef;
+      --blue: #224b8d;
+      --blue-dark: #1a386a;
+      --blue-soft: #e9edf4;
+      --teal: #0f766e;
+      --red: #b84444;
+      --gold: #8a6116;
+      --orange: #f89406;
+      --shadow: 0 1px 1px rgba(0, 0, 0, 0.125);
+      --nav-height: 58px;
+      --max-width: 1280px;
+    }
 
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+    * {
+      box-sizing: border-box;
+    }
 
-        h1,
-        h2,
-        h3,
-        h4 {
-            color: #004080;
-        }
+    html {
+      scroll-behavior: smooth;
+    }
 
-        h2 {
-            border-bottom: 2px solid #e0e0e0;
-            padding-bottom: 10px;
-            margin-top: 40px;
-        }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Trebuchet MS", Helvetica, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
 
-        a {
-            color: #0056b3;
-            text-decoration: none;
-        }
+    ::selection {
+      color: #fff;
+      background: #000;
+    }
 
-        a:hover {
-            text-decoration: underline;
-        }
+    a {
+      color: var(--blue);
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
 
-        .header {
-            background: #f0f8ff;
-            padding: 20px 0;
-            text-align: center;
-            border-bottom: 1px solid #ddd;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-        }
+    a:hover,
+    a:focus {
+      color: var(--blue-dark);
+      text-decoration: underline;
+    }
 
-        .profile-header {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 30px;
-            margin-bottom: 15px;
-        }
+    img {
+      display: block;
+      max-width: 100%;
+    }
 
-        .profile-photo {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            object-fit: cover;
-        }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
 
-        .profile-text {
-            text-align: left;
-        }
+    .topbar-inner {
+      width: min(var(--max-width), calc(100% - 32px));
+      min-height: var(--nav-height);
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 22px;
+    }
 
-        .profile-text h1 {
-            margin: 0;
-            font-size: 2.5em;
-            border: none;
-        }
+    .brand {
+      flex: 0 0 auto;
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
 
-        .profile-text p {
-            margin: 5px 0 0;
-            color: #666;
-        }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 3px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
 
-        .contact-links {
-            margin-top: 10px;
-            display: flex;
-            justify-content: flex-start;
-            align-items: center;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
+    .nav-links::-webkit-scrollbar {
+      display: none;
+    }
 
-        .contact-links a,
-        .wechat-trigger {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: #333;
-            font-weight: 500;
-            cursor: pointer;
-            position: relative;
-        }
+    .nav-links a {
+      position: relative;
+      flex: 0 0 auto;
+      color: #7a8288;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 18px 10px 16px;
+    }
 
-        .contact-links img {
-            width: 20px;
-            height: 20px;
-        }
+    .nav-links a::before {
+      content: "";
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 9px;
+      height: 4px;
+      background: #bdc1c4;
+      transform: scaleX(0);
+      transform-origin: left center;
+      transition: transform 0.2s ease-in-out;
+    }
 
-        .wechat-qr-container {
-            display: none;
-            position: absolute;
-            top: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: white;
-            padding: 10px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
-            border: 1px solid #eee;
-            z-index: 1100;
-        }
+    .nav-links a:hover,
+    .nav-links a:focus {
+      color: #5c6266;
+      text-decoration: none;
+    }
 
-        .wechat-qr-container img {
-            width: 150px;
-            height: 150px;
-            display: block;
-        }
+    .nav-links a:hover::before,
+    .nav-links a:focus::before {
+      transform: scaleX(1);
+    }
 
-        .wechat-qr-container::after {
-            content: "";
-            position: absolute;
-            top: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            border-width: 0 10px 10px;
-            border-style: solid;
-            border-color: transparent transparent white transparent;
-        }
+    .page {
+      width: min(var(--max-width), calc(100% - 32px));
+      margin: 1em auto 3em;
+      display: grid;
+      grid-template-columns: minmax(170px, 15.3%) minmax(0, 1fr);
+      gap: 4.2%;
+      align-items: start;
+    }
 
-        .wechat-trigger:hover .wechat-qr-container {
-            display: block;
-        }
+    .profile {
+      position: sticky;
+      top: 6em;
+      overflow: visible;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
 
-        .review-tag,
-        .oral-tag,
-        .ccf-tag {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.8em;
-            font-weight: bold;
-            margin-left: 5px;
-        }
+    .profile-photo {
+      width: 100%;
+      max-width: 175px;
+      min-width: 75px;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      object-position: center 30%;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      padding: 5px;
+      background: #fff;
+    }
 
-        .review-tag {
-            background-color: #ffe2e2;
-            color: #d93025;
-        }
+    .profile-body {
+      padding: 0;
+      min-width: 0;
+    }
 
-        .oral-tag {
-            background-color: #e6f4ea;
-            color: #137333;
-        }
+    .profile h1 {
+      margin: 10px 0;
+      color: var(--ink);
+      font-size: 1.4em;
+      line-height: 1.18;
+    }
 
-        .ccf-tag {
-            background-color: #e2edff;
-            color: #004080;
-        }
+    .profile .role {
+      margin: 10px 0 20px;
+      color: var(--muted);
+      font-size: 1em;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
 
-        nav {
-            margin-top: 15px;
-        }
+    .profile-meta {
+      margin: 0;
+      padding: 0;
+      border-top: 0;
+      color: var(--muted);
+      font-size: 1em;
+      list-style: none;
+      overflow-wrap: anywhere;
+    }
 
-        nav a {
-            margin: 0 15px;
-            font-size: 1.1em;
-            color: #333;
-            font-weight: 500;
-            padding: 5px 10px;
-            border-radius: 5px;
-            transition: all 0.3s ease-in-out;
-        }
+    .profile-meta li + li {
+      margin-top: 8px;
+    }
 
-        nav a:hover {
-            color: #0056b3;
-            text-decoration: none;
-        }
+    .profile-meta li i {
+      width: 18px;
+      text-align: center;
+      margin-right: 4px;
+      color: var(--blue);
+    }
 
-        nav a.active-link {
-            background-color: #004080;
-            color: #fff;
-        }
+    .profile-links {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 10px;
+    }
 
-        nav a.active-link:hover {
-            color: #fff;
-        }
+    .profile-links a {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: inherit;
+      font-size: 1em;
+      font-weight: 400;
+      line-height: 1.5;
+      padding: 0;
+    }
 
-        section {
-            padding: 20px;
-            margin-bottom: 10px;
-        }
+    .profile-links a i {
+      width: 18px;
+      text-align: center;
+      color: var(--blue);
+    }
 
-        section[id] {
-            scroll-margin-top: 200px;
-        }
+    .profile-links a:hover,
+    .profile-links a:focus {
+      background: transparent;
+      color: var(--blue);
+      text-decoration: underline;
+    }
 
-        .about-grid {
-            display: flex;
-            align-items: flex-start;
-            gap: 30px;
-        }
+    .content {
+      min-width: 0;
+      display: grid;
+      gap: 0;
+    }
 
-        .about-text {
-            flex: 3;
-        }
+    .section {
+      border: 0;
+      border-radius: 0;
+      background: var(--paper);
+      box-shadow: none;
+      padding: 0 0 1em;
+      scroll-margin-top: calc(var(--nav-height) + 20px);
+    }
 
-        .education-box {
-            flex: 2;
-            background-color: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 20px;
-        }
+    .section h2 {
+      margin: 1em 0 0.5em;
+      border-bottom: 1px solid var(--line);
+      color: var(--ink);
+      font-size: 1.4em;
+      line-height: 1.2;
+      padding-bottom: 0.5em;
+    }
 
-        .education-box h3 {
-            margin-top: 0;
-            border-bottom: none;
-            font-size: 1.4em;
-            color: #343a40;
-        }
+    .section p {
+      margin: 0 0 12px;
+      overflow-wrap: anywhere;
+    }
 
-        .education-item {
-            margin-bottom: 15px;
-        }
+    .section p:last-child {
+      margin-bottom: 0;
+    }
 
-        .education-item h4 {
-            margin: 0 0 5px;
-            font-size: 1.1em;
-        }
+    .intro {
+      font-size: 1em;
+    }
 
-        .education-item p {
-            margin: 0;
-            color: #555;
-            font-size: 0.95em;
-        }
+    .highlight {
+      color: var(--ink);
+      font-weight: 700;
+    }
 
-        .item-list .item {
-            margin-bottom: 25px;
-        }
+    .news-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
 
-        .item-list .item h3 {
-            font-family: Georgia, "Times New Roman", serif;
-            color: #333;
-            font-weight: 600;
-            font-size: 1.3em;
-            margin-bottom: 5px;
-            border: none;
-            padding-bottom: 5px;
-        }
+    .news-list li {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr);
+      gap: 12px;
+      padding: 0.35em 0;
+      border-bottom: 0;
+    }
 
-        .item-list .item p {
-            margin-top: 0;
-        }
+    .news-list li:first-child {
+      padding-top: 0;
+    }
 
-        .item-list .item .meta {
-            font-size: 0.9em;
-            color: #555;
-            font-style: italic;
-        }
+    .news-list li:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
 
-        .summary-line {
-            background-color: #f8f9fa;
-            border-left: 4px solid #004080;
-            padding: 12px 16px;
-            border-radius: 0 8px 8px 0;
-        }
+    .date {
+      color: var(--blue-dark);
+      font-size: 1em;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
 
-        .awards-list {
-            list-style-type: square;
-            padding-left: 30px;
-        }
+    .paper-feature {
+      display: grid;
+      grid-template-columns: minmax(210px, 38%) minmax(0, 1fr);
+      gap: 24px;
+      align-items: center;
+      padding: 1.65em 0;
+      border-bottom: 1px solid #efefef;
+    }
 
-        .awards-list li {
-            padding-left: 10px;
-            margin-bottom: 10px;
-        }
+    .paper-feature:first-of-type {
+      padding-top: 1em;
+    }
 
-        .publication-list {
-            list-style: none;
-            padding-left: 0;
-        }
+    .paper-feature:last-of-type {
+      border-bottom: 0;
+    }
 
-        .publication-list li {
-            margin-bottom: 20px;
-            padding-left: 25px;
-            position: relative;
-        }
+    .paper-image {
+      position: relative;
+      overflow: visible;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      aspect-ratio: auto;
+    }
 
-        .publication-list li::before {
-            content: "•";
-            position: absolute;
-            left: 0;
-            color: #004080;
-            font-size: 1.4em;
-            line-height: 1.4;
-        }
+    .paper-image img {
+      width: auto;
+      max-width: 100%;
+      max-height: 220px;
+      height: auto;
+      object-fit: contain;
+      object-position: top center;
+      border: 1px solid #eeeeee;
+      background: #fff;
+      box-shadow: 2px 2px 6px #aaa;
+    }
 
-        .publication-list .authors {
-            font-weight: normal;
-        }
+    .paper-feature > div:last-child {
+      width: auto;
+      min-width: 0;
+      padding-left: 0;
+    }
 
-        .publication-list .venue {
-            font-style: italic;
-            color: #555;
-        }
+    .badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 4px;
+      background: #00369f;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 9px;
+      z-index: 2;
+    }
 
-        .detail-list {
-            list-style: none;
-            padding-left: 0;
-        }
+    .badge.journal {
+      background: #fff2d8;
+      color: var(--gold);
+    }
 
-        .detail-list li {
-            padding-left: 25px;
-            position: relative;
-            margin-bottom: 10px;
-        }
+    .badge.review {
+      background: #fbeaea;
+      color: var(--red);
+    }
 
-        .detail-list li::before {
-            content: "■";
-            position: absolute;
-            left: 0;
-            color: #004080;
-            font-size: 0.8em;
-            line-height: 1.8;
-        }
+    .badge.oral {
+      background: #e5f4ef;
+      color: var(--teal);
+    }
 
-        footer {
-            text-align: center;
-            padding: 30px;
-            background-color: #333;
-            color: #fff;
-        }
+    .paper-title {
+      margin: 8px 0 5px;
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.15em;
+      font-weight: 700;
+      line-height: 1.34;
+    }
 
-        footer p {
-            margin: 0;
-        }
+    .authors,
+    .venue {
+      margin: 0 0 7px;
+      color: var(--muted);
+      font-size: 1em;
+    }
 
-        footer a {
-            color: #fff;
-        }
+    .paper-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 10px 0 0;
+    }
 
-        @media (max-width: 768px) {
-            .about-grid,
-            .profile-header {
-                flex-direction: column;
-            }
+    .paper-actions a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      border: 1px solid #bdc1c4;
+      border-radius: 4px;
+      background: #fff;
+      color: var(--blue);
+      font-size: 0.9em;
+      font-weight: 700;
+      padding: 7px 9px;
+    }
 
-            .profile-header {
-                gap: 15px;
-            }
+    .paper-actions a:hover,
+    .paper-actions a:focus {
+      background: var(--blue-soft);
+      text-decoration: none;
+    }
 
-            .profile-text {
-                text-align: center;
-            }
+    .contrib {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      color: #32465a;
+    }
 
-            .profile-text h1 {
-                font-size: 2em;
-            }
+    .contrib li + li {
+      margin-top: 4px;
+    }
 
-            .contact-links {
-                justify-content: center;
-            }
+    .summary-note {
+      margin: 18px 0 12px;
+      border-left: 4px solid var(--blue);
+      border-radius: 0 4px 4px 0;
+      background: #f8f9f9;
+      color: var(--ink);
+      padding: 11px 14px;
+    }
 
-            nav a {
-                margin: 0 8px;
-                font-size: 1em;
-            }
-        }
-    </style>
+    /* Timeline with center line and alternating logo/text panels */
+    .timeline-center {
+      position: relative;
+      padding: 0.5em 0;
+      margin: 1.5em 0 2em;
+    }
+
+    .timeline-center::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 6px;
+      bottom: 6px;
+      width: 3px;
+      background: linear-gradient(to bottom, #4a90e2, #1e4f97 45%, #b84444);
+      transform: translateX(-50%);
+    }
+
+    .timeline-entry {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
+      gap: 22px;
+      align-items: center;
+      margin-bottom: 2.4em;
+      position: relative;
+    }
+
+    .timeline-entry:last-child {
+      margin-bottom: 0;
+    }
+
+    .timeline-card,
+    .timeline-media {
+      min-width: 0;
+    }
+
+    .timeline-card {
+      position: relative;
+      border: 1px solid #eef0f2;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 2px 9px rgba(0, 0, 0, 0.08);
+      padding: 16px 20px;
+    }
+
+    .timeline-card.left {
+      border-right: 4px solid #4a90e2;
+      text-align: right;
+    }
+
+    .timeline-card.right {
+      border-left: 4px solid #b84444;
+      text-align: left;
+    }
+
+    .timeline-media {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 12px;
+      min-height: 130px;
+    }
+
+    .timeline-media.left {
+      align-items: flex-end;
+      text-align: right;
+    }
+
+    .timeline-media.right {
+      align-items: flex-start;
+      text-align: left;
+    }
+
+    .timeline-logo-container {
+      width: clamp(128px, 15vw, 180px);
+      min-height: 72px;
+      border-radius: 4px;
+      background: #fff;
+      padding: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .timeline-logo-container.logo-wide {
+      width: clamp(170px, 20vw, 230px);
+      min-height: 70px;
+    }
+
+    .timeline-logo-container.logo-square {
+      width: 92px;
+      height: 92px;
+      min-height: 92px;
+    }
+
+    .timeline-logo-container.logo-tall {
+      width: 92px;
+      height: 108px;
+      min-height: 108px;
+    }
+
+    .timeline-logo-container.logo-bayer {
+      width: 96px;
+      height: 96px;
+      min-height: 96px;
+      border-radius: 50%;
+      padding: 7px;
+    }
+
+    .timeline-logo-container.logo-gzucm {
+      background: #173e6f;
+      padding: 8px 12px;
+    }
+
+    .timeline-logo-container img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    .timeline-dot {
+      position: relative;
+      width: 28px;
+      height: 100%;
+      min-height: 120px;
+    }
+
+    .timeline-dot::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--blue);
+      border: 3px solid #fff;
+      box-shadow: 0 0 0 2px var(--line);
+      transform: translate(-50%, -50%);
+    }
+
+    .timeline-date {
+      color: var(--blue-dark);
+      font-size: 1.1em;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .timeline-card h3 {
+      margin: 0 0 4px;
+      color: var(--ink);
+      font-size: 1.1em;
+      font-weight: 700;
+    }
+
+    .timeline-card p {
+      color: var(--muted);
+      margin: 0 0 6px;
+      font-size: 0.95em;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: #f8f9f9;
+      padding: 1em;
+    }
+
+    .panel h3 {
+      margin: 0 0 10px;
+      color: var(--ink);
+      font-size: 1em;
+    }
+
+    .compact-list {
+      display: grid;
+      gap: 8px;
+      color: #32465a;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .compact-list li {
+      position: relative;
+      padding-left: 15px;
+    }
+
+    .compact-list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.72em;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+
+    footer {
+      border-top: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--muted);
+      font-size: 1em;
+      text-align: center;
+      padding: 24px 16px;
+    }
+
+    @media (max-width: 940px) {
+      .page {
+        grid-template-columns: 1fr;
+        gap: 1em;
+      }
+
+      .profile {
+        position: static;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .profile-photo {
+        width: 120px;
+        flex: 0 0 120px;
+      }
+
+      .profile h1 {
+        margin-top: 0;
+      }
+
+      .paper-feature {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .paper-image,
+      .paper-feature > div:last-child {
+        width: 100%;
+        min-width: 0;
+        padding-left: 0;
+      }
+
+      .paper-feature > div:last-child {
+        margin-top: 1em;
+      }
+
+      .timeline-center::before {
+        left: 14px;
+      }
+
+      .timeline-entry {
+        grid-template-columns: 28px minmax(0, 1fr);
+        gap: 14px;
+        align-items: start;
+      }
+
+      .timeline-entry > :first-child {
+        grid-column: 2;
+        grid-row: 1;
+      }
+
+      .timeline-dot {
+        grid-column: 1;
+        grid-row: 1 / span 2;
+        min-height: 100%;
+      }
+
+      .timeline-entry > :last-child {
+        grid-column: 2;
+      }
+
+      .timeline-media,
+      .timeline-media.left,
+      .timeline-media.right {
+        align-items: flex-start;
+        text-align: left;
+        min-height: 0;
+      }
+
+      .timeline-card,
+      .timeline-card.left,
+      .timeline-card.right {
+        text-align: left;
+        border-left: 4px solid var(--blue);
+        border-right: 1px solid #eef0f2;
+      }
+
+      .timeline-logo-container.logo-wide {
+        width: min(100%, 230px);
+      }
+
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      body {
+        font-size: 14px;
+      }
+
+      .page {
+        width: calc(100% - 32px);
+        margin: 16px auto;
+      }
+
+      .profile-photo {
+        width: 75px;
+        min-width: 75px;
+      }
+
+      .news-list li {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+
+      .paper-title {
+        font-size: 16px;
+      }
+    }
+  </style>
 </head>
 <body>
-    <header class="header">
-        <div class="container">
-            <div class="profile-header">
-                <img src="xjpic.do.jpeg" alt="Qingyuan Zeng" class="profile-photo">
-                <div class="profile-text">
-                    <h1>Qingyuan Zeng</h1>
-                    <p>The Hong Kong University of Science and Technology (Guangzhou)</p>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#about">Qingyuan Zeng</a>
+      <nav class="nav-links" aria-label="Primary navigation">
+        <a href="#about">About</a>
+        <a href="#news">News</a>
+        <a href="#publications">Publications</a>
+        <a href="#experience">Experience</a>
+        <a href="#awards">Awards</a>
+        <a href="#service">Service</a>
+      </nav>
+    </div>
+  </header>
 
-                    <div class="contact-links">
-                        <a href="mailto:qzeng664@connect.hkust-gz.edu.cn">
-                            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzMzMyIgd2lkdGg9IjI0cHgiIGhlaWdodD0iMjRweCI+PHBhdGggZD0iTTAgMGgyNHYyNEgweiIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik0yMCA0SDRjLTEuMSAwLTIgLjktMiAydjEyYzAgMS4xLjkgMiAyIDJoMTZjMS4xIDAgMi0uOSAyLTJWNmMwLTEuMS0uOS0yLTItMnpNMTggOGwtNCAyLjUtNCAyLjVWMGgxNnYxMnoiLz48L3N2Zz4=" alt="Email">
-                            <span>qzeng664@connect.hkust-gz.edu.cn</span>
-                        </a>
-                        <a href="https://scholar.google.com/citations?user=kf0TSbAAAAAJ&amp;hl=zh-CN" target="_blank" rel="noopener noreferrer">
-                            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzMzMyIgd2lkdGg9IjI0cHgiIGhlaWdodD0iMjRweCI+PHBhdGggZD0iTTAgMGgyNHYyNEgweiIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik01IDEzLjE4VjE5aDE0di01LjgybC03LTQuNDctNyA0LjQ3ek0xMiAxbC0xMSAxLjY0djkuNzNsMTEgNi42MyAxMS02LjYzVjIuNjRMMTIgMXoiLz48L3N2Zz4=" alt="Google Scholar">
-                            <span>Google Scholar</span>
-                        </a>
-                        <div class="wechat-trigger">
-                            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzMzMyI+PHBhdGggZD0iTTguNSAxNWMtLjgzIDAtMS41LS42Ny0xLjUtMS41cy42Ny0xLjUgMS41LTEuNCAxLjUuNjcgMS41IDEuNS0uNjcgMS41LTEuNSAxLjV6bTcgMGMtLjgzIDAtMS41LS42Ny0xLjUtMS41cy42Ny0xLjUgMS41LTEuNCAxLjUuNjcgMS41IDEuNS0uNjcgMS41LTEuNSAxLjV6TTIyIDkuNWMwLTUuMjUtNC43LTkuNS0xMC41LTkuNVMxIDQuMjUgMSA5LjVjMCAzLjIyIDIuMzUgNi4wNiA1Ljc2IDcuOTUtLjIzLjkxLTEuMDYgMi42My0xLjA2IDIuNjNMMTAgMTcuNWMuNjYuMDYgMS4zMy4xIDIgLjEgNS44IDAgMTAuNS00LjI1IDEwLjUtOS41eiIvPjwvc3ZnPg==" alt="WeChat">
-                            <span>WeChat</span>
-                            <div class="wechat-qr-container">
-                                <img src="IMG_5474.JPG" alt="WeChat QR Code">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <nav>
-                <a href="#about">About Me</a>
-                <a href="#research">Research</a>
-                <a href="#publications">Publications</a>
-                <a href="#service">Service</a>
-                <a href="#awards">Awards</a>
-                <a href="#experience">Experience</a>
-                <a href="#skills">Skills</a>
-            </nav>
+  <main class="page">
+    <aside class="profile" aria-label="Profile">
+      <img class="profile-photo" src="xjpic.do.jpeg" alt="Qingyuan Zeng portrait">
+      <div class="profile-body">
+        <h1>Qingyuan Zeng<br><span style="font-size:0.72em;font-weight:400;color:var(--muted);">曾清源</span></h1>
+        <p class="role">Research Assistant at HKUST(GZ). Incoming Ph.D. student at the National University of Singapore.</p>
+        <ul class="profile-meta">
+          <li><i class="fas fa-map-marker-alt"></i>HKUST(GZ)</li>
+          <li><i class="fas fa-graduation-cap"></i>Incoming Ph.D., NUS, Jan 2027</li>
+          <li><i class="fas fa-university"></i>M.Sc., Xiamen University</li>
+        </ul>
+        <div class="profile-links" aria-label="External links">
+          <a href="mailto:qingyuanzeng@outlook.com"><i class="fas fa-envelope"></i>Email</a>
+          <a href="https://scholar.google.com/citations?user=QvRA7NwAAAAJ&hl=en" target="_blank" rel="noopener"><i class="fas fa-graduation-cap"></i>Google Scholar</a>
+          <a href="assets/papers/CV-QingyuanZeng.pdf" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i>CV</a>
         </div>
-    </header>
+      </div>
+    </aside>
 
-    <main class="container">
-        <section id="about">
-            <h2>About Me</h2>
-            <div class="about-grid">
-                <div class="about-text">
-                    <p>I am a Ph.D. student in the Artificial Intelligence Thrust at the Hong Kong University of Science and Technology (Guangzhou), supervised by Dr. Jintai Chen. My current research explores trustworthy and clinically grounded AI, including medical image analysis, treatment subgroup discovery, drug discovery, and rule mining for tabular data.</p>
-                    <p>I earned my Master's degree in Artificial Intelligence from Xiamen University, where I was advised by Prof. Min Jiang. During my master's studies, I worked on trustworthy AI algorithms, with a focus on security, robustness, interpretability, and fairness for multimodal and graph learning systems.</p>
-                    <p>I hold a Bachelor's degree in Computer Science and Technology from Guangzhou University of Chinese Medicine, where I was advised by Prof. Wu Zhou. My academic work is driven by a long-term interest in bridging machine learning methodology with high-stakes applications, especially clinical medicine and biomedical discovery.</p>
-                </div>
-                <div class="education-box">
-                    <h3>Education</h3>
-                    <div class="education-item">
-                        <h4>Ph.D. in Artificial Intelligence</h4>
-                        <p>The Hong Kong University of Science and Technology (Guangzhou)</p>
-                        <p>Jan. 2026 - Present</p>
-                    </div>
-                    <div class="education-item">
-                        <h4>Master of Artificial Intelligence</h4>
-                        <p>Xiamen University</p>
-                        <p>Sep. 2022 - Jun. 2025 | GPA: 89.1/100</p>
-                    </div>
-                    <div class="education-item">
-                        <h4>Bachelor of Computer Science</h4>
-                        <p>Guangzhou University of Chinese Medicine</p>
-                        <p>Sep. 2018 - Jun. 2022 | GPA: 85.3/100</p>
-                    </div>
-                </div>
-            </div>
-        </section>
+    <div class="content">
+      <section class="section" id="about">
+        <h2>About</h2>
+        <p class="intro">I am currently a Research Assistant at <span class="highlight">The Hong Kong University of Science and Technology (Guangzhou)</span>, working with Dr. Jintai Chen at the ML4H Lab. I will join the <span class="highlight">National University of Singapore</span> as a Research Assistant in September 2026 and begin my Ph.D. study in January 2027.</p>
+        <p class="intro">My research focuses on <span class="highlight">trustworthy artificial intelligence</span>, <span class="highlight">machine learning</span>, and <span class="highlight">AI for healthcare</span>. I am particularly interested in adversarial robustness, fairness, interpretability, multimodal learning, and clinically grounded biomedical discovery.</p>
+        <p class="intro">I received my M.Sc. in Artificial Intelligence from <span class="highlight">Xiamen University</span>, advised by Prof. Min Jiang, and my B.Sc. in Computer Science and Technology from <span class="highlight">Guangzhou University of Chinese Medicine</span>, advised by Prof. Wu Zhou.</p>
+      </section>
 
-        <section id="research">
-            <h2>Research Experience</h2>
-            <div class="item-list">
-                <div class="item">
-                    <h3>AI for Healthcare and Scientific Discovery</h3>
-                    <p class="meta">Supervisor: Dr. Jintai Chen | Nov. 2025 - present</p>
-                    <p>Developing clinically grounded AI methods for 3D bone collapse prediction, interpretable treatment subgroup discovery, tabular rule mining, and molecular recovery from single-target diffusion models.</p>
-                </div>
-                <div class="item">
-                    <h3>Security and Robustness of AI Algorithms</h3>
-                    <p class="meta">Supervisor: Professor Min Jiang | Feb. 2023 - Feb. 2025</p>
-                    <p>This research reveals how attackers can subtly and efficiently alter AI outputs, including image captioning and 3DGS watermarking, without internal model access.</p>
-                </div>
-                <div class="item">
-                    <h3>Interpretability and Fairness of AI Algorithms</h3>
-                    <p class="meta">Supervisor: Professor Min Jiang | Sep. 2022 - Feb. 2024</p>
-                    <p>This research examines how subgraph patterns cause bias in graph neural networks and develops diagnostic, actionable explanations for fair graph learning.</p>
-                </div>
-                <div class="item">
-                    <h3>AI Algorithms for Clinical Tumor Characterization</h3>
-                    <p class="meta">Supervisor: Professor Wu Zhou | Sep. 2020 - Jun. 2022</p>
-                    <p>This research exposes the shortcomings of conventional mathematical models in DWI and DCE-MRI for tumor analysis, proposing an AI model with spatiotemporal attention for direct prediction.</p>
-                </div>
-            </div>
-        </section>
+      <section class="section" id="news">
+        <h2>News</h2>
+        <ul class="news-list">
+          <li><span class="date">2027.01</span><span>🎓 Will begin Ph.D. study at the <strong>National University of Singapore</strong>.</span></li>
+          <li><span class="date">2026.09</span><span>💼 Will join the <strong>National University of Singapore</strong> as a Research Assistant.</span></li>
+          <li><span class="date">2026.07</span><span>📝 Five papers submitted to <strong>NeurIPS 2026</strong>.</span></li>
+          <li><span class="date">2026.06</span><span>📝 Paper accepted to <strong>MICCAI 2026</strong>: <em>Text as a Compass</em>.</span></li>
+          <li><span class="date">2026.01</span><span>💼 Joined <strong>HKUST(GZ) ML4H Lab</strong> as a Research Assistant.</span></li>
+          <li><span class="date">2026.01</span><span>📝 Paper accepted to <strong>ICLR 2026</strong>: <em>VisionLaw</em>.</span></li>
+          <li><span class="date">2025.12</span><span>📝 Paper accepted to <strong>AAAI 2026</strong>: <em>Fading the Digital Ink</em>.</span></li>
+          <li><span class="date">2025.06</span><span>🎓 Graduated from <strong>Xiamen University</strong> with Master's degree in AI.</span></li>
+          <li><span class="date">2025.01</span><span>📝 Three papers accepted to <strong>MIND 2025</strong>.</span></li>
+          <li><span class="date">2024.09</span><span>📝 Paper accepted to <strong>NeurIPS 2024</strong>: <em>Ask, Attend, Attack</em>.</span></li>
+          <li><span class="date">2024.06</span><span>📝 Paper accepted to <strong>IJCNN 2024</strong>: <em>Cross-Task Attack</em>.</span></li>
+        </ul>
+      </section>
 
-        <section id="publications">
-            <h2>Publications</h2>
-            <p class="summary-line"><strong>Publication Summary:</strong> total: <span style="color: #d93025;">16</span> papers, including <span style="color: #d93025;">10</span> first-author, <span style="color: #d93025;">5</span> second-author, and <span style="color: #d93025;">1</span> third-author papers.</p>
-            <p>(* denotes corresponding author, co-first authors contributed equally.)</p>
-            <ul class="publication-list">
-                <li>
-                    <p class="authors"><b>Zeng, Q.</b>, Jiang, S., Lin, J., Wang, Z., Tan, K. C., Jiang, M.*</p>
-                    <p>Fading the Digital Ink: A Universal Black-Box Attack Framework for 3DGS Watermarking Systems. (2025)</p>
-                    <p class="venue">In Proceedings of the AAAI Conference on Artificial Intelligence (AAAI). <span class="ccf-tag">CCF-A</span></p>
-                </li>
-                <li>
-                    <p class="authors"><b>Zeng, Q.</b>, Wang, Z., Cheung Y., Jiang, M.*</p>
-                    <p>Ask, Attend, Attack: An Effective Decision-Based Black-Box Targeted Attack for Image-to-Text Models. (2024)</p>
-                    <p class="venue">In Proceedings of the Neural Information Processing Systems (NeurIPS). <span class="ccf-tag">CCF-A</span></p>
-                </li>
-                <li>
-                    <p class="authors"><b>Zeng, Q.</b>, Guan, Zixin, et al.</p>
-                    <p>Text as a Compass: Semantic-Navigated 3D Bone Collapse Prediction via Orthogonal Micro-Volume Primitives. (2026)</p>
-                    <p class="venue">In Proceedings of the Medical Image Computing and Computer Assisted Intervention (MICCAI). <span class="ccf-tag">CCF-B</span></p>
-                </li>
-                <li>
-                    <p class="authors">Lin, J., Jiang, S., <b>Zeng, Q.</b>, Wang, Z., Jiang, M.*</p>
-                    <p>VisionLaw: Inferring Interpretable Intrinsic Dynamics from Visual Observations via Bilevel Optimization. (2025)</p>
-                    <p class="venue">In Proceedings of the International Conference on Learning Representations (ICLR). <span class="ccf-tag">CCF-A</span></p>
-                </li>
-                <li>
-                    <p class="authors">Wang, Z., <b>Zeng, Q.</b>, Lin, W.*, Jiang, M., Tan, K. C.</p>
-                    <p>Multi-View Subgraph Neural Networks: Self-Supervised Learning with Scarce Labeled Data. (2024)</p>
-                    <p class="venue">IEEE Transactions on Neural Networks and Learning Systems (TNNLS). <span class="ccf-tag">JCR-Q1</span></p>
-                </li>
-                <li>
-                    <p class="authors"><b>Zeng, Q.</b>, Gong Y., Jiang M.*</p>
-                    <p>Cross-Task Attack: A Self-Supervision Generative Framework Based on Attention Shift. (2024)</p>
-                    <p class="venue">In Proceedings of the International Joint Conference on Neural Networks (IJCNN). <span class="ccf-tag">CCF-C</span></p>
-                </li>
-                <li>
-                    <p class="authors">Wang, Z., <b>Zeng, Q.</b>, Lin, W.*, Jiang, M., &amp; Tan, K. C.</p>
-                    <p>Generating diagnostic and actionable explanations for fair graph neural networks. (2024)</p>
-                    <p class="venue">In Proceedings of the AAAI Conference on Artificial Intelligence (AAAI). <span class="ccf-tag">CCF-A</span></p>
-                </li>
-                <li>
-                    <p class="authors">Liu, B., <b>Zeng, Q.</b> (co-first author), Huang, J., et al.</p>
-                    <p>IVIM using convolutional neural networks predicts microvascular invasion in HCC. (2022)</p>
-                    <p class="venue">European Radiology. <span class="ccf-tag">JCR-Q1</span></p>
-                </li>
-                <li>
-                    <p class="authors"><b>Zeng, Q.</b>, Liu, B., Xu, Y. and Zhou, W.*</p>
-                    <p>An attention-based deep learning model for predicting microvascular invasion of hepatocellular carcinoma using an intra-voxel incoherent motion model of diffusion-weighted magnetic resonance imaging. (2021)</p>
-                    <p class="venue">Physics in Medicine and Biology. <span class="ccf-tag">JCR-Q1</span></p>
-                </li>
-                <li>
-                    <p class="authors"><b>Zeng, Q.</b>, and Zhou, W.*</p>
-                    <p>An attention based deep learning model for direct estimation of pharmacokinetic maps from DCE-MRI images. (2021)</p>
-                    <p class="venue">In 2021 IEEE International Conference on Bioinformatics and Biomedicine (BIBM). <span class="ccf-tag">CCF-B</span></p>
-                </li>
-                <li>
-                    <p class="authors"><b>Zeng, Q.</b>, Gong, Y., Zhang, C., Wang, Z., Jiang, M.*</p>
-                    <p>Black-Box Watermark Removal Using Diffusion Models and Self-Attention Mechanisms. (2025)</p>
-                    <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Nature-inspired Computing (MIND). <span class="oral-tag">Oral</span></p>
-                </li>
-                <li>
-                    <p class="authors">Zhang, C., <b>Zeng, Q.</b>, Gong, Y., Wang, Z.*, Lin, J., Jiang, M.</p>
-                    <p>DualCAM++: Dual-saliency Guided Sample Selection for Plug-and-Play Backdoor Enhancement. (2025)</p>
-                    <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Nature-inspired Computing (MIND).</p>
-                </li>
-                <li>
-                    <p class="authors">Gong, Y., <b>Zeng, Q.</b>, et al.</p>
-                    <p>Inducing Implicit Focus through Structured Irrelevance for Robust Neural PDE Solvers. (2025)</p>
-                    <p class="venue">In Proceedings of the International Conference on Machine Intelligence and Nature-inspired Computing (MIND).</p>
-                </li>
-                <li>
-                    <p class="authors">Gong, Y., <b>Zeng, Q.</b>, Xu, D., Wang, Z., Jiang, M.*</p>
-                    <p>Adversarial Attacks Boosted by Gradient-Evolutionary Multiform Optimization. (2026)</p>
-                    <p class="venue">In Proceedings of the Neural Information Processing Systems (NeurIPS). <span class="ccf-tag">CCF-A</span><span class="review-tag">Under Review</span></p>
-                </li>
-                <li>
-                    <p class="authors"><b>Zeng, Q.</b>, Cai, P., et al.</p>
-                    <p>Don't Retrain, Just Reuse: Recovering Dual-Target Molecules from Single-Target Diffusion Models. (2026)</p>
-                    <p class="venue">In Proceedings of the Neural Information Processing Systems (NeurIPS). <span class="ccf-tag">CCF-A</span><span class="review-tag">Under Review</span></p>
-                </li>
-                <li>
-                    <p class="authors"><b>Zeng, Q.</b>, Chen, Z., et al.</p>
-                    <p>LLM-Guided Evolutionary Search for Interpretable Treatment Subgroup Discovery. (2026)</p>
-                    <p class="venue">In Proceedings of the Neural Information Processing Systems (NeurIPS). <span class="ccf-tag">CCF-A</span><span class="review-tag">Under Review</span></p>
-                </li>
-            </ul>
-        </section>
-
-        <section id="service">
-            <h2>Academic Service</h2>
-            <ul class="detail-list">
-                <li>Reviewer for AAAI Conference on Artificial Intelligence (AAAI)</li>
-                <li>Reviewer for IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</li>
-                <li>Reviewer for Neural Information Processing Systems (NeurIPS)</li>
-                <li>Reviewer for Medical Image Computing and Computer Assisted Intervention (MICCAI)</li>
-                <li>Reviewer for IEEE Transactions on Circuits and Systems for Video Technology (TCSVT)</li>
-                <li>Reviewer for IEEE Transactions on Neural Networks and Learning Systems (TNNLS)</li>
-                <li>Reviewer for IEEE Computational Intelligence Magazine (CIM)</li>
-                <li>Reviewer for IEEE Transactions on Evolutionary Computation (TEVC)</li>
-                <li>Reviewer for IEEE Transactions on Cognitive and Developmental Systems (TCDS)</li>
-            </ul>
-        </section>
-
-        <section id="awards">
-            <h2>Honors & Awards</h2>
-            <ul class="awards-list">
-                <li>Second Prize in the National Traditional Chinese Medicine College Programming Contest, 2021</li>
-                <li>Third Prize in the China Collegiate Programming Contest - Guangdong Provincial, 2021</li>
-                <li>Provincial Project in the College Students' Innovative Entrepreneurial Training Plan Program, 2021</li>
-                <li>Second Prize in the Blue Bridge Cup National Software and Information Technology Talents Competition, 2020</li>
-                <li>Provincial Excellence Award in the China Undergraduate Mathematical Contest in Modeling (Guangdong), 2020</li>
-                <li>Second Prize / Third Prize in Scholarship of Guangzhou University of Chinese Medicine, 2019, 2020</li>
-            </ul>
-        </section>
-
-        <section id="experience">
-            <h2>Work Experience</h2>
-            <div class="item-list">
-                <div class="item">
-                    <h3>Medical Imaging Algorithm Engineer</h3>
-                    <p class="meta">Bayer AG (Top-500 company) | Guangzhou, China | Jun. 2021 - Mar. 2022</p>
-                    <p>Conducted research on Deep Neural Networks (DNN) to accelerate the computation of pharmacokinetic (PK) parameter maps in Dynamic Contrast-Enhanced Magnetic Resonance Imaging (DCE-MRI), enhancing the efficiency and accuracy of diagnostic tools.</p>
-                </div>
-            </div>
-        </section>
-
-        <section id="skills">
-            <h2>Skills</h2>
-            <ul class="detail-list">
-                <li><strong>English Level:</strong> IELTS score (Overall = 6.5, Listening = 7, Reading = 8, Writing = 6, Speaking = 5.5)</li>
-                <li><strong>Programming Skill:</strong> Python, C++, Unity, PyTorch, TensorFlow</li>
-            </ul>
-        </section>
-    </main>
-
-    <footer>
-        <div class="container">
-            <p>Last updated on May 20, 2026</p>
-            <p><a href="index-modern.html">Redesigned version</a></p>
-            <p>&copy; 2026 Qingyuan Zeng. All rights reserved.</p>
+      <section class="section" id="publications">
+        <h2>📝 Publications</h2>
+        <p><small>(* corresponding author; † co-first author; highlights represent personal contributions)</small></p>
+        <div class="summary-note">
+          <strong>Summary:</strong> 18 papers, including 10 first-author papers at NeurIPS, AAAI (×2), MICCAI, IJCNN, BIBM, PMB, European Radiology, and MIND; 5 submissions under review at NeurIPS 2026.
         </div>
-    </footer>
 
-    <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            const navLinks = document.querySelectorAll("nav a");
-            const sections = document.querySelectorAll("main section");
-            const header = document.querySelector(".header");
-            const headerHeight = header ? header.offsetHeight : 0;
+        <!-- NeurIPS 2026 submissions (under review) -->
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge review">NeurIPS 2026</span>
+            <img src="assets/papers/teasers/dual-target-molecules-neurips2026.png"
+                 onerror="this.style.display='none';this.parentElement.style.background='var(--blue-soft)'"
+                 alt="Method figure: Don't Retrain, Just Reuse">
+          </div>
+          <div>
+            <h3 class="paper-title">Don't Retrain, Just Reuse: Recovering Dual-Target Molecules from Single-Target Diffusion Models</h3>
+            <p class="authors"><strong>Qingyuan Zeng</strong>, Pengxiang Cai, et al.</p>
+            <p class="venue">NeurIPS 2026. <span style="color:var(--red)">Under Review.</span> <strong>CCF-A.</strong></p>
+            <ul class="contrib">
+              <li>Recovers dual-target molecules from existing single-target diffusion models without retraining.</li>
+              <li>Addresses practical constraints in multi-target drug discovery pipelines.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/dual-target-molecules-alt-neurips2026.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
 
-            const changeLinkState = () => {
-                let currentSectionId = "";
-                sections.forEach((section) => {
-                    const sectionTop = section.offsetTop - headerHeight - 50;
-                    if (window.scrollY >= sectionTop) {
-                        currentSectionId = section.getAttribute("id");
-                    }
-                });
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge review">NeurIPS 2026</span>
+            <img src="assets/papers/teasers/biomedical-contextualization-neurips2026.png"
+                 onerror="this.style.display='none';this.parentElement.style.background='var(--blue-soft)'"
+                 alt="Method figure: LLM-Guided Treatment Subgroup Discovery">
+          </div>
+          <div>
+            <h3 class="paper-title">Can Broad Biomedical Knowledge be Contextualized into Scenario-Grounded Propositions?</h3>
+            <p class="authors"><strong>Qingyuan Zeng</strong>, Ziyang Chen, et al.</p>
+            <p class="venue">NeurIPS 2026. <span style="color:var(--red)">Under Review.</span> <strong>CCF-A.</strong></p>
+            <ul class="contrib">
+              <li>Contextualizes broad biomedical knowledge into scenario-specific propositions.</li>
+              <li>Enables more grounded clinical decision support through structured knowledge extraction.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/biomedical-knowledge-contextualization-neurips2026.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
 
-                navLinks.forEach((link) => {
-                    link.classList.remove("active-link");
-                    if (link.getAttribute("href") === `#${currentSectionId}`) {
-                        link.classList.add("active-link");
-                    }
-                });
-            };
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge review">NeurIPS 2026</span>
+            <img src="assets/papers/teasers/adversarial-grad-evo-neurips2026.png"
+                 onerror="this.style.display='none';this.parentElement.style.background='var(--blue-soft)'"
+                 alt="Method figure: Adversarial Attacks Boosted">
+          </div>
+          <div>
+            <h3 class="paper-title">Adversarial Attacks Boosted by Gradient-Evolutionary Multiform Optimization</h3>
+            <p class="authors">Yunpeng Gong, <strong>Qingyuan Zeng</strong>, Dian Xu, Zhenzhong Wang, Min Jiang*</p>
+            <p class="venue">NeurIPS 2026. <span style="color:var(--red)">Under Review.</span> <strong>CCF-A.</strong></p>
+            <ul class="contrib">
+              <li>Combines gradient-based and evolutionary strategies to boost adversarial attack effectiveness.</li>
+              <li>Demonstrates strong transferability across diverse model architectures.</li>
+            </ul>
+          </div>
+        </article>
 
-            changeLinkState();
-            window.addEventListener("scroll", changeLinkState);
-        });
-    </script>
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge review">NeurIPS 2026</span>
+            <img src="assets/papers/teasers/lift-neurips2026.png"
+                 onerror="this.style.display='none';this.parentElement.style.background='var(--blue-soft)'"
+                 alt="Method figure: LIFT">
+          </div>
+          <div>
+            <h3 class="paper-title">LIFT: Local Integral Frequency Correction for Reactive Multiphysics Surrogates</h3>
+            <p class="authors">Shu Jiang, Xingyu Zhang, Jiajing Lin, <strong>Qingyuan Zeng</strong>, et al.</p>
+            <p class="venue">NeurIPS 2026. <span style="color:var(--red)">Under Review.</span> <strong>CCF-A.</strong></p>
+            <ul class="contrib">
+              <li>Proposes local integral frequency correction for improved physics simulation surrogates.</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge review">NeurIPS 2026</span>
+            <img src="assets/papers/teasers/curriculum-rl-neurips2026.png" alt="Method figure: Curriculum Reinforcement Learning">
+          </div>
+          <div>
+            <h3 class="paper-title">Curriculum Reinforcement Learning Can Incentivize Reasoning Capacity in LLMs Beyond the Base Model</h3>
+            <p class="authors">Pengxiang Cai, Tianhe Fang, Xiangnan Li, <strong>Qingyuan Zeng</strong>, et al.</p>
+            <p class="venue">NeurIPS 2026. <span style="color:var(--red)">Under Review.</span> <strong>CCF-A.</strong></p>
+            <ul class="contrib">
+              <li>Uses boundary-aware curriculum reinforcement learning to expand LLM reasoning capacity beyond base-model sampling.</li>
+            </ul>
+          </div>
+        </article>
+
+        <!-- MICCAI 2026 -->
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge">MICCAI 2026</span>
+            <img src="assets/papers/teasers/text-as-compass-miccai2026.png" alt="Method figure: Text as a Compass">
+          </div>
+          <div>
+            <h3 class="paper-title">Text as a Compass: Semantic-Navigated 3D Bone Collapse Prediction via Orthogonal Micro-Volume Primitives</h3>
+            <p class="authors"><strong>Qingyuan Zeng</strong>, Zixin Guan, Yusen Chen, Zifeng Wu, Hao Li, Qian Ma, Zixiao Lu, Wei He, Leilei Chen, Wu Zhou*, Jintai Chen*</p>
+            <p class="venue">Medical Image Computing and Computer Assisted Intervention, 2026. <strong>CCF-B. Top 9%.</strong></p>
+            <ul class="contrib">
+              <li>Predicts osteonecrosis-related bone collapse from 3D medical imaging using orthogonal micro-volume primitives.</li>
+              <li>Connects clinical textual knowledge with volumetric representation learning through semantic navigation.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/text-as-compass-miccai2026.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- ICLR 2026 -->
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge">ICLR 2026</span>
+            <img src="assets/papers/teasers/visionlaw-iclr2026.png"
+                 onerror="this.style.display='none';this.parentElement.style.background='var(--blue-soft)'"
+                 alt="Method figure: VisionLaw">
+          </div>
+          <div>
+            <h3 class="paper-title">VisionLaw: Inferring Interpretable Intrinsic Dynamics from Visual Observations via Bilevel Optimization</h3>
+            <p class="authors">Jiajing Lin, Shu Jiang, <strong>Qingyuan Zeng</strong>, Zhenzhong Wang, Min Jiang*</p>
+            <p class="venue">International Conference on Learning Representations, 2026. <strong>CCF-A.</strong></p>
+            <ul class="contrib">
+              <li>Infers symbolic physical laws from visual observations using bilevel optimization.</li>
+              <li>Advances interpretable machine learning for dynamical systems.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/visionlaw-iclr.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- AAAI 2026 -->
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge">AAAI 2026</span>
+            <img src="assets/papers/teasers/digital-ink-aaai2026.png" alt="Method figure: Fading the Digital Ink">
+          </div>
+          <div>
+            <h3 class="paper-title">Fading the Digital Ink: A Universal Black-Box Attack Framework for 3DGS Watermarking Systems</h3>
+            <p class="authors"><strong>Qingyuan Zeng</strong>, Shu Jiang, Jiajing Lin, Zhenzhong Wang, Kay Chen Tan, Min Jiang*</p>
+            <p class="venue">Proceedings of the AAAI Conference on Artificial Intelligence, 2026. <strong>CCF-A.</strong></p>
+            <ul class="contrib">
+              <li>Studies the robustness of 3D Gaussian Splatting watermarking systems under black-box access.</li>
+              <li>Designs a universal attack framework for both bit-stream and image watermarking settings.</li>
+              <li>Highlights practical risks for copyright protection in emerging 3D content pipelines.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/digital-ink-aaai2026.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- NeurIPS 2024 -->
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge">NeurIPS 2024</span>
+            <img src="assets/papers/teasers/ask-attend-attack-neurips2024.png" alt="Method figure: Ask, Attend, Attack">
+          </div>
+          <div>
+            <h3 class="paper-title">Ask, Attend, Attack: An Effective Decision-Based Black-Box Targeted Attack for Image-to-Text Models</h3>
+            <p class="authors"><strong>Qingyuan Zeng</strong>, Zhenzhong Wang, Yiu-Ming Cheung, Min Jiang*</p>
+            <p class="venue">Advances in Neural Information Processing Systems, 2024. <strong>CCF-A.</strong></p>
+            <ul class="contrib">
+              <li>Targets image-to-text systems using only decision feedback from the deployed model.</li>
+              <li>Uses attention-guided search to improve query efficiency and targeted attack success rate.</li>
+              <li>Exposes practical deployment risks in multimodal models that generate language from visual inputs.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/ask-attend-attack-neurips2024.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- TNNLS 2024 -->
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge journal">TNNLS 2024</span>
+            <img src="assets/papers/teasers/multi-view-subgraph-tnnls.png" alt="Method figure: Multi-View Subgraph Neural Networks">
+          </div>
+          <div>
+            <h3 class="paper-title">Multi-View Subgraph Neural Networks: Self-Supervised Learning with Scarce Labeled Data</h3>
+            <p class="authors">Zhenzhong Wang, <strong>Qingyuan Zeng</strong>, Wanyu Lin*, Min Jiang, Kay Chen Tan</p>
+            <p class="venue">IEEE Transactions on Neural Networks and Learning Systems, 2024. <strong>JCR-Q1.</strong></p>
+            <ul class="contrib">
+              <li>Develops multi-view subgraph learning for graph representation under limited labels.</li>
+              <li>Combines self-supervision with substructure-level signals for data-scarce settings.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/multi-view-subgraph-tnnls.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- AAAI 2024 -->
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge">AAAI 2024</span>
+            <img src="assets/papers/teasers/fair-gnn-aaai2024.png"
+                 onerror="this.style.display='none';this.parentElement.style.background='var(--blue-soft)'"
+                 alt="Method figure: Fair GNN">
+          </div>
+          <div>
+            <h3 class="paper-title">Generating Diagnostic and Actionable Explanations for Fair Graph Neural Networks</h3>
+            <p class="authors">Zhenzhong Wang, <strong>Qingyuan Zeng</strong>, Wanyu Lin*, Min Jiang, Kay Chen Tan</p>
+            <p class="venue">Proceedings of the AAAI Conference on Artificial Intelligence, 2024. <strong>CCF-A.</strong></p>
+            <ul class="contrib">
+              <li>Generates human-interpretable, actionable explanations for fairness-aware graph neural networks.</li>
+              <li>Supports bias diagnosis and mitigation in graph-based machine learning systems.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/fair-gnn-aaai2024.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- IJCNN 2024 -->
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge">IJCNN 2024</span>
+            <img src="assets/papers/teasers/cross-task-attack-ijcnn2024.png" alt="Method figure: Cross-Task Attack">
+          </div>
+          <div>
+            <h3 class="paper-title">Cross-Task Attack: A Self-Supervision Generative Framework Based on Attention Shift</h3>
+            <p class="authors"><strong>Qingyuan Zeng</strong>, Yunpeng Gong, Min Jiang*</p>
+            <p class="venue">International Joint Conference on Neural Networks, 2024. <strong>CCF-C.</strong></p>
+            <ul class="contrib">
+              <li>Proposes a cross-task adversarial attack framework using self-supervised attention shift.</li>
+              <li>Demonstrates strong transferability with minimal task-specific adaptation.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/cross-task-attack-ijcnn2024.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- MIND 2025 papers -->
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge oral">MIND 2025 (Oral)</span>
+            <img src="assets/papers/teasers/watermark-removal-mind2025.png" alt="Method figure: Watermark Removal">
+          </div>
+          <div>
+            <h3 class="paper-title">Black-Box Watermark Removal Using Diffusion Models and Self-Attention Mechanisms</h3>
+            <p class="authors"><strong>Qingyuan Zeng</strong>, Yunpeng Gong, Chuangliang Zhang, Zhenzhong Wang, Min Jiang*</p>
+            <p class="venue">International Conference on Machine Intelligence and Nature-inspired Computing (MIND), 2025. <strong>Oral.</strong></p>
+            <ul class="contrib">
+              <li>Removes image watermarks using diffusion models under black-box query access.</li>
+              <li>Applies self-attention mechanisms to guide watermark-region localization.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/watermark-removal-mind2025.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge">MIND 2025</span>
+            <img src="assets/papers/teasers/dualcam-mind2025.png"
+                 onerror="this.style.display='none';this.parentElement.style.background='var(--blue-soft)'"
+                 alt="Method figure: DualCAM++">
+          </div>
+          <div>
+            <h3 class="paper-title">DualCAM++: Dual-Saliency Guided Sample Selection for Plug-and-Play Backdoor Enhancement</h3>
+            <p class="authors">Chuangliang Zhang, <strong>Qingyuan Zeng</strong>, Yunpeng Gong, Zhenzhong Wang*, Jiajing Lin, Min Jiang</p>
+            <p class="venue">International Conference on Machine Intelligence and Nature-inspired Computing (MIND), 2025.</p>
+            <ul class="contrib">
+              <li>Selects high-quality backdoor samples using dual saliency maps in a plug-and-play manner.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/dualcam-mind2025.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
+
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge">MIND 2025</span>
+            <img src="assets/papers/teasers/structured-irrelevance-mind2025.png"
+                 onerror="this.style.display='none';this.parentElement.style.background='var(--blue-soft)'"
+                 alt="Method figure: Structured Irrelevance">
+          </div>
+          <div>
+            <h3 class="paper-title">Inducing Implicit Focus through Structured Irrelevance for Robust Neural PDE Solvers</h3>
+            <p class="authors">Yunpeng Gong, <strong>Qingyuan Zeng</strong>, et al.</p>
+            <p class="venue">International Conference on Machine Intelligence and Nature-inspired Computing (MIND), 2025.</p>
+            <ul class="contrib">
+              <li>Improves neural PDE solver robustness by inducing implicit focus via structured irrelevance.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/structured-irrelevance-mind2025.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- European Radiology 2022 -->
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge journal">Eur Radiol 2022</span>
+            <img src="assets/papers/teasers/ivim-european-radiology2022.png"
+                 onerror="this.style.display='none';this.parentElement.style.background='var(--blue-soft)'"
+                 alt="Method figure: IVIM HCC">
+          </div>
+          <div>
+            <h3 class="paper-title">IVIM Using Convolutional Neural Networks Predicts Microvascular Invasion in HCC</h3>
+            <p class="authors">Baoer Liu†, <strong>Qingyuan Zeng</strong>†, Jianbin Huang, Jing Zhang, Zeyu Zheng, Yuting Liao, Kan Deng, Wu Zhou*, Yikai Xu</p>
+            <p class="venue">European Radiology, 2022. <strong>JCR-Q1.</strong></p>
+            <ul class="contrib">
+              <li>Predicts microvascular invasion in hepatocellular carcinoma using deep learning on IVIM DWI.</li>
+              <li>Demonstrates clinical value for pre-operative HCC characterization.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/ivim-european-radiology2022.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- PMB 2021 -->
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge journal">PMB 2021</span>
+            <img src="assets/papers/teasers/pmb-hcc-mvi2021.png"
+                 onerror="this.style.display='none';this.parentElement.style.background='var(--blue-soft)'"
+                 alt="Method figure: PMB HCC MVI">
+          </div>
+          <div>
+            <h3 class="paper-title">An Attention-Based Deep Learning Model for Predicting Microvascular Invasion of Hepatocellular Carcinoma Using an Intra-Voxel Incoherent Motion Model of Diffusion-Weighted MRI</h3>
+            <p class="authors"><strong>Qingyuan Zeng</strong>, Baoer Liu, Yikai Xu, Wu Zhou*</p>
+            <p class="venue">Physics in Medicine &amp; Biology, 2021. <strong>JCR-Q1.</strong></p>
+            <ul class="contrib">
+              <li>First attention-based model integrating IVIM diffusion parameters for HCC MVI prediction.</li>
+              <li>Achieves strong clinical prediction performance without contrast-enhanced imaging.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/pmb-hcc-mvi2021.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- BIBM 2021 -->
+        <article class="paper-feature">
+          <div class="paper-image">
+            <span class="badge">BIBM 2021</span>
+            <img src="assets/papers/teasers/dce-mri-bibm2021.png"
+                 onerror="this.style.display='none';this.parentElement.style.background='var(--blue-soft)'"
+                 alt="Method figure: DCE-MRI">
+          </div>
+          <div>
+            <h3 class="paper-title">An Attention Based Deep Learning Model for Direct Estimation of Pharmacokinetic Maps from DCE-MRI Images</h3>
+            <p class="authors"><strong>Qingyuan Zeng</strong>, Wu Zhou*</p>
+            <p class="venue">IEEE International Conference on Bioinformatics and Biomedicine, 2021. <strong>CCF-B.</strong></p>
+            <ul class="contrib">
+              <li>Directly estimates pharmacokinetic maps from DCE-MRI using an attention-based network.</li>
+              <li>Eliminates reliance on traditional compartmental model fitting, reducing computation time.</li>
+            </ul>
+            <div class="paper-actions">
+              <a href="assets/papers/pdfs/dce-mri-bibm2021.pdf"><i class="fas fa-file-pdf"></i>&nbsp;PDF</a>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="section" id="experience">
+        <h2>💻 Research Experience &amp; Education</h2>
+        <div class="timeline-center">
+
+          <!-- NUS Ph.D. -->
+          <div class="timeline-entry">
+            <div class="timeline-card left">
+              <h3>Ph.D. Student</h3>
+              <p><strong>National University of Singapore</strong></p>
+              <p>Doctoral study in artificial intelligence and machine learning.</p>
+            </div>
+            <div class="timeline-dot"></div>
+            <div class="timeline-media right">
+              <div class="timeline-date">Jan. 2027</div>
+              <div class="timeline-logo-container logo-tall">
+                <img src="assets/logos/nus.png" alt="National University of Singapore logo">
+              </div>
+            </div>
+          </div>
+
+          <!-- NUS RA -->
+          <div class="timeline-entry">
+            <div class="timeline-media left">
+              <div class="timeline-date">Sep. 2026 - Dec. 2026</div>
+              <div class="timeline-logo-container logo-tall">
+                <img src="assets/logos/nus.png" alt="National University of Singapore logo">
+              </div>
+            </div>
+            <div class="timeline-dot"></div>
+            <div class="timeline-card right">
+              <h3>Research Assistant</h3>
+              <p><strong>National University of Singapore</strong></p>
+              <p>Research on AI and machine learning.</p>
+            </div>
+          </div>
+
+          <!-- HKUST(GZ) -->
+          <div class="timeline-entry">
+            <div class="timeline-card left">
+              <h3>Research Assistant</h3>
+              <p><strong>HKUST(GZ) ML4H Lab</strong></p>
+              <p>Research on trustworthy and clinically grounded machine learning, medical image analysis, and biomedical discovery. Advised by Dr. Jintai Chen.</p>
+            </div>
+            <div class="timeline-dot"></div>
+            <div class="timeline-media right">
+              <div class="timeline-date">Jan. 2026 - Aug. 2026</div>
+              <div class="timeline-logo-container logo-wide">
+                <img src="assets/logos/hkust-gz.png" alt="HKUST(GZ) logo">
+              </div>
+            </div>
+          </div>
+
+          <!-- XMU Master -->
+          <div class="timeline-entry">
+            <div class="timeline-media left">
+              <div class="timeline-date">Sep. 2022 - Jun. 2025</div>
+              <div class="timeline-logo-container logo-square">
+                <img src="assets/logos/xmu.svg" alt="Xiamen University logo">
+              </div>
+            </div>
+            <div class="timeline-dot"></div>
+            <div class="timeline-card right">
+              <h3>M.Sc. in Artificial Intelligence</h3>
+              <p><strong>Xiamen University</strong></p>
+              <p>Research on security, robustness, interpretability, and fairness of AI algorithms. Advised by Prof. Min Jiang. <strong>GPA: 89.1/100; Ranking: 17/90.</strong></p>
+            </div>
+          </div>
+
+          <!-- Bayer -->
+          <div class="timeline-entry">
+            <div class="timeline-card left">
+              <h3>Medical Imaging Algorithm Engineer</h3>
+              <p><strong>Bayer AG, Guangzhou</strong></p>
+              <p>Undergraduate industry experience during my B.Sc.; deep learning for accelerating DCE-MRI pharmacokinetic parameter map computation.</p>
+            </div>
+            <div class="timeline-dot"></div>
+            <div class="timeline-media right">
+              <div class="timeline-date">Jun. 2021 - Mar. 2022</div>
+              <div class="timeline-logo-container logo-bayer">
+                <img src="assets/logos/bayer.svg" alt="Bayer logo">
+              </div>
+            </div>
+          </div>
+
+          <!-- GZUCM Bachelor -->
+          <div class="timeline-entry">
+            <div class="timeline-media left">
+              <div class="timeline-date">Sep. 2018 - Jun. 2022</div>
+              <div class="timeline-logo-container logo-wide logo-gzucm">
+                <img src="assets/logos/gzucm.png" alt="Guangzhou University of Chinese Medicine logo">
+              </div>
+            </div>
+            <div class="timeline-dot"></div>
+            <div class="timeline-card right">
+              <h3>B.Sc. in Computer Science and Technology</h3>
+              <p><strong>Guangzhou University of Chinese Medicine</strong></p>
+              <p>Research on AI methods for clinical tumor characterization. Advised by Prof. Wu Zhou. <strong>GPA: 85.3/100; Ranking: 13/66.</strong></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="awards">
+        <h2>🏆 Honors &amp; Awards</h2>
+        <ul class="compact-list">
+          <li>Second Prize, National Traditional Chinese Medicine College Programming Contest, 2021</li>
+          <li>Third Prize, China Collegiate Programming Contest - Guangdong Provincial Programming Contest, 2021</li>
+          <li>Provincial Project, College Students' Innovative Entrepreneurial Training Plan Program, 2021</li>
+          <li>Second Prize, Blue Bridge Cup National Software and Information Technology Talents Competition, 2020</li>
+          <li>Provincial Excellence Award, China Undergraduate Mathematical Contest in Modeling (Guangdong), 2020</li>
+          <li>Second Prize / Third Prize Scholarship, Guangzhou University of Chinese Medicine, 2019 and 2020</li>
+        </ul>
+      </section>
+
+      <section class="section" id="service">
+        <h2>Academic Service</h2>
+        <p><strong>Reviewer:</strong> AAAI, CVPR, NeurIPS, MICCAI, IEEE Transactions on Neural Networks and Learning Systems (TNNLS), IEEE Transactions on Circuits and Systems for Video Technology (TCSVT), IEEE Computational Intelligence Magazine (CIM), IEEE Transactions on Evolutionary Computation (TEVC), and IEEE Transactions on Cognitive and Developmental Systems (TCDS).</p>
+      </section>
+
+      <section class="section" id="skills">
+        <h2>Skills</h2>
+        <ul class="compact-list">
+          <li>Programming: Python, C++, Unity</li>
+          <li>ML Frameworks: PyTorch, TensorFlow</li>
+          <li>Research: Trustworthy AI, Medical Image Analysis, Graph Learning, Multimodal Robustness, Biomedical Discovery</li>
+          <li>English: IELTS 6.5 (L7, R8, W6, S5.5)</li>
+        </ul>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <p>Last updated: July 3, 2026. &copy; 2026 Qingyuan Zeng. All rights reserved.</p>
+  </footer>
 </body>
 </html>
