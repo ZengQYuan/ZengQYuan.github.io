@@ -3,17 +3,18 @@
 
   var CONFIG = {
     seed: 20260704,
-    totalPoints: 150,
-    primaryColor: "#7ee8ff",
-    goldColor: "#f8c35b",
-    roseColor: "#ff7aa8"
+    totalPoints: 1500,
+    pointMultiplier: 10,
+    primaryColor: "#1d73d4",
+    goldColor: "#f4a62a",
+    roseColor: "#d85d8f"
   };
 
   var HUBS = [
     { name: "Guangzhou", region: "Guangdong", lat: 23.1291, lng: 113.2644, color: CONFIG.goldColor },
     { name: "Xiamen", region: "Fujian", lat: 24.4798, lng: 118.0894, color: CONFIG.primaryColor },
     { name: "Hong Kong", region: "Hong Kong", lat: 22.3193, lng: 114.1694, color: CONFIG.roseColor },
-    { name: "Singapore", region: "Singapore", lat: 1.3521, lng: 103.8198, color: "#9cffb3" }
+    { name: "Singapore", region: "Singapore", lat: 1.3521, lng: 103.8198, color: "#18a999" }
   ];
 
   var DISTRIBUTION = [
@@ -50,14 +51,14 @@
     {
       key: "Singapore",
       count: 22,
-      color: "#9cffb3",
+      color: "#18a999",
       radius: 0.22,
       centers: [["Singapore", 1.3521, 103.8198]]
     },
     {
       key: "Other Mainland China",
       count: 20,
-      color: "#8fb8ff",
+      color: "#4d8fe8",
       radius: 1.2,
       centers: [
         ["Beijing", 39.9042, 116.4074],
@@ -73,7 +74,7 @@
     {
       key: "East & Southeast Asia",
       count: 12,
-      color: "#74f0ff",
+      color: "#2698d9",
       radius: 1.0,
       centers: [
         ["Tokyo", 35.6762, 139.6503],
@@ -89,7 +90,7 @@
     {
       key: "North America",
       count: 12,
-      color: "#62a8ff",
+      color: "#5d7fe3",
       radius: 1.3,
       centers: [
         ["San Francisco", 37.7749, -122.4194],
@@ -104,7 +105,7 @@
     {
       key: "Europe",
       count: 10,
-      color: "#b18cff",
+      color: "#805ad5",
       radius: 1.15,
       centers: [
         ["London", 51.5074, -0.1278],
@@ -118,7 +119,7 @@
     {
       key: "Oceania",
       count: 4,
-      color: "#70ffcf",
+      color: "#13a87a",
       radius: 1.0,
       centers: [
         ["Sydney", -33.8688, 151.2093],
@@ -130,7 +131,7 @@
     {
       key: "South Asia & Middle East",
       count: 4,
-      color: "#ffc46b",
+      color: "#d98b22",
       radius: 1.0,
       centers: [
         ["Delhi", 28.6139, 77.209],
@@ -142,7 +143,7 @@
     {
       key: "Latin America & Africa",
       count: 2,
-      color: "#ff8f70",
+      color: "#d96f4c",
       radius: 1.25,
       centers: [
         ["Sao Paulo", -23.5558, -46.6396],
@@ -177,7 +178,8 @@
     var points = [];
 
     DISTRIBUTION.forEach(function (bucket) {
-      for (var i = 0; i < bucket.count; i += 1) {
+      var count = bucket.count * CONFIG.pointMultiplier;
+      for (var i = 0; i < count; i += 1) {
         var center = bucket.centers[Math.floor(random() * bucket.centers.length)];
         var offset = jitter(random, bucket.radius);
         points.push({
@@ -187,8 +189,8 @@
           lat: clampLat(center[1] + offset.lat),
           lng: center[2] + offset.lng,
           color: bucket.color,
-          radius: 0.2 + random() * 0.16,
-          altitude: 0.012 + random() * 0.03,
+          radius: 0.055 + random() * 0.075,
+          altitude: 0.006 + random() * 0.018,
           intensity: 0.42 + random() * 0.58
         });
       }
@@ -264,7 +266,7 @@
       '<div class="globe-tooltip">',
       "<b>" + point.city + "</b><br>",
       point.region + "<br>",
-      "Initial academic footprint",
+      "Global footprint",
       "</div>"
     ].join("");
   }
@@ -305,8 +307,7 @@
 
     var globe = window.Globe({ animateIn: !reduceMotion })(root)
       .backgroundColor("rgba(0,0,0,0)")
-      .backgroundImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png")
-      .globeImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg")
+      .globeImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg")
       .bumpImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png")
       .pointsData(points)
       .pointLat("lat")
@@ -316,7 +317,7 @@
       .pointColor(function (point) {
         return point.color;
       })
-      .pointResolution(14)
+      .pointResolution(10)
       .pointLabel(pointLabel)
       .arcsData(arcs)
       .arcStartLat("startLat")

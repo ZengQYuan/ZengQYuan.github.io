@@ -895,19 +895,19 @@
       position: relative;
       overflow: hidden;
       display: grid;
-      grid-template-columns: minmax(250px, 0.75fr) minmax(360px, 1.25fr);
-      gap: 22px;
+      grid-template-columns: minmax(180px, 0.42fr) minmax(420px, 1.58fr);
+      gap: 18px;
       align-items: stretch;
       margin-top: 1.1em;
-      border: 1px solid rgba(83, 154, 255, 0.26);
+      border: 1px solid #d9e3f0;
       border-radius: 8px;
       background:
-        radial-gradient(circle at 78% 18%, rgba(0, 213, 255, 0.22), transparent 34%),
-        radial-gradient(circle at 20% 86%, rgba(248, 148, 6, 0.16), transparent 28%),
-        linear-gradient(135deg, #06111f 0%, #08172a 45%, #020813 100%);
-      box-shadow: 0 18px 46px rgba(6, 17, 31, 0.24);
-      color: #dce8f6;
-      padding: 18px;
+        radial-gradient(circle at 78% 12%, rgba(34, 75, 141, 0.14), transparent 32%),
+        radial-gradient(circle at 14% 86%, rgba(248, 148, 6, 0.10), transparent 30%),
+        linear-gradient(135deg, #ffffff 0%, #f7fbff 48%, #eef5fd 100%);
+      box-shadow: 0 14px 32px rgba(34, 75, 141, 0.12);
+      color: var(--ink);
+      padding: 14px;
     }
 
     .global-footprint-panel::before {
@@ -916,8 +916,8 @@
       inset: 0;
       pointer-events: none;
       background-image:
-        linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+        linear-gradient(rgba(34, 75, 141, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(34, 75, 141, 0.045) 1px, transparent 1px);
       background-size: 34px 34px;
       mask-image: radial-gradient(circle at 70% 45%, #000 0%, transparent 72%);
     }
@@ -931,14 +931,14 @@
     .global-copy {
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
-      gap: 16px;
+      justify-content: center;
+      gap: 12px;
       min-width: 0;
     }
 
     .global-kicker {
-      margin: 0 0 8px;
-      color: #7ee8ff;
+      margin: 0 0 6px;
+      color: var(--blue);
       font-size: 0.78em;
       font-weight: 700;
       letter-spacing: 0.12em;
@@ -946,58 +946,59 @@
     }
 
     .global-copy h3 {
-      margin: 0 0 10px;
-      color: #fff;
+      margin: 0 0 8px;
+      color: var(--ink);
       font-family: Georgia, "Times New Roman", serif;
-      font-size: 1.45em;
+      font-size: 1.25em;
       line-height: 1.2;
     }
 
     .global-copy p {
-      color: #b8c9dc;
-      margin-bottom: 10px;
+      color: var(--muted);
+      margin-bottom: 8px;
     }
 
     .global-stats {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 8px;
-      margin: 12px 0;
+      grid-template-columns: 1fr;
+      gap: 9px;
+      margin: 10px 0;
     }
 
     .global-stat {
-      border: 1px solid rgba(126, 232, 255, 0.18);
+      border: 1px solid #dbe6f2;
       border-radius: 6px;
-      background: rgba(255, 255, 255, 0.055);
-      padding: 10px;
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: 0 8px 22px rgba(34, 75, 141, 0.08);
+      padding: 12px;
       min-width: 0;
     }
 
     .global-stat strong {
       display: block;
-      color: #fff;
-      font-size: 1.3em;
+      color: var(--blue);
+      font-size: 2.05em;
       line-height: 1;
     }
 
     .global-stat span {
       display: block;
-      color: #9ab0c6;
-      font-size: 0.82em;
-      margin-top: 5px;
+      color: var(--muted);
+      font-size: 0.88em;
+      margin-top: 6px;
     }
 
     .visitor-widget-slot {
-      border: 1px dashed rgba(126, 232, 255, 0.28);
+      border: 1px dashed #c9d7e8;
       border-radius: 6px;
-      background: rgba(2, 8, 19, 0.44);
-      color: #9fb6ce;
-      font-size: 0.9em;
-      padding: 12px;
+      background: rgba(255, 255, 255, 0.62);
+      color: var(--muted);
+      font-size: 0.86em;
+      padding: 10px;
     }
 
     .visitor-widget-slot strong {
-      color: #dce8f6;
+      color: var(--ink);
       display: block;
       margin-bottom: 3px;
     }
@@ -1005,11 +1006,11 @@
     .global-stage {
       height: 520px;
       min-height: 0;
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      border: 1px solid #dde8f4;
       border-radius: 8px;
       background:
-        radial-gradient(circle at center, rgba(42, 120, 255, 0.16), transparent 52%),
-        rgba(0, 0, 0, 0.18);
+        radial-gradient(circle at 50% 46%, rgba(126, 190, 255, 0.22), transparent 48%),
+        linear-gradient(135deg, #fbfdff 0%, #edf6ff 100%);
       overflow: hidden;
     }
 
@@ -1034,7 +1035,7 @@
       place-items: center;
       height: 100%;
       min-height: 0;
-      color: #c8d7e8;
+      color: var(--muted);
       text-align: center;
       padding: 28px;
     }
@@ -1044,20 +1045,20 @@
     }
 
     .globe-tooltip {
-      color: #fff;
+      color: var(--ink);
       font-family: "Trebuchet MS", Helvetica, sans-serif;
       font-size: 13px;
       line-height: 1.35;
       padding: 8px 10px;
-      border: 1px solid rgba(126, 232, 255, 0.35);
+      border: 1px solid #c9d7e8;
       border-radius: 6px;
-      background: rgba(3, 10, 24, 0.88);
-      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.34);
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 8px 22px rgba(34, 75, 141, 0.18);
       backdrop-filter: blur(8px);
     }
 
     .globe-tooltip b {
-      color: #7ee8ff;
+      color: var(--blue);
     }
 
     footer {
@@ -1827,21 +1828,13 @@
         <div class="global-footprint-panel">
           <div class="global-copy">
             <div>
-              <p class="global-kicker">Initial Global Footprint</p>
-              <h3>Academic signals across the map</h3>
-              <p>This interactive globe visualizes a seeded academic footprint, with emphasis on Guangdong, Fujian, Hong Kong, and Singapore. It is designed as a visual map of research connections rather than a live visitor count.</p>
-              <div class="global-stats" aria-label="Global footprint summary">
-                <div class="global-stat"><strong>150</strong><span>seeded footprint points</span></div>
-                <div class="global-stat"><strong>4</strong><span>primary academic hubs</span></div>
-                <div class="global-stat"><strong>28</strong><span>animated connection arcs</span></div>
+              <p class="global-kicker">Visitors</p>
+              <h3>Global footprint</h3>
+              <div class="global-stats" aria-label="Visitor summary">
+                <div class="global-stat"><strong>1,500</strong><span>visitors</span></div>
               </div>
-              <p><small>Real visitor statistics will be tracked separately through the widget below after it is connected.</small></p>
             </div>
-            <div class="visitor-widget-slot" id="mapmyvisitors-widget-slot">
-              <strong>Live visitor widget</strong>
-              <span>Live visitor tracking will appear here after the MapMyVisitors widget is connected.</span>
-              <!-- Paste the account-specific MapMyVisitors embed snippet inside this slot. -->
-            </div>
+            <!-- MapMyVisitors embed can be added here later when live tracking is connected. -->
           </div>
           <div class="global-stage" aria-label="Interactive 3D academic footprint globe">
             <div id="global-footprint-globe"></div>
