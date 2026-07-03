@@ -27,6 +27,8 @@
       --shadow: 0 1px 1px rgba(0, 0, 0, 0.125);
       --nav-height: 58px;
       --max-width: 1280px;
+      --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+      --motion: 220ms var(--ease);
     }
 
     * {
@@ -56,6 +58,7 @@
       color: var(--blue);
       text-decoration: none;
       overflow-wrap: anywhere;
+      transition: color var(--motion), background-color var(--motion), border-color var(--motion);
     }
 
     a:hover,
@@ -74,7 +77,8 @@
       top: 0;
       z-index: 30;
       border-bottom: 1px solid var(--line);
-      background: #fff;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: saturate(160%) blur(10px);
     }
 
     .topbar-inner {
@@ -115,6 +119,7 @@
       font-size: 15px;
       font-weight: 700;
       padding: 18px 10px 16px;
+      transition: color var(--motion);
     }
 
     .nav-links a::before {
@@ -127,18 +132,24 @@
       background: #bdc1c4;
       transform: scaleX(0);
       transform-origin: left center;
-      transition: transform 0.2s ease-in-out;
+      transition: transform var(--motion), background-color var(--motion);
     }
 
     .nav-links a:hover,
-    .nav-links a:focus {
+    .nav-links a:focus,
+    .nav-links a.active {
       color: #5c6266;
       text-decoration: none;
     }
 
     .nav-links a:hover::before,
-    .nav-links a:focus::before {
+    .nav-links a:focus::before,
+    .nav-links a.active::before {
       transform: scaleX(1);
+    }
+
+    .nav-links a.active::before {
+      background: var(--blue);
     }
 
     .page {
@@ -171,6 +182,13 @@
       border-radius: 50%;
       padding: 5px;
       background: #fff;
+      transition: transform var(--motion), border-color var(--motion), box-shadow var(--motion);
+    }
+
+    .profile-photo:hover {
+      border-color: rgba(34, 75, 141, 0.35);
+      box-shadow: 0 8px 22px rgba(34, 75, 141, 0.12);
+      transform: translateY(-2px) scale(1.015);
     }
 
     .profile-body {
@@ -236,12 +254,14 @@
       font-weight: 400;
       line-height: 1.5;
       padding: 0;
+      transition: color var(--motion), transform var(--motion);
     }
 
     .profile-links a i {
       width: 18px;
       text-align: center;
       color: var(--blue);
+      transition: transform var(--motion), color var(--motion);
     }
 
     .profile-links a:hover,
@@ -249,6 +269,12 @@
       background: transparent;
       color: var(--blue);
       text-decoration: underline;
+      transform: translateX(2px);
+    }
+
+    .profile-links a:hover i,
+    .profile-links a:focus i {
+      transform: translateY(-1px);
     }
 
     .content {
@@ -264,6 +290,17 @@
       box-shadow: none;
       padding: 0 0 1em;
       scroll-margin-top: calc(var(--nav-height) + 20px);
+    }
+
+    .section.reveal-ready {
+      opacity: 0;
+      transform: translateY(14px);
+      transition: opacity 420ms var(--ease), transform 420ms var(--ease);
+    }
+
+    .section.reveal-ready.is-visible {
+      opacity: 1;
+      transform: translateY(0);
     }
 
     .section h2 {
@@ -305,6 +342,8 @@
       gap: 12px;
       padding: 0.35em 0;
       border-bottom: 0;
+      border-radius: 4px;
+      transition: background-color var(--motion), transform var(--motion);
     }
 
     .news-list li:first-child {
@@ -322,15 +361,36 @@
       font-weight: 700;
       letter-spacing: 0;
       text-transform: uppercase;
+      transition: color var(--motion);
+    }
+
+    .news-list li span:last-child {
+      transition: transform var(--motion), color var(--motion);
+    }
+
+    .news-list li:hover {
+      background: #fafbfc;
+      transform: translateX(2px);
+    }
+
+    .news-list li:hover .date {
+      color: var(--orange);
+    }
+
+    .news-list li:hover span:last-child {
+      color: #33485c;
     }
 
     .paper-feature {
+      position: relative;
       display: grid;
       grid-template-columns: minmax(210px, 38%) minmax(0, 1fr);
       gap: 24px;
       align-items: center;
       padding: 1.65em 0;
       border-bottom: 1px solid #efefef;
+      border-radius: 6px;
+      transition: transform var(--motion), background-color var(--motion), box-shadow var(--motion), border-color var(--motion);
     }
 
     .paper-feature:first-of-type {
@@ -339,6 +399,13 @@
 
     .paper-feature:last-of-type {
       border-bottom: 0;
+    }
+
+    .paper-feature:hover,
+    .paper-feature:focus-within {
+      background: #fbfcfd;
+      box-shadow: 0 12px 28px rgba(34, 75, 141, 0.08);
+      transform: translateY(-3px);
     }
 
     .paper-image {
@@ -365,6 +432,15 @@
       border: 1px solid #eeeeee;
       background: #fff;
       box-shadow: 2px 2px 6px #aaa;
+      cursor: zoom-in;
+      transition: transform var(--motion), box-shadow var(--motion), border-color var(--motion);
+    }
+
+    .paper-feature:hover .paper-image img,
+    .paper-feature:focus-within .paper-image img {
+      border-color: rgba(34, 75, 141, 0.25);
+      box-shadow: 3px 5px 14px rgba(60, 69, 78, 0.26);
+      transform: scale(1.025);
     }
 
     .paper-feature > div:last-child {
@@ -387,6 +463,13 @@
       font-weight: 700;
       padding: 3px 9px;
       z-index: 2;
+      transition: transform var(--motion), box-shadow var(--motion);
+    }
+
+    .paper-feature:hover .badge,
+    .paper-feature:focus-within .badge {
+      box-shadow: 0 5px 12px rgba(0, 54, 159, 0.18);
+      transform: translateY(-1px);
     }
 
     .badge.journal {
@@ -411,6 +494,12 @@
       font-size: 1.15em;
       font-weight: 700;
       line-height: 1.34;
+      transition: color var(--motion);
+    }
+
+    .paper-feature:hover .paper-title,
+    .paper-feature:focus-within .paper-title {
+      color: var(--blue);
     }
 
     .authors,
@@ -438,12 +527,28 @@
       font-size: 0.9em;
       font-weight: 700;
       padding: 7px 9px;
+      transition: background-color var(--motion), border-color var(--motion), color var(--motion), transform var(--motion);
+    }
+
+    .paper-actions a::after {
+      content: ">";
+      display: inline-block;
+      margin-left: 6px;
+      transform: translateX(0);
+      transition: transform var(--motion);
     }
 
     .paper-actions a:hover,
     .paper-actions a:focus {
       background: var(--blue-soft);
+      border-color: rgba(34, 75, 141, 0.35);
       text-decoration: none;
+      transform: translateY(-1px);
+    }
+
+    .paper-actions a:hover::after,
+    .paper-actions a:focus::after {
+      transform: translateX(3px);
     }
 
     .contrib {
@@ -508,6 +613,7 @@
       background: #fff;
       box-shadow: 0 2px 9px rgba(0, 0, 0, 0.08);
       padding: 16px 20px;
+      transition: transform var(--motion), box-shadow var(--motion), border-color var(--motion), background-color var(--motion);
     }
 
     .timeline-card.left {
@@ -549,6 +655,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: transform var(--motion), box-shadow var(--motion), border-color var(--motion), filter var(--motion);
     }
 
     .timeline-logo-container.logo-wide {
@@ -585,6 +692,7 @@
       max-width: 100%;
       max-height: 100%;
       object-fit: contain;
+      transition: transform var(--motion);
     }
 
     .timeline-dot {
@@ -606,6 +714,7 @@
       border: 3px solid #fff;
       box-shadow: 0 0 0 2px var(--line);
       transform: translate(-50%, -50%);
+      transition: background-color var(--motion), box-shadow var(--motion), transform var(--motion);
     }
 
     .timeline-date {
@@ -613,6 +722,116 @@
       font-size: 1.1em;
       font-weight: 700;
       margin: 0;
+      transition: color var(--motion), transform var(--motion);
+    }
+
+    .timeline-entry:hover .timeline-card,
+    .timeline-entry:focus-within .timeline-card {
+      background: #fff;
+      border-color: rgba(34, 75, 141, 0.16);
+      box-shadow: 0 10px 24px rgba(34, 75, 141, 0.10);
+      transform: translateY(-2px);
+    }
+
+    .timeline-entry:hover .timeline-logo-container,
+    .timeline-entry:focus-within .timeline-logo-container {
+      border-color: rgba(34, 75, 141, 0.24);
+      box-shadow: 0 8px 20px rgba(34, 75, 141, 0.13);
+      transform: scale(1.035);
+    }
+
+    .timeline-entry:hover .timeline-logo-container img,
+    .timeline-entry:focus-within .timeline-logo-container img {
+      transform: scale(1.02);
+    }
+
+    .timeline-entry:hover .timeline-dot::after,
+    .timeline-entry:focus-within .timeline-dot::after {
+      background: var(--orange);
+      box-shadow: 0 0 0 3px rgba(248, 148, 6, 0.18);
+      transform: translate(-50%, -50%) scale(1.12);
+    }
+
+    .timeline-entry:hover .timeline-date,
+    .timeline-entry:focus-within .timeline-date {
+      color: var(--orange);
+      transform: translateY(-1px);
+    }
+
+    body.lightbox-open {
+      overflow: hidden;
+    }
+
+    .image-lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: grid;
+      place-items: center;
+      padding: 32px;
+      background: rgba(18, 24, 32, 0.76);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--motion);
+    }
+
+    .image-lightbox.is-open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .lightbox-panel {
+      position: relative;
+      width: min(1040px, 100%);
+      max-height: min(86vh, 760px);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+      padding: 18px;
+      transform: translateY(8px) scale(0.985);
+      transition: transform var(--motion);
+    }
+
+    .image-lightbox.is-open .lightbox-panel {
+      transform: translateY(0) scale(1);
+    }
+
+    .lightbox-panel img {
+      width: 100%;
+      max-height: calc(86vh - 96px);
+      object-fit: contain;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .lightbox-caption {
+      margin: 10px 40px 0 0;
+      color: var(--muted);
+      font-size: 0.95em;
+      line-height: 1.4;
+    }
+
+    .lightbox-close {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: #fff;
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      transition: background-color var(--motion), color var(--motion), transform var(--motion);
+    }
+
+    .lightbox-close:hover,
+    .lightbox-close:focus {
+      background: var(--blue);
+      color: #fff;
+      transform: rotate(90deg);
     }
 
     .timeline-card h3 {
@@ -774,6 +993,14 @@
         font-size: 14px;
       }
 
+      .topbar-inner {
+        gap: 14px;
+      }
+
+      .nav-links {
+        justify-content: flex-start;
+      }
+
       .page {
         width: calc(100% - 32px);
         margin: 16px auto;
@@ -791,6 +1018,43 @@
 
       .paper-title {
         font-size: 16px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.001ms !important;
+      }
+
+      .section.reveal-ready,
+      .section.reveal-ready.is-visible {
+        opacity: 1;
+        transform: none;
+      }
+
+      .paper-feature:hover,
+      .paper-feature:focus-within,
+      .paper-feature:hover .paper-image img,
+      .paper-feature:focus-within .paper-image img,
+      .profile-photo:hover,
+      .profile-links a:hover,
+      .profile-links a:focus,
+      .timeline-entry:hover .timeline-card,
+      .timeline-entry:focus-within .timeline-card,
+      .timeline-entry:hover .timeline-logo-container,
+      .timeline-entry:focus-within .timeline-logo-container,
+      .timeline-entry:hover .timeline-date,
+      .timeline-entry:focus-within .timeline-date {
+        transform: none;
       }
     }
   </style>
@@ -1361,5 +1625,135 @@
   <footer>
     <p>Last updated: July 3, 2026. &copy; 2026 Qingyuan Zeng. All rights reserved.</p>
   </footer>
+  <script>
+    (function () {
+      var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var navLinks = Array.prototype.slice.call(document.querySelectorAll(".nav-links a[href^='#']"));
+      var sections = navLinks
+        .map(function (link) {
+          return document.querySelector(link.getAttribute("href"));
+        })
+        .filter(Boolean);
+
+      function setActiveNav(id) {
+        navLinks.forEach(function (link) {
+          var isActive = link.getAttribute("href") === "#" + id;
+          link.classList.toggle("active", isActive);
+          if (isActive && link.parentElement.scrollWidth > link.parentElement.clientWidth) {
+            link.scrollIntoView({
+              block: "nearest",
+              inline: "center",
+              behavior: reduceMotion ? "auto" : "smooth"
+            });
+          }
+        });
+      }
+
+      if ("IntersectionObserver" in window && sections.length) {
+        var navObserver = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              setActiveNav(entry.target.id);
+            }
+          });
+        }, {
+          rootMargin: "-35% 0px -55% 0px",
+          threshold: 0
+        });
+        sections.forEach(function (section) {
+          navObserver.observe(section);
+        });
+      } else if (sections.length) {
+        setActiveNav(sections[0].id);
+      }
+
+      if ("IntersectionObserver" in window && !reduceMotion) {
+        var revealObserver = new IntersectionObserver(function (entries, observer) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("is-visible");
+              observer.unobserve(entry.target);
+            }
+          });
+        }, {
+          rootMargin: "0px 0px -8% 0px",
+          threshold: 0.08
+        });
+
+        sections.forEach(function (section) {
+          section.classList.add("reveal-ready");
+          revealObserver.observe(section);
+        });
+      }
+
+      var lightbox = document.createElement("div");
+      lightbox.className = "image-lightbox";
+      lightbox.setAttribute("role", "dialog");
+      lightbox.setAttribute("aria-modal", "true");
+      lightbox.setAttribute("aria-label", "Paper figure preview");
+      lightbox.innerHTML = [
+        '<div class="lightbox-panel">',
+        '  <img alt="">',
+        '  <p class="lightbox-caption"></p>',
+        '  <button class="lightbox-close" type="button" aria-label="Close preview">&times;</button>',
+        '</div>'
+      ].join("");
+      document.body.appendChild(lightbox);
+
+      var lightboxImage = lightbox.querySelector("img");
+      var lightboxCaption = lightbox.querySelector(".lightbox-caption");
+      var closeButton = lightbox.querySelector(".lightbox-close");
+      var lastFocused = null;
+
+      function openLightbox(image) {
+        if (!image || image.style.display === "none") {
+          return;
+        }
+        lastFocused = document.activeElement;
+        lightboxImage.src = image.currentSrc || image.src;
+        lightboxImage.alt = image.alt || "Paper figure preview";
+        lightboxCaption.textContent = image.alt || "";
+        lightbox.classList.add("is-open");
+        document.body.classList.add("lightbox-open");
+        closeButton.focus({ preventScroll: true });
+      }
+
+      function closeLightbox() {
+        lightbox.classList.remove("is-open");
+        document.body.classList.remove("lightbox-open");
+        lightboxImage.removeAttribute("src");
+        if (lastFocused && typeof lastFocused.focus === "function") {
+          lastFocused.focus({ preventScroll: true });
+        }
+      }
+
+      document.querySelectorAll(".paper-image img").forEach(function (image) {
+        image.setAttribute("tabindex", "0");
+        image.setAttribute("role", "button");
+        image.setAttribute("aria-label", "Open larger preview: " + (image.alt || "paper figure"));
+        image.addEventListener("click", function () {
+          openLightbox(image);
+        });
+        image.addEventListener("keydown", function (event) {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openLightbox(image);
+          }
+        });
+      });
+
+      lightbox.addEventListener("click", function (event) {
+        if (event.target === lightbox) {
+          closeLightbox();
+        }
+      });
+      closeButton.addEventListener("click", closeLightbox);
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && lightbox.classList.contains("is-open")) {
+          closeLightbox();
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
