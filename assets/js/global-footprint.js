@@ -5,16 +5,16 @@
     seed: 20260704,
     totalPoints: 1500,
     pointMultiplier: 10,
-    primaryColor: "#1d73d4",
-    goldColor: "#f4a62a",
-    roseColor: "#d85d8f"
+    primaryColor: "#00c8ff",
+    goldColor: "#ffc247",
+    roseColor: "#ff4fa3"
   };
 
   var HUBS = [
     { name: "Guangzhou", region: "Guangdong", lat: 23.1291, lng: 113.2644, color: CONFIG.goldColor },
     { name: "Xiamen", region: "Fujian", lat: 24.4798, lng: 118.0894, color: CONFIG.primaryColor },
     { name: "Hong Kong", region: "Hong Kong", lat: 22.3193, lng: 114.1694, color: CONFIG.roseColor },
-    { name: "Singapore", region: "Singapore", lat: 1.3521, lng: 103.8198, color: "#18a999" }
+    { name: "Singapore", region: "Singapore", lat: 1.3521, lng: 103.8198, color: "#20dfb8" }
   ];
 
   var DISTRIBUTION = [
@@ -51,14 +51,14 @@
     {
       key: "Singapore",
       count: 22,
-      color: "#18a999",
+      color: "#20dfb8",
       radius: 0.22,
       centers: [["Singapore", 1.3521, 103.8198]]
     },
     {
       key: "Other Mainland China",
       count: 20,
-      color: "#4d8fe8",
+      color: "#38a7ff",
       radius: 1.2,
       centers: [
         ["Beijing", 39.9042, 116.4074],
@@ -74,7 +74,7 @@
     {
       key: "East & Southeast Asia",
       count: 12,
-      color: "#2698d9",
+      color: "#00b7ff",
       radius: 1.0,
       centers: [
         ["Tokyo", 35.6762, 139.6503],
@@ -90,7 +90,7 @@
     {
       key: "North America",
       count: 12,
-      color: "#5d7fe3",
+      color: "#5d80ff",
       radius: 1.3,
       centers: [
         ["San Francisco", 37.7749, -122.4194],
@@ -105,7 +105,7 @@
     {
       key: "Europe",
       count: 10,
-      color: "#805ad5",
+      color: "#a46bff",
       radius: 1.15,
       centers: [
         ["London", 51.5074, -0.1278],
@@ -119,7 +119,7 @@
     {
       key: "Oceania",
       count: 4,
-      color: "#13a87a",
+      color: "#20dfb8",
       radius: 1.0,
       centers: [
         ["Sydney", -33.8688, 151.2093],
@@ -131,7 +131,7 @@
     {
       key: "South Asia & Middle East",
       count: 4,
-      color: "#d98b22",
+      color: "#ffaf35",
       radius: 1.0,
       centers: [
         ["Delhi", 28.6139, 77.209],
@@ -143,7 +143,7 @@
     {
       key: "Latin America & Africa",
       count: 2,
-      color: "#d96f4c",
+      color: "#ff6b59",
       radius: 1.25,
       centers: [
         ["Sao Paulo", -23.5558, -46.6396],
@@ -189,8 +189,8 @@
           lat: clampLat(center[1] + offset.lat),
           lng: center[2] + offset.lng,
           color: bucket.color,
-          radius: 0.055 + random() * 0.075,
-          altitude: 0.006 + random() * 0.018,
+          radius: 0.058 + random() * 0.086,
+          altitude: 0.008 + random() * 0.022,
           intensity: 0.42 + random() * 0.58
         });
       }
@@ -220,8 +220,8 @@
         endLng: target.lng,
         color: [hub.color, target.color],
         label: hub.name + " -> " + target.city,
-        altitude: 0.18 + (index % 5) * 0.035,
-        stroke: 0.34 + (index % 3) * 0.12,
+        altitude: 0.27 + (index % 5) * 0.055,
+        stroke: 0.76 + (index % 3) * 0.22,
         dashSeed: (index * 0.071) % 1
       };
     });
@@ -234,9 +234,9 @@
         lng: hub.lng,
         name: hub.name,
         color: hub.color,
-        maxRadius: index === 3 ? 4.5 : 3.8,
-        speed: 0.7 + index * 0.08,
-        repeat: 1350 + index * 180
+        maxRadius: index === 3 ? 5.8 : 5.1,
+        speed: 0.86 + index * 0.1,
+        repeat: 1180 + index * 150
       };
     });
   }
@@ -309,6 +309,9 @@
       .backgroundColor("rgba(0,0,0,0)")
       .globeImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg")
       .bumpImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png")
+      .showAtmosphere(true)
+      .atmosphereColor("#8bbdff")
+      .atmosphereAltitude(0.18)
       .pointsData(points)
       .pointLat("lat")
       .pointLng("lng")
@@ -327,17 +330,17 @@
       .arcAltitude("altitude")
       .arcStroke("stroke")
       .arcColor("color")
-      .arcDashLength(reduceMotion ? 1 : 0.36)
-      .arcDashGap(reduceMotion ? 0 : 1.05)
+      .arcDashLength(reduceMotion ? 1 : 0.48)
+      .arcDashGap(reduceMotion ? 0 : 0.34)
       .arcDashInitialGap("dashSeed")
-      .arcDashAnimateTime(reduceMotion ? 0 : 5200)
+      .arcDashAnimateTime(reduceMotion ? 0 : 2600)
       .arcLabel(arcLabel)
       .ringsData(rings)
       .ringLat("lat")
       .ringLng("lng")
       .ringColor(function (ring) {
         return function (t) {
-          var alpha = Math.max(0, 0.62 - t) * 0.95;
+          var alpha = Math.max(0, 0.82 - t) * 0.98;
           return ring.color + Math.round(alpha * 255).toString(16).padStart(2, "0");
         };
       })
@@ -360,7 +363,7 @@
 
     var controls = globe.controls();
     controls.autoRotate = !reduceMotion;
-    controls.autoRotateSpeed = 0.42;
+    controls.autoRotateSpeed = 0.36;
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
     controls.enableZoom = true;
@@ -368,23 +371,43 @@
     controls.maxDistance = 520;
 
     function resize() {
-      var stage = root.parentElement || root;
+      var stage = root.closest(".global-stage") || root.parentElement || root;
+      var panel = root.closest(".global-footprint-panel");
+      var content = root.closest(".content");
       var rect = stage.getBoundingClientRect();
-      var width = Math.max(280, Math.round(rect.width));
+      var contentRect = content ? content.getBoundingClientRect() : rect;
+      var panelStyle = panel ? window.getComputedStyle(panel) : null;
+      var panelPadding = panelStyle
+        ? parseFloat(panelStyle.paddingLeft || 0) + parseFloat(panelStyle.paddingRight || 0)
+        : 0;
+      var contentBound = Math.max(280, contentRect.width - panelPadding - 2);
+      var width = Math.max(280, Math.round(Math.min(rect.width || contentBound, contentBound)));
       var height = Math.max(300, Math.round(rect.height));
+      stage.style.width = "100%";
+      stage.style.maxWidth = "100%";
       root.style.width = "100%";
+      root.style.maxWidth = "100%";
       root.style.height = "100%";
+      root.style.overflow = "hidden";
       globe.width(width).height(height);
+      var inner = root.firstElementChild;
+      if (inner) {
+        inner.style.width = "100%";
+        inner.style.maxWidth = "100%";
+        inner.style.height = "100%";
+        inner.style.overflow = "hidden";
+      }
       var canvas = root.querySelector("canvas");
       if (canvas) {
         canvas.style.width = "100%";
+        canvas.style.maxWidth = "100%";
         canvas.style.height = "100%";
       }
     }
 
     resize();
     if (window.ResizeObserver) {
-      new ResizeObserver(resize).observe(root);
+      new ResizeObserver(resize).observe(root.closest(".global-stage") || root);
     } else {
       window.addEventListener("resize", resize);
     }

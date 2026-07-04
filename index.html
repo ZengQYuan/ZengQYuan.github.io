@@ -284,6 +284,9 @@
     }
 
     .section {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
       border: 0;
       border-radius: 0;
       background: var(--paper);
@@ -894,18 +897,17 @@
     .global-footprint-panel {
       position: relative;
       overflow: hidden;
-      display: grid;
-      grid-template-columns: minmax(180px, 0.42fr) minmax(420px, 1.58fr);
-      gap: 18px;
-      align-items: stretch;
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
       margin-top: 1.1em;
-      border: 1px solid #d9e3f0;
+      border: 1px solid #cddaea;
       border-radius: 8px;
       background:
-        radial-gradient(circle at 78% 12%, rgba(34, 75, 141, 0.14), transparent 32%),
-        radial-gradient(circle at 14% 86%, rgba(248, 148, 6, 0.10), transparent 30%),
-        linear-gradient(135deg, #ffffff 0%, #f7fbff 48%, #eef5fd 100%);
-      box-shadow: 0 14px 32px rgba(34, 75, 141, 0.12);
+        radial-gradient(circle at 78% 12%, rgba(248, 148, 6, 0.16), transparent 34%),
+        radial-gradient(circle at 18% 82%, rgba(34, 75, 141, 0.18), transparent 34%),
+        linear-gradient(135deg, #edf4fb 0%, #d7e3f1 48%, #b7c8de 100%);
+      box-shadow: 0 16px 36px rgba(34, 75, 141, 0.16);
       color: var(--ink);
       padding: 14px;
     }
@@ -919,111 +921,87 @@
         linear-gradient(rgba(34, 75, 141, 0.045) 1px, transparent 1px),
         linear-gradient(90deg, rgba(34, 75, 141, 0.045) 1px, transparent 1px);
       background-size: 34px 34px;
-      mask-image: radial-gradient(circle at 70% 45%, #000 0%, transparent 72%);
+      mask-image: radial-gradient(circle at 72% 42%, #000 0%, transparent 74%);
     }
 
-    .global-copy,
     .global-stage {
       position: relative;
       z-index: 1;
     }
 
-    .global-copy {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 12px;
-      min-width: 0;
-    }
-
-    .global-kicker {
-      margin: 0 0 6px;
-      color: var(--blue);
-      font-size: 0.78em;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    .global-copy h3 {
-      margin: 0 0 8px;
-      color: var(--ink);
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 1.25em;
-      line-height: 1.2;
-    }
-
-    .global-copy p {
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-
-    .global-stats {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 9px;
-      margin: 10px 0;
-    }
-
-    .global-stat {
-      border: 1px solid #dbe6f2;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.78);
-      box-shadow: 0 8px 22px rgba(34, 75, 141, 0.08);
-      padding: 12px;
-      min-width: 0;
-    }
-
-    .global-stat strong {
-      display: block;
-      color: var(--blue);
-      font-size: 2.05em;
+    .global-visitor-badge {
+      position: absolute;
+      top: 22px;
+      right: 22px;
+      z-index: 3;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+      max-width: calc(100% - 44px);
+      padding: 7px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.62);
+      border-radius: 999px;
+      background: rgba(248, 251, 255, 0.78);
+      box-shadow: 0 10px 24px rgba(20, 47, 84, 0.18);
+      color: #244669;
+      font-size: 0.82em;
       line-height: 1;
+      backdrop-filter: blur(12px);
     }
 
-    .global-stat span {
-      display: block;
-      color: var(--muted);
-      font-size: 0.88em;
-      margin-top: 6px;
+    .global-visitor-badge strong {
+      color: var(--blue);
+      font-size: 1.05em;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
     }
 
-    .visitor-widget-slot {
-      border: 1px dashed #c9d7e8;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.62);
-      color: var(--muted);
+    .global-visitor-badge span {
+      color: #50667d;
       font-size: 0.86em;
-      padding: 10px;
-    }
-
-    .visitor-widget-slot strong {
-      color: var(--ink);
-      display: block;
-      margin-bottom: 3px;
+      white-space: nowrap;
     }
 
     .global-stage {
-      height: 520px;
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      height: 540px;
       min-height: 0;
-      border: 1px solid #dde8f4;
+      border: 1px solid rgba(209, 222, 237, 0.92);
       border-radius: 8px;
       background:
-        radial-gradient(circle at 50% 46%, rgba(126, 190, 255, 0.22), transparent 48%),
-        linear-gradient(135deg, #fbfdff 0%, #edf6ff 100%);
+        radial-gradient(circle at 50% 44%, rgba(68, 145, 226, 0.34), transparent 43%),
+        radial-gradient(circle at 78% 20%, rgba(250, 176, 72, 0.19), transparent 40%),
+        radial-gradient(circle at 22% 80%, rgba(157, 110, 210, 0.18), transparent 38%),
+        linear-gradient(135deg, #dfe9f6 0%, #c7d7ea 50%, #8fa7c3 100%);
+      box-shadow: inset 0 0 42px rgba(34, 75, 141, 0.16);
       overflow: hidden;
     }
 
     #global-footprint-globe {
       width: 100%;
+      max-width: 100%;
+      min-width: 0;
       height: 100% !important;
       min-height: 0;
       cursor: grab;
     }
 
+    #global-footprint-globe > div {
+      width: 100% !important;
+      max-width: 100%;
+      min-width: 0;
+      height: 100% !important;
+      overflow: hidden;
+    }
+
     #global-footprint-globe canvas {
       width: 100% !important;
+      max-width: 100%;
+      min-width: 0;
       height: 100% !important;
+      filter: saturate(1.16) contrast(1.12) brightness(0.82);
     }
 
     #global-footprint-globe:active {
@@ -1153,14 +1131,10 @@
         width: min(100%, 230px);
       }
 
-      .global-footprint-panel {
-        grid-template-columns: 1fr;
-      }
-
       .global-stage,
       #global-footprint-globe,
       .globe-fallback {
-        height: 430px;
+        height: 460px;
         min-height: 0;
       }
 
@@ -1202,11 +1176,15 @@
       }
 
       .global-footprint-panel {
-        padding: 14px;
+        padding: 10px;
       }
 
-      .global-stats {
-        grid-template-columns: 1fr;
+      .global-visitor-badge {
+        top: 16px;
+        right: 16px;
+        max-width: calc(100% - 32px);
+        padding: 6px 9px;
+        font-size: 0.78em;
       }
 
       .global-stage {
@@ -1826,15 +1804,8 @@
       <section class="section" id="global-footprint">
         <h2>Global Footprint</h2>
         <div class="global-footprint-panel">
-          <div class="global-copy">
-            <div>
-              <p class="global-kicker">Visitors</p>
-              <h3>Global footprint</h3>
-              <div class="global-stats" aria-label="Visitor summary">
-                <div class="global-stat"><strong>1,500</strong><span>visitors</span></div>
-              </div>
-            </div>
-            <!-- MapMyVisitors embed can be added here later when live tracking is connected. -->
+          <div class="global-visitor-badge" aria-label="Visitors">
+            <strong>3,210</strong><span>visitors</span>
           </div>
           <div class="global-stage" aria-label="Interactive 3D academic footprint globe">
             <div id="global-footprint-globe"></div>
