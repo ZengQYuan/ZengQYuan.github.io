@@ -189,8 +189,8 @@
           lat: clampLat(center[1] + offset.lat),
           lng: center[2] + offset.lng,
           color: bucket.color,
-          radius: 0.058 + random() * 0.086,
-          altitude: 0.008 + random() * 0.022,
+          radius: 0.095 + random() * 0.11,
+          altitude: 0.014 + random() * 0.028,
           intensity: 0.42 + random() * 0.58
         });
       }
@@ -241,6 +241,23 @@
     });
   }
 
+  function buildHubHotspots() {
+    return HUBS.map(function (hub) {
+      return {
+        id: "hub-" + hub.name,
+        city: hub.name,
+        region: hub.region,
+        lat: hub.lat,
+        lng: hub.lng,
+        color: hub.color,
+        radius: 0.34,
+        altitude: 0.055,
+        intensity: 1,
+        isHub: true
+      };
+    });
+  }
+
   function hasWebGL() {
     try {
       var canvas = document.createElement("canvas");
@@ -266,18 +283,107 @@
       '<div class="globe-tooltip">',
       "<b>" + point.city + "</b><br>",
       point.region + "<br>",
-      "Global footprint",
+      point.isHub ? "Key footprint hub" : "Global footprint",
       "</div>"
     ].join("");
   }
 
-  function arcLabel(arc) {
-    return [
-      '<div class="globe-tooltip">',
-      "<b>" + arc.label + "</b><br>",
-      "Academic connection arc",
-      "</div>"
-    ].join("");
+  function geoDistanceDegrees(aLat, aLng, bLat, bLng) {
+    var toRad = Math.PI / 180;
+    var lat1 = aLat * toRad;
+    var lat2 = bLat * toRad;
+    var dLat = (bLat - aLat) * toRad;
+    var dLng = (bLng - aLng) * toRad;
+    var sinLat = Math.sin(dLat / 2);
+    var sinLng = Math.sin(dLng / 2);
+    var a = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+    return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a))) / toRad;
+  }
+
+  function findNearestFootprint(coords, candidates) {
+    if (!coords || coords.lat === undefined || coords.lng === undefined) {
+      return null;
+    }
+
+    var best = null;
+    var bestDistance = Infinity;
+    candidates.forEach(function (point) {
+      var distance = geoDistanceDegrees(coords.lat, coords.lng, point.lat, point.lng);
+      var threshold = point.isHub ? 9.0 : 4.2;
+      if (distance < threshold && distance < bestDistance) {
+        best = point;
+        bestDistance = distance;
+      }
+    });
+
+    return best;
+  }
+
+  function setupManualTooltip(root, stage, globe, candidates) {
+    if (!root || !stage || typeof globe.toGlobeCoords !== "function") {
+      return;
+    }
+
+    var tooltip = document.createElement("div");
+    tooltip.className = "globe-manual-tooltip";
+    tooltip.setAttribute("aria-hidden", "true");
+    stage.appendChild(tooltip);
+
+    var pendingEvent = null;
+    var raf = 0;
+
+    function hideTooltip() {
+      tooltip.classList.remove("is-visible");
+      tooltip.setAttribute("aria-hidden", "true");
+      root.classList.remove("is-hovering-point");
+    }
+
+    function updateTooltip() {
+      raf = 0;
+      if (!pendingEvent) {
+        hideTooltip();
+        return;
+      }
+
+      var stageRect = stage.getBoundingClientRect();
+      var x = pendingEvent.clientX - stageRect.left;
+      var y = pendingEvent.clientY - stageRect.top;
+      var coords = globe.toGlobeCoords(x, y);
+      var nearest = findNearestFootprint(coords, candidates);
+
+      if (!nearest) {
+        hideTooltip();
+        return;
+      }
+
+      tooltip.innerHTML = pointLabel(nearest);
+      tooltip.classList.add("is-visible");
+      tooltip.setAttribute("aria-hidden", "false");
+      root.classList.add("is-hovering-point");
+
+      var tooltipWidth = tooltip.offsetWidth || 150;
+      var tooltipHeight = tooltip.offsetHeight || 74;
+      var left = Math.min(stage.clientWidth - tooltipWidth - 12, Math.max(12, x + 16));
+      var top = Math.min(stage.clientHeight - tooltipHeight - 12, Math.max(12, y + 12));
+      tooltip.style.left = left + "px";
+      tooltip.style.top = top + "px";
+    }
+
+    root.addEventListener("mousemove", function (event) {
+      pendingEvent = event;
+      if (!raf) {
+        raf = window.requestAnimationFrame(updateTooltip);
+      }
+    });
+
+    root.addEventListener("mouseleave", function () {
+      pendingEvent = null;
+      if (raf) {
+        window.cancelAnimationFrame(raf);
+        raf = 0;
+      }
+      hideTooltip();
+    });
   }
 
   function initGlobe() {
@@ -294,6 +400,8 @@
     }
 
     var points = buildPoints();
+    var hubHotspots = buildHubHotspots();
+    var interactivePoints = points.concat(hubHotspots);
     var arcs = buildArcs(points);
     var rings = buildRings();
     var labels = HUBS.map(function (hub) {
@@ -301,6 +409,7 @@
         lat: hub.lat,
         lng: hub.lng,
         text: hub.name,
+        region: hub.region,
         color: hub.color
       };
     });
@@ -312,7 +421,7 @@
       .showAtmosphere(true)
       .atmosphereColor("#8bbdff")
       .atmosphereAltitude(0.18)
-      .pointsData(points)
+      .pointsData(interactivePoints)
       .pointLat("lat")
       .pointLng("lng")
       .pointAltitude("altitude")
@@ -320,8 +429,8 @@
       .pointColor(function (point) {
         return point.color;
       })
-      .pointResolution(10)
-      .pointLabel(pointLabel)
+      .pointResolution(14)
+      .pointsMerge(false)
       .arcsData(arcs)
       .arcStartLat("startLat")
       .arcStartLng("startLng")
@@ -334,7 +443,6 @@
       .arcDashGap(reduceMotion ? 0 : 0.34)
       .arcDashInitialGap("dashSeed")
       .arcDashAnimateTime(reduceMotion ? 0 : 2600)
-      .arcLabel(arcLabel)
       .ringsData(rings)
       .ringLat("lat")
       .ringLng("lng")
@@ -354,10 +462,11 @@
       .labelColor(function (label) {
         return label.color;
       })
-      .labelSize(0.72)
-      .labelDotRadius(0.35)
-      .labelAltitude(0.045)
-      .labelResolution(2);
+      .labelSize(0.82)
+      .labelDotRadius(0.46)
+      .labelAltitude(0.06)
+      .labelResolution(2)
+      .enablePointerInteraction(false);
 
     globe.pointOfView({ lat: 21, lng: 107, altitude: 2.22 }, reduceMotion ? 0 : 1200);
 
@@ -369,6 +478,8 @@
     controls.enableZoom = true;
     controls.minDistance = 180;
     controls.maxDistance = 520;
+
+    setupManualTooltip(root, root.closest(".global-stage"), globe, interactivePoints);
 
     function resize() {
       var stage = root.closest(".global-stage") || root.parentElement || root;
@@ -414,6 +525,13 @@
 
     root.dataset.points = String(points.length);
     root.dataset.arcs = String(arcs.length);
+    root.__globalFootprint = {
+      globe: globe,
+      points: points,
+      hubHotspots: hubHotspots,
+      labels: labels,
+      arcs: arcs
+    };
   }
 
   if (document.readyState === "loading") {

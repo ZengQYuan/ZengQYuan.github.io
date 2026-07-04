@@ -1062,10 +1062,12 @@
     }
 
     .globe-tooltip {
+      pointer-events: none;
       color: var(--ink);
       font-family: "Trebuchet MS", Helvetica, sans-serif;
       font-size: 13px;
       line-height: 1.35;
+      min-width: 126px;
       padding: 8px 10px;
       border: 1px solid #c9d7e8;
       border-radius: 6px;
@@ -1076,6 +1078,25 @@
 
     .globe-tooltip b {
       color: var(--blue);
+    }
+
+    .globe-manual-tooltip {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 4;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(12px, -50%);
+      transition: opacity 120ms ease;
+    }
+
+    .globe-manual-tooltip.is-visible {
+      opacity: 1;
+    }
+
+    #global-footprint-globe.is-hovering-point {
+      cursor: pointer;
     }
 
     footer {
@@ -1864,7 +1885,7 @@
     <p>Last updated: July 3, 2026. &copy; 2026 Qingyuan Zeng. All rights reserved.</p>
   </footer>
   <script src="https://cdn.jsdelivr.net/npm/globe.gl" defer></script>
-  <script src="assets/js/global-footprint.js?v=20260704-space" defer></script>
+  <script src="assets/js/global-footprint.js?v=20260704-hover6" defer></script>
   <script>
     (function () {
       var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
