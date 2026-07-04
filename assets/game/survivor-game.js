@@ -167,8 +167,12 @@
     this.bossTimer = 180;
     this.frostTimer = 12;
     this.sparkCounter = 0;
+    this.chainBudget = 0;
+    this.chainBudgetTimer = 0;
+    this.sparkIcd = 0;
     this.screenShake = 0;
     this.sceneTick = 0;
+    this.audio = { ctx: null, unlocked: false, muted: false, last: Object.create(null) };
     this.world = { width: 3800, height: 2800 };
     this.camera = { x: 0, y: 0 };
     this.mapDecor = [];
@@ -195,6 +199,10 @@
         return;
       }
       var key = event.key.toLowerCase();
+      if (/^[1-4]$/.test(key) && self.selectPanelChoiceByNumber(Number(key) - 1)) {
+        event.preventDefault();
+        return;
+      }
       if (["arrowup", "arrowdown", "arrowleft", "arrowright", " ", "spacebar"].indexOf(key) !== -1) {
         event.preventDefault();
       }
@@ -321,6 +329,7 @@
     this.enemies = [];
     this.projectiles = [];
     this.gems = [];
+    this.chests = [];
     this.particles = [];
     this.fields = [];
     this.orbs = [];
@@ -328,6 +337,13 @@
     this.damageTexts = [];
     this.upgrades = Object.create(null);
     this.weaponLevels = { pulse: 1 };
+    this.evolutions = Object.create(null);
+    this.banished = Object.create(null);
+    this.currentChoices = null;
+    this.lockedChoices = null;
+    this.pendingChest = null;
+    this.runTrait = null;
+    this.traitChoices = null;
     this.enemyCap = window.innerWidth < 760 ? 260 : (CONFIG.enemyCap || 420);
     this.projectileCap = window.innerWidth < 760 ? 520 : (CONFIG.projectileCap || 760);
     this.gemCap = window.innerWidth < 760 ? 240 : (CONFIG.gemCap || 360);
@@ -365,10 +381,41 @@
       shield: 0,
       shieldMax: 0,
       shieldTimer: 0,
+      shieldFatigue: 0,
       doomMarkLevel: 0,
+      stormCrownLevel: 0,
+      stormKills: 0,
+      greedLevel: 0,
+      scarletLevel: 0,
+      chronoLevel: 0,
+      chronoReady: true,
+      chronoCooldown: 0,
+      voidThroneLevel: 0,
+      throneCharge: 0,
+      kineticLevel: 0,
+      kineticCharge: 0,
+      treasureLevel: 0,
+      mirrorPrismLevel: 0,
+      lastStandLevel: 0,
+      cursedDiceLevel: 0,
+      echoMagazineLevel: 0,
+      echoTempoTimer: 0,
+      dashBoostTimer: 0,
+      kineticBurstTimer: 0,
+      bloodDebtLevel: 0,
+      shortCircuitLevel: 0,
+      executionLevel: 0,
+      voidInsuranceLevel: 0,
+      voidInsuranceUsed: false,
+      rerollCharmLevel: 0,
+      rerolls: 2,
+      banishes: 1,
       overdriveTimer: 0,
       overdriveMult: 1,
       gateTimer: 0,
+      healBlockTimer: 0,
+      hitTextTimer: 0,
+      recentHitTimer: 0,
       magnetTimer: 0
     };
     this.player = {
@@ -391,10 +438,24 @@
       meteorRain: 3.8,
       warpMine: 1.2,
       frostfireNova: 4.8,
+      blackHoleBloom: 6.8,
       aura: 0
     };
+    this.tide = {
+      active: false,
+      nextTime: 120,
+      index: 0,
+      timer: 0,
+      spawnTimer: 0,
+      budget: 0,
+      warned: false
+    };
+    this.feedback = {
+      hitTextBudget: 0,
+      dotTimer: 0
+    };
     this.spawnTimer = 0;
-    this.eliteTimer = 50;
+    this.eliteTimer = 62;
     this.bossTimer = 180;
     this.frostTimer = 12;
     this.sparkCounter = 0;
@@ -409,7 +470,43 @@
 
   VoidBloom.prototype.getNextXp = function () {
     var xp = CONFIG.xp || {};
-    return Math.floor((xp.base || 22) + this.level * (xp.linear || 8) + Math.pow(this.level, 1.35) * (xp.curve || 3.1));
+    return Math.floor((xp.base || 22) + this.level * (xp.linear || 8) + Math.pow(this.level, 1.42) * (xp.curve || 3.1));
+  };
+
+  VoidBloom.prototype.getDifficultyState = function () {
+    var t = this.time || 0;
+    var greed = this.stats ? (this.stats.greedLevel || 0) : 0;
+    var cursed = this.stats ? (this.stats.cursedDiceLevel || 0) : 0;
+    var late = Math.max(0, t - 240);
+    var deep = Math.max(0, t - 600);
+    return {
+      hpMult: 1 + t / 135 + Math.pow(late / 185, 1.35) * 0.82 + greed * 0.035,
+      damageMult: 1 + Math.max(0, t - 90) / 280 + deep / 190 + cursed * 0.025,
+      speedMult: Math.min(2.05, 1 + t / 760 + Math.max(0, t - 360) / 1400),
+      spawnMult: 1 + Math.min(1.35, t / 440) + deep / 540 + greed * 0.045,
+      affixCount: t < 180 ? 0 : t < 420 ? 1 : t < 720 ? 2 : 3,
+      bossCycle: Math.max(1, Math.floor(t / 180) + 1)
+    };
+  };
+
+  VoidBloom.prototype.recoveryMultiplier = function (source) {
+    var late = clamp(1 - Math.max(0, this.time - 360) / 900, 0.55, 1);
+    var recent = source === "regen" && this.stats.recentHitTimer > 0 ? 0.35 : 1;
+    var suppress = this.stats.healBlockTimer > 0 ? 0.45 : 1;
+    var tide = this.tide && this.tide.active ? 0.75 : 1;
+    return late * recent * suppress * tide;
+  };
+
+  VoidBloom.prototype.applyHealing = function (amount, source, x, y) {
+    if (amount <= 0) return 0;
+    var finalAmount = amount * this.recoveryMultiplier(source || "heal");
+    var before = this.stats.hp;
+    this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + finalAmount);
+    var gained = this.stats.hp - before;
+    if (gained > 0.4 && source !== "regen") {
+      this.addDamageText(x == null ? this.player.x : x, y == null ? this.player.y - 20 : y, "+" + Math.round(gained), "#78f7d2", { kind: "heal", priority: 2, size: 14 });
+    }
+    return gained;
   };
 
   VoidBloom.prototype.createMapDecor = function () {
@@ -516,6 +613,33 @@
       hp: 220,
       radius: 34,
       color: "#ffb347"
+    });
+    props.push({
+      active: true,
+      type: "altar",
+      x: this.world.width * 0.59,
+      y: this.world.height * 0.54,
+      hp: 180,
+      radius: 42,
+      color: "#ff335f"
+    });
+    props.push({
+      active: true,
+      type: "tower",
+      x: this.world.width * 0.72,
+      y: this.world.height * 0.28,
+      hp: 165,
+      radius: 36,
+      color: "#ffd166"
+    });
+    props.push({
+      active: true,
+      type: "vault",
+      x: this.world.width * 0.28,
+      y: this.world.height * 0.78,
+      hp: 240,
+      radius: 40,
+      color: "#7df9ff"
     });
     return props;
   };
@@ -643,12 +767,186 @@
     document.removeEventListener("visibilitychange", this.onVisibility);
   };
 
+  VoidBloom.prototype.ensureAudio = function () {
+    if (this.audio.muted || reduceMotion) {
+      return;
+    }
+    try {
+      var AudioCtor = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtor) return;
+      if (!this.audio.ctx) {
+        this.audio.ctx = new AudioCtor();
+      }
+      if (this.audio.ctx.state === "suspended") {
+        this.audio.ctx.resume();
+      }
+      this.audio.unlocked = true;
+    } catch (error) {
+      this.audio.muted = true;
+    }
+  };
+
+  VoidBloom.prototype.playSfx = function (name, intensity) {
+    if (this.audio.muted || !this.audio.unlocked || !this.audio.ctx || reduceMotion) return;
+    var now = this.audio.ctx.currentTime;
+    var limit = name === "hit" ? 0.045 : name === "gem" ? 0.07 : name === "crit" ? 0.08 : 0.12;
+    if (this.audio.last[name] && now - this.audio.last[name] < limit) return;
+    this.audio.last[name] = now;
+    intensity = clamp(intensity || 1, 0.35, 2.4);
+    var presets = {
+      hit: { f1: 420, f2: 160, gain: 0.018, dur: 0.045, type: "triangle" },
+      crit: { f1: 980, f2: 360, gain: 0.04, dur: 0.085, type: "square" },
+      kill: { f1: 640, f2: 220, gain: 0.025, dur: 0.07, type: "sawtooth" },
+      hurt: { f1: 170, f2: 80, gain: 0.06, dur: 0.13, type: "sawtooth" },
+      shield: { f1: 760, f2: 260, gain: 0.045, dur: 0.12, type: "triangle" },
+      upgrade: { f1: 520, f2: 1040, gain: 0.055, dur: 0.18, type: "triangle" },
+      boss: { f1: 120, f2: 55, gain: 0.075, dur: 0.32, type: "sawtooth" },
+      gem: { f1: 760, f2: 1120, gain: 0.012, dur: 0.04, type: "sine" }
+    };
+    var data = presets[name] || presets.hit;
+    try {
+      var osc = this.audio.ctx.createOscillator();
+      var gain = this.audio.ctx.createGain();
+      osc.type = data.type;
+      osc.frequency.setValueAtTime(data.f1, now);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(40, data.f2), now + data.dur);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(data.gain * intensity, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + data.dur);
+      osc.connect(gain);
+      gain.connect(this.audio.ctx.destination);
+      osc.start(now);
+      osc.stop(now + data.dur + 0.02);
+    } catch (error) {
+      this.audio.muted = true;
+    }
+  };
+
   VoidBloom.prototype.startRun = function () {
+    this.ensureAudio();
     this.reset();
-    this.state = "playing";
-    this.paused = false;
-    this.hidePanel();
-    this.resume();
+    this.showTraitChoice();
+  };
+
+  VoidBloom.prototype.buildTraitPool = function () {
+    return [
+      {
+        id: "gambler",
+        name: "赌徒星盘",
+        color: "#f7d46b",
+        text: "高稀有卡概率提升；普通卡略弱。适合赌传说和宝箱连开。"
+      },
+      {
+        id: "bloodMoon",
+        name: "血月誓约",
+        color: "#ff335f",
+        text: "生命上限下降，伤害与低血触发更强。适合极限反杀。"
+      },
+      {
+        id: "swarm",
+        name: "工蜂协议",
+        color: "#7df9ff",
+        text: "召唤、卫星、回响更常出现；本体火力略降。适合自动炮台流。"
+      },
+      {
+        id: "riftMiner",
+        name: "裂隙矿区",
+        color: "#b26cff",
+        text: "力场、地雷、裂隙更常出现；移速略降。适合边跑边布阵。"
+      },
+      {
+        id: "prismFocus",
+        name: "棱镜专注",
+        color: "#ffd166",
+        text: "暴击率和暴击伤害提升；非暴击略低。适合爆数字流。"
+      },
+      {
+        id: "lightRunner",
+        name: "逐光者",
+        color: "#ffffff",
+        text: "冲刺冷却更短，冲刺后短暂增伤。适合操作流。"
+      }
+    ];
+  };
+
+  VoidBloom.prototype.showTraitChoice = function () {
+    var self = this;
+    this.state = "trait";
+    this.paused = true;
+    this.stopLoop();
+    this.panel.innerHTML = "";
+    var pool = this.buildTraitPool().slice();
+    var choices = [];
+    while (choices.length < 3 && pool.length) {
+      choices.push(pool.splice(Math.floor(this.random() * pool.length), 1)[0]);
+    }
+    var card = createElement("div", "void-bloom-card void-bloom-trait-card");
+    card.innerHTML = [
+      "<h3>选择本局命运</h3>",
+      "<p>这一局先定一个流派方向，后面的升级池会更偏向它。</p>"
+    ].join("");
+    var list = createElement("div", "void-bloom-upgrades");
+    choices.forEach(function (trait, index) {
+      var button = createElement("button", "void-bloom-upgrade void-bloom-trait");
+      button.type = "button";
+      button.setAttribute("data-shortcut", String(index + 1));
+      button.style.setProperty("--trait-color", trait.color);
+      button.innerHTML = [
+        "<em>命运</em>",
+        "<strong>" + trait.name + "</strong>",
+        "<span>" + trait.text + "</span>"
+      ].join("");
+      button.addEventListener("click", function () {
+        self.applyRunTrait(trait);
+        self.hidePanel();
+        self.state = "playing";
+        self.paused = false;
+        self.addDamageText(self.player.x, self.player.y - 48, trait.name, trait.color, { priority: 3, size: 18 });
+        self.addBurst(self.player.x, self.player.y, trait.color, 56, 4.5);
+        self.playSfx("upgrade", 1);
+        self.resume();
+      });
+      list.appendChild(button);
+    });
+    card.appendChild(list);
+    this.panel.appendChild(card);
+    this.panel.classList.add("is-visible");
+    this.draw();
+  };
+
+  VoidBloom.prototype.applyRunTrait = function (trait) {
+    this.runTrait = trait;
+    if (!trait) return;
+    if (trait.id === "bloodMoon") {
+      this.stats.maxHp = Math.max(72, Math.round(this.stats.maxHp * 0.78));
+      this.stats.hp = this.stats.maxHp;
+      this.stats.damageMult *= 1.18;
+      this.stats.critChance += 0.04;
+    }
+    if (trait.id === "swarm") {
+      this.stats.damageMult *= 0.93;
+      this.stats.echoChance += 0.04;
+      this.stats.rerolls += 1;
+    }
+    if (trait.id === "riftMiner") {
+      this.stats.speed *= 0.94;
+      this.stats.fusionLevel += 1;
+      this.stats.banishes += 1;
+    }
+    if (trait.id === "prismFocus") {
+      this.stats.critChance += 0.08;
+      this.stats.critDamage += 0.2;
+      this.stats.damageMult *= 0.96;
+    }
+    if (trait.id === "lightRunner") {
+      this.stats.dashCooldown *= 0.82;
+      this.stats.speed += 10;
+      this.stats.kineticLevel += 1;
+    }
+    if (trait.id === "gambler") {
+      this.stats.rerolls += 2;
+      this.stats.cursedDiceLevel += 1;
+    }
   };
 
   VoidBloom.prototype.showStart = function () {
@@ -705,11 +1003,30 @@
     this.panel.innerHTML = "";
   };
 
+  VoidBloom.prototype.selectPanelChoiceByNumber = function (index) {
+    if (!this.panel.classList.contains("is-visible")) return false;
+    if (["trait", "upgrade", "chest"].indexOf(this.state) === -1) return false;
+    var buttons = this.panel.querySelectorAll(".void-bloom-upgrade:not(:disabled)");
+    var button = buttons[index];
+    if (!button) return false;
+    button.click();
+    return true;
+  };
+
   VoidBloom.prototype.update = function (dt) {
     this.time += dt;
     this.sceneTick += dt;
     this.stats.dashTimer = Math.max(0, this.stats.dashTimer - dt);
     this.stats.invuln = Math.max(0, this.stats.invuln - dt);
+    this.stats.recentHitTimer = Math.max(0, (this.stats.recentHitTimer || 0) - dt);
+    this.stats.healBlockTimer = Math.max(0, (this.stats.healBlockTimer || 0) - dt);
+    this.stats.hitTextTimer = Math.max(0, (this.stats.hitTextTimer || 0) - dt);
+    this.chainBudgetTimer = Math.max(0, (this.chainBudgetTimer || 0) - dt);
+    if (this.chainBudgetTimer <= 0) {
+      this.chainBudget = 6;
+      this.chainBudgetTimer = 1;
+    }
+    this.sparkIcd = Math.max(0, (this.sparkIcd || 0) - dt);
     this.screenShake = Math.max(0, this.screenShake - dt * 18);
     if (this.stats.magnetTimer > 0) {
       this.stats.magnetTimer = Math.max(0, this.stats.magnetTimer - dt);
@@ -725,8 +1042,9 @@
     }
     this.stats.gateTimer = Math.max(0, this.stats.gateTimer - dt);
     this.updateDefensiveSystems(dt);
+    this.updateBuildSystems(dt);
     if (this.stats.regen > 0) {
-      this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + this.stats.regen * dt);
+      this.applyHealing(this.stats.regen * dt, "regen");
     }
     this.handleInput(dt);
     this.spawnEnemies(dt);
@@ -739,6 +1057,11 @@
       this.updateHud(true);
       return;
     }
+    this.updateChests(dt);
+    if (this.state !== "playing") {
+      this.updateHud(true);
+      return;
+    }
     this.updateParticles(dt);
     this.handleCollisions();
     this.hudTimer -= dt;
@@ -746,31 +1069,134 @@
       this.updateHud();
       this.hudTimer = 0.12;
     }
-    if (this.stats.hp <= 0) {
+    if (this.stats.hp <= 0 && !this.triggerVoidInsurance()) {
       this.gameOver();
     }
   };
 
   VoidBloom.prototype.updateDefensiveSystems = function (dt) {
+    this.updateSuppressionAuras();
     if (this.stats.shieldMax > 0) {
       this.stats.shieldTimer = Math.max(0, this.stats.shieldTimer - dt);
+      this.stats.shieldFatigue = Math.max(0, (this.stats.shieldFatigue || 0) - dt * 0.08);
       if (this.stats.shieldTimer <= 0 && this.stats.shield < this.stats.shieldMax) {
-        this.stats.shield = Math.min(this.stats.shieldMax, this.stats.shield + this.stats.shieldMax * 0.16 * dt);
+        var suppress = this.stats.healBlockTimer > 0 ? 0.45 : 1;
+        var tide = this.tide && this.tide.active ? 0.75 : 1;
+        var fatigue = 1 / (1 + (this.stats.shieldFatigue || 0) * 0.35);
+        this.stats.shield = Math.min(this.stats.shieldMax, this.stats.shield + this.stats.shieldMax * 0.08 * dt * suppress * tide * fatigue);
       }
     }
     if (this.stats.bloodHarvestLevel > 0) {
       this.stats.harvestTimer -= dt;
-      var threshold = Math.max(12, 26 - this.stats.bloodHarvestLevel * 2);
-      if (this.stats.harvestStacks >= threshold || this.stats.harvestTimer <= 0) {
-        var stacks = Math.max(1, this.stats.harvestStacks);
-        var heal = Math.min(18 + this.stats.bloodHarvestLevel * 4, 4 + stacks * 0.75);
-        this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + heal);
+      var threshold = Math.max(18, 30 - this.stats.bloodHarvestLevel * 1.5);
+      if (this.stats.harvestStacks >= threshold || (this.stats.harvestStacks > 0 && this.stats.harvestTimer <= 0)) {
+        var stacks = this.stats.harvestStacks;
+        var heal = Math.min(12 + this.stats.bloodHarvestLevel * 2, 3 + stacks * 0.45);
+        this.applyHealing(heal, "harvest", this.player.x, this.player.y - 34);
         this.damageArea(this.player.x, this.player.y, this.areaValue(95 + this.stats.bloodHarvestLevel * 16), (24 + stacks * 1.8) * this.damageMultiplier(), "#ff4f6d", 20 + this.stats.bloodHarvestLevel * 3);
-        this.addDamageText(this.player.x, this.player.y - 34, "血色收割 +" + Math.round(heal), "#ff8aa0");
+        this.addDamageText(this.player.x, this.player.y - 48, "血色收割", "#ff8aa0", { priority: 2, size: 14 });
+        this.playSfx("shield", 0.8);
         this.stats.harvestStacks = 0;
-        this.stats.harvestTimer = Math.max(7, 15 - this.stats.bloodHarvestLevel * 0.7);
+        this.stats.harvestTimer = Math.max(9, 16 - this.stats.bloodHarvestLevel * 0.45);
       }
     }
+  };
+
+  VoidBloom.prototype.updateBuildSystems = function (dt) {
+    this.stats.echoTempoTimer = Math.max(0, (this.stats.echoTempoTimer || 0) - dt);
+    this.stats.dashBoostTimer = Math.max(0, (this.stats.dashBoostTimer || 0) - dt);
+    this.stats.kineticBurstTimer = Math.max(0, (this.stats.kineticBurstTimer || 0) - dt);
+    this.stats.chronoCooldown = Math.max(0, (this.stats.chronoCooldown || 0) - dt);
+    var move = Math.hypot(this.player.vx || 0, this.player.vy || 0);
+
+    if (this.stats.voidThroneLevel > 0) {
+      var throneMax = 100;
+      if (move < 0.08) {
+        this.stats.throneCharge = Math.min(throneMax, (this.stats.throneCharge || 0) + dt * (16 + this.stats.voidThroneLevel * 4));
+      } else {
+        this.stats.throneCharge = Math.max(0, (this.stats.throneCharge || 0) - dt * 36);
+      }
+    }
+
+    if (this.stats.kineticLevel > 0) {
+      var gain = move > 0.12 ? dt * (15 + this.stats.kineticLevel * 5) : dt * 3;
+      if (this.stats.dashTimer > this.stats.dashCooldown - 0.2) gain += dt * 36;
+      this.stats.kineticCharge = Math.min(100, (this.stats.kineticCharge || 0) + gain);
+      if (this.stats.kineticCharge >= 100) {
+        this.stats.kineticCharge = 0;
+        this.stats.kineticBurstTimer = 2.6;
+        this.damageArea(this.player.x, this.player.y, this.areaValue(135 + this.stats.kineticLevel * 18), (46 + this.stats.kineticLevel * 13) * this.damageMultiplier(), "#45d7ff", 36, false, { source: "动能绽放" });
+        this.addDamageText(this.player.x, this.player.y - 44, "动能绽放", "#45d7ff", { priority: 3, size: 16 });
+        this.addBurst(this.player.x, this.player.y, "#45d7ff", 44, 4.4);
+        this.playSfx("shield", 0.9);
+        this.shake(3);
+      }
+    }
+
+    if (this.stats.chronoLevel > 0 &&
+      this.stats.chronoCooldown <= 0 &&
+      this.stats.hp / Math.max(1, this.stats.maxHp) < 0.3) {
+      var freeze = 1.45 + this.stats.chronoLevel * 0.18;
+      for (var i = 0; i < this.enemies.length; i += 1) {
+        if (this.enemies[i].active) this.enemies[i].freeze = Math.max(this.enemies[i].freeze || 0, freeze);
+      }
+      this.stats.invuln = Math.max(this.stats.invuln, 1.1 + this.stats.chronoLevel * 0.08);
+      this.applyHealing(10 + this.stats.chronoLevel * 2.2, "chrono", this.player.x, this.player.y - 34);
+      this.stats.chronoCooldown = Math.max(42, 76 - this.stats.chronoLevel * 5);
+      this.fields.push({
+        type: "timeStop",
+        x: this.player.x,
+        y: this.player.y,
+        radius: this.areaValue(190 + this.stats.chronoLevel * 16),
+        damage: 0,
+        life: 0.74,
+        maxLife: 0.74,
+        color: "#b8f4ff",
+        tick: 0
+      });
+      this.addDamageText(this.player.x, this.player.y - 58, "时停", "#b8f4ff", { priority: 3, size: 20 });
+      this.playSfx("upgrade", 0.8);
+      this.shake(4);
+    }
+  };
+
+  VoidBloom.prototype.triggerVoidInsurance = function () {
+    if (!this.stats.voidInsuranceLevel || this.stats.voidInsuranceUsed) return false;
+    this.stats.voidInsuranceUsed = true;
+    this.stats.hp = Math.max(1, Math.round(this.stats.maxHp * 0.18));
+    this.stats.invuln = Math.max(this.stats.invuln, 2.2);
+    this.damageArea(this.player.x, this.player.y, Math.max(this.width, this.height), (135 + this.stats.voidInsuranceLevel * 34) * this.damageMultiplier(), "#d8f5ff", 80, false, { source: "虚空保险" });
+    this.addBurst(this.player.x, this.player.y, "#d8f5ff", 90, 6);
+    this.addDamageText(this.player.x, this.player.y - 56, "虚空保险", "#ffffff", { priority: 4, size: 22, stroke: "#1b2a44" });
+    this.playSfx("boss", 0.85);
+    this.shake(7);
+    return true;
+  };
+
+  VoidBloom.prototype.updateSuppressionAuras = function () {
+    var maxBlock = 0;
+    for (var i = 0; i < this.enemies.length; i += 1) {
+      var e = this.enemies[i];
+      if (!e.active || !e.suppressAura) continue;
+      if (distSq(e.x, e.y, this.player.x, this.player.y) < e.suppressAura * e.suppressAura) {
+        maxBlock = Math.max(maxBlock, e.type === "suppressor" ? 1.2 : 0.65);
+      }
+    }
+    if (maxBlock > 0) {
+      this.stats.healBlockTimer = Math.max(this.stats.healBlockTimer || 0, maxBlock);
+    }
+  };
+
+  VoidBloom.prototype.areaDamageReductionAt = function (x, y) {
+    var reduction = this.time > 540 ? 0.85 : this.time > 360 ? 0.92 : 1;
+    for (var i = 0; i < this.enemies.length; i += 1) {
+      var e = this.enemies[i];
+      if (!e.active || !e.bulwarkAura) continue;
+      if (distSq(e.x, e.y, x, y) < e.bulwarkAura * e.bulwarkAura) {
+        reduction *= 0.75;
+      }
+    }
+    return reduction;
   };
 
   VoidBloom.prototype.handleInput = function (dt) {
@@ -814,6 +1240,9 @@
     this.updateCamera();
     this.stats.dashTimer = this.stats.dashCooldown;
     this.stats.invuln = this.stats.dashIFrames;
+    if ((this.runTrait && this.runTrait.id === "lightRunner") || this.stats.kineticLevel > 0) {
+      this.stats.dashBoostTimer = Math.max(this.stats.dashBoostTimer || 0, 1.15 + this.stats.kineticLevel * 0.08);
+    }
     this.addBurst(this.player.x, this.player.y, "#ffffff", 18, 4);
     this.spawnEmberTrail(startX, startY, this.player.x, this.player.y);
     if (this.stats.dashDamage > 0) {
@@ -823,6 +1252,38 @@
           this.damageEnemy(e, this.stats.dashDamage, "#ffffff");
         }
       }
+    }
+    if (this.stats.shortCircuitLevel > 0) {
+      var jumps = 3 + Math.floor(this.stats.shortCircuitLevel / 2);
+      var source = { x: this.player.x, y: this.player.y };
+      var hit = [];
+      var target = this.findNearestEnemyFrom(source.x, source.y, hit, 250 + this.stats.shortCircuitLevel * 18);
+      for (var arc = 0; arc < jumps && target; arc += 1) {
+        this.damageEnemy(target, (35 + this.stats.shortCircuitLevel * 9) * this.damageMultiplier(), "#66f0ff", false, { source: "短路" });
+        this.addParticle(source.x, source.y, target.x, target.y, "#66f0ff", 0.17, 3, "bolt");
+        hit.push(target);
+        source = target;
+        target = this.findNearestEnemyFrom(source.x, source.y, hit, 230);
+      }
+      this.playSfx("shield", 0.7);
+    }
+    if (this.evolutions.shadowCrescent) {
+      var radius = this.areaValue(170 + (this.weaponLevels.phaseSlash || 0) * 9);
+      var hits = 0;
+      for (var c = 0; c < this.enemies.length; c += 1) {
+        var enemy = this.enemies[c];
+        if (!enemy.active) continue;
+        if (distSq(enemy.x, enemy.y, this.player.x, this.player.y) < Math.pow(radius + enemy.radius, 2)) {
+          hits += 1;
+          this.damageEnemy(enemy, (54 + (this.weaponLevels.phaseSlash || 0) * 8) * this.damageMultiplier(), "#ffffff", false, { source: "月牙" });
+        }
+      }
+      this.fields.push({ type: "nova", x: this.player.x, y: this.player.y, radius: radius, damage: 0, life: 0.36, maxLife: 0.36, color: "#ffffff", altColor: "#66f0ff", tick: 0 });
+      if (hits >= 8) {
+        this.stats.dashTimer *= 0.65;
+        this.addDamageText(this.player.x, this.player.y - 44, "冷却返还", "#ffffff", { priority: 3, size: 15 });
+      }
+      this.shake(3);
     }
   };
 
@@ -849,33 +1310,64 @@
   };
 
   VoidBloom.prototype.spawnEnemies = function (dt) {
-    var difficulty = 1 + Math.max(0, this.time - 25) / 86;
+    var diff = this.getDifficultyState();
+    this.updateTide(dt, diff);
     this.spawnTimer -= dt;
-    var interval = clamp(0.9 - this.time * 0.0024, 0.13, 0.9);
+    var interval = clamp((0.92 - this.time * 0.0014) / diff.spawnMult, 0.09, 0.92);
     if (this.spawnTimer <= 0) {
-      var count = Math.min(10, 1 + Math.floor(Math.max(0, this.time - 20) / 55) + Math.floor(this.random() * 2));
+      var count = Math.min(16, Math.ceil((1 + Math.floor(Math.max(0, this.time - 20) / 58) + Math.floor(this.random() * 2)) * Math.min(1.45, diff.spawnMult)));
       if (this.time < 24) count = 1;
       for (var i = 0; i < count; i += 1) {
-        this.spawnEnemy(this.pickEnemyType(), difficulty);
+        this.spawnEnemy(this.pickEnemyType(), diff);
       }
       this.spawnTimer = interval;
     }
     this.eliteTimer -= dt;
     if (this.eliteTimer <= 0) {
-      this.spawnEnemy("elite", difficulty);
-      this.eliteTimer = clamp(45 - this.time / 16, 18, 45);
+      this.spawnEnemy("elite", diff);
+      this.eliteTimer = clamp(44 - this.time / 20, 14, 44);
     }
     this.bossTimer -= dt;
     if (this.bossTimer <= 0) {
-      this.spawnEnemy("boss", difficulty);
+      this.spawnEnemy("boss", diff);
       this.bossTimer = 180;
+      this.playSfx("boss", 1.2);
     }
-    if (this.time > 120 && Math.floor(this.time) % 45 === 0 && this.random() < dt * 0.9) {
-      var wave = Math.min(34, 14 + Math.floor(this.time / 45));
-      for (var w = 0; w < wave; w += 1) {
-        this.spawnEnemy("seeker", difficulty * 0.72);
+  };
+
+  VoidBloom.prototype.updateTide = function (dt, diff) {
+    if (!this.tide) return;
+    if (!this.tide.active && !this.tide.warned && this.time > this.tide.nextTime - 5) {
+      this.tide.warned = true;
+      this.addDamageText(this.player.x, this.player.y - 52, "虚空潮汐将至", "#8de7ff", { priority: 3, size: 18 });
+      this.playSfx("boss", 0.55);
+    }
+    if (!this.tide.active && this.time >= this.tide.nextTime) {
+      this.tide.active = true;
+      this.tide.index += 1;
+      this.tide.timer = 10 + this.tide.index * 0.8;
+      this.tide.spawnTimer = 0;
+      this.tide.budget = 16 + this.tide.index * 5;
+      this.tide.warned = false;
+      this.tide.nextTime += 60;
+      this.addDamageText(this.player.x, this.player.y - 54, "虚空潮汐", "#8de7ff", { priority: 3, size: 20 });
+      this.playSfx("boss", 0.9);
+    }
+    if (!this.tide.active) return;
+    this.tide.timer -= dt;
+    this.tide.spawnTimer -= dt;
+    if (this.tide.spawnTimer <= 0 && this.tide.budget > 0) {
+      var batch = Math.min(this.tide.budget, 4 + Math.floor(this.tide.index / 2));
+      for (var i = 0; i < batch; i += 1) {
+        var type = this.tide.index >= 4 && i === 0 ? "piercer" :
+          this.tide.index >= 3 && i === 1 ? "suppressor" : "seeker";
+        this.spawnEnemy(type, diff, { tide: true, hp: 0.78, damage: 0.85, speed: 1.08 });
       }
-      this.addDamageText(this.player.x, this.player.y - 44, "虚空潮汐", "#8de7ff");
+      this.tide.budget -= batch;
+      this.tide.spawnTimer = 0.7;
+    }
+    if (this.tide.timer <= 0 && this.tide.budget <= 0) {
+      this.tide.active = false;
     }
   };
 
@@ -885,19 +1377,36 @@
     if (t > 45) table.push({ id: "runner", weight: 20 });
     if (t > 85) table.push({ id: "drifter", weight: 16 });
     if (t > 135) table.push({ id: "bomber", weight: 12 });
+    if (t > 240) table.push({ id: "suppressor", weight: t > 480 ? 11 : 6 });
+    if (t > 360) table.push({ id: "piercer", weight: t > 480 ? 13 : 7 });
     return weightedChoice(table, this.random).id;
   };
 
-  VoidBloom.prototype.spawnEnemy = function (type, difficulty) {
+  VoidBloom.prototype.spawnEnemy = function (type, difficulty, modifiers) {
     if (this.enemies.length >= this.enemyCap && type !== "boss") {
       return;
     }
+    var diff = typeof difficulty === "number"
+      ? { hpMult: difficulty, damageMult: 1, speedMult: 1, affixCount: 0, bossCycle: 1 }
+      : (difficulty || this.getDifficultyState());
+    modifiers = modifiers || {};
     var data = (CONFIG.enemies && CONFIG.enemies[type]) || CONFIG.enemies.seeker;
     var angle = this.random() * Math.PI * 2;
     var spawnRadius = Math.max(this.width, this.height) * (0.62 + this.random() * 0.22);
     var x = wrapValue(this.player.x + Math.cos(angle) * spawnRadius, this.world.width);
     var y = wrapValue(this.player.y + Math.sin(angle) * spawnRadius, this.world.height);
-    var hpMult = type === "boss" ? 1 + Math.floor(this.time / 180) * 0.55 : 1;
+    var bossCycle = diff.bossCycle || 1;
+    var typeHpMod = type === "boss" ? 1.1 + bossCycle * 0.35 + Math.pow(bossCycle, 1.2) * 0.18 : type === "elite" ? 1.25 : 1;
+    var typeDamageMod = type === "boss" ? 1.2 + bossCycle * 0.25 + Math.max(0, bossCycle - 3) * 0.18 : 1;
+    var affixes = type === "elite" || type === "boss" ? this.rollEliteAffixes(diff.affixCount || 0, type) : [];
+    var hp = data.hp * diff.hpMult * typeHpMod * (modifiers.hp || 1);
+    var speed = data.speed * diff.speedMult * (modifiers.speed || 1);
+    var damage = data.damage * diff.damageMult * typeDamageMod * (modifiers.damage || 1);
+    for (var a = 0; a < affixes.length; a += 1) {
+      if (affixes[a] === "vital") hp *= 1.65;
+      if (affixes[a] === "swift") speed *= 1.28;
+      if (affixes[a] === "frenzy") damage *= 1.15;
+    }
     this.enemies.push({
       active: true,
       type: type,
@@ -906,14 +1415,20 @@
       y: y,
       vx: 0,
       vy: 0,
-      hp: data.hp * difficulty * hpMult,
-      maxHp: data.hp * difficulty * hpMult,
-      speed: data.speed * (1 + Math.min(0.65, this.time / 1000)),
-      damage: data.damage,
+      hp: hp,
+      maxHp: hp,
+      speed: speed,
+      damage: damage,
       radius: data.radius,
       xp: data.xp,
       color: data.color,
       score: data.score,
+      affixes: affixes,
+      shieldDamage: type === "piercer" ? 2.4 : affixes.indexOf("breaker") !== -1 ? 2.15 : 1,
+      armorPierce: type === "piercer" ? 0.25 : affixes.indexOf("breaker") !== -1 ? 0.18 : 0,
+      suppressAura: type === "suppressor" ? 210 : affixes.indexOf("suppressor") !== -1 ? 235 : 0,
+      bulwarkAura: affixes.indexOf("bulwark") !== -1 ? 210 : 0,
+      phaseTimer: 2.6 + this.random() * 1.4,
       wobble: this.random() * Math.PI * 2,
       freeze: 0,
       hitFlash: 0,
@@ -921,6 +1436,21 @@
       lastX: x,
       lastY: y
     });
+    if (type === "elite" || type === "boss") {
+      this.playSfx(type === "boss" ? "boss" : "shield", type === "boss" ? 1 : 0.65);
+    }
+  };
+
+  VoidBloom.prototype.rollEliteAffixes = function (count, type) {
+    var result = [];
+    var pool = ["vital", "swift", "breaker", "suppressor", "frenzy"];
+    if (type === "boss" && this.time > 540) pool.push("bulwark");
+    count = type === "boss" ? Math.min(3, Math.max(1, count)) : Math.min(3, count || 0);
+    while (result.length < count && pool.length) {
+      var index = Math.floor(this.random() * pool.length);
+      result.push(pool.splice(index, 1)[0]);
+    }
+    return result;
   };
 
   VoidBloom.prototype.updateEnemies = function (dt) {
@@ -936,16 +1466,25 @@
       if (e.freeze > 0) {
         continue;
       }
+      e.phaseTimer = Math.max(0, (e.phaseTimer || 0) - dt);
       var dx = this.shortestDelta(e.x, this.player.x, this.world.width);
       var dy = this.shortestDelta(e.y, this.player.y, this.world.height);
       var len = Math.hypot(dx, dy) || 1;
       var drift = e.type === "drifter" ? Math.sin(this.time * 2.4 + e.wobble) * 0.72 : 0;
+      var rush = 1;
+      if ((e.affixes && e.affixes.indexOf("frenzy") !== -1 && e.hp / e.maxHp < 0.4) || (e.type === "piercer" && e.phaseTimer <= 0)) {
+        rush = e.type === "piercer" ? 2.25 : 1.35;
+        if (e.type === "piercer") {
+          e.phaseTimer = 3.2 + this.random() * 1.2;
+          this.addParticle(e.x, e.y, this.player.x, this.player.y, e.color, 0.16, 2, "bolt");
+        }
+      }
       var nx = dx / len;
       var ny = dy / len;
       var px = -ny * drift;
       var py = nx * drift;
-      e.vx = (nx + px) * e.speed;
-      e.vy = (ny + py) * e.speed;
+      e.vx = (nx + px) * e.speed * rush;
+      e.vy = (ny + py) * e.speed * rush;
       e.x = wrapValue(e.x + e.vx * dt, this.world.width);
       e.y = wrapValue(e.y + e.vy * dt, this.world.height);
       if (e.type === "boss" && Math.floor(this.time * 2) % 9 === 0 && this.random() < 0.011) {
@@ -956,9 +1495,10 @@
 
   VoidBloom.prototype.updateWeapons = function (dt) {
     var ids = Object.keys(this.weaponLevels);
+    var cooldownDt = dt * (1 + (this.stats.echoTempoTimer > 0 ? this.stats.echoMagazineLevel * 0.08 : 0) + (this.stats.kineticBurstTimer > 0 ? 0.12 : 0));
     for (var i = 0; i < ids.length; i += 1) {
       var id = ids[i];
-      this.cooldowns[id] = Math.max(0, (this.cooldowns[id] || 0) - dt);
+      this.cooldowns[id] = Math.max(0, (this.cooldowns[id] || 0) - cooldownDt);
     }
     this.firePulse();
     this.fireSplitter();
@@ -972,6 +1512,7 @@
     this.fireMeteorRain();
     this.fireWarpMine();
     this.fireFrostfireNova();
+    this.fireBlackHoleBloom();
     this.updateAura(dt);
     this.updateOrbit(dt);
     this.updateTriggers(dt);
@@ -981,7 +1522,24 @@
     var rage = this.stats.rageLevel > 0 && this.stats.hp / this.stats.maxHp < 0.35
       ? 1 + this.stats.rageLevel * 0.28
       : 1;
-    return this.stats.damageMult * rage * (this.stats.overdriveMult || 1);
+    var hpRatio = this.stats.hp / Math.max(1, this.stats.maxHp);
+    var scarlet = this.stats.scarletLevel > 0 && hpRatio < 0.55
+      ? 1 + this.stats.scarletLevel * (hpRatio < 0.28 ? 0.13 : 0.075)
+      : 1;
+    var lastStand = this.stats.lastStandLevel > 0 && hpRatio < 0.42
+      ? 1 + this.stats.lastStandLevel * (0.12 + (0.42 - hpRatio) * 0.55)
+      : 1;
+    var throne = this.stats.voidThroneLevel > 0
+      ? 1 + (this.stats.throneCharge || 0) / 100 * (0.1 + this.stats.voidThroneLevel * 0.045)
+      : 1;
+    var kinetic = this.stats.kineticBurstTimer > 0
+      ? 1 + 0.18 + this.stats.kineticLevel * 0.04
+      : 1;
+    var echo = this.stats.echoTempoTimer > 0
+      ? 1 + this.stats.echoMagazineLevel * 0.055
+      : 1;
+    var dash = this.stats.dashBoostTimer > 0 ? 1.18 : 1;
+    return this.stats.damageMult * rage * scarlet * lastStand * throne * kinetic * echo * dash * (this.stats.overdriveMult || 1);
   };
 
   VoidBloom.prototype.areaMultiplier = function () {
@@ -993,11 +1551,28 @@
   };
 
   VoidBloom.prototype.rollDamage = function (base) {
+    return this.rollDamageMeta(base).amount;
+  };
+
+  VoidBloom.prototype.rollDamageMeta = function (base) {
     var damage = base * this.damageMultiplier();
-    if (this.random() < this.stats.critChance) {
+    var crit = this.random() < Math.min(0.72, this.stats.critChance || 0);
+    if (crit) {
       damage *= this.stats.critDamage;
+      if (this.stats.echoMagazineLevel > 0) {
+        this.stats.echoTempoTimer = Math.min(2.8, Math.max(this.stats.echoTempoTimer || 0, 0.7 + this.stats.echoMagazineLevel * 0.16));
+      }
     }
-    return damage;
+    return { amount: damage, crit: crit };
+  };
+
+  VoidBloom.prototype.applyRolledDamage = function (enemy, roll, color, silent, extra) {
+    var meta = Object.assign({}, extra || {}, { crit: !!(roll && roll.crit) });
+    this.damageEnemy(enemy, roll && roll.amount != null ? roll.amount : roll, color, silent, meta);
+  };
+
+  VoidBloom.prototype.scaleAreaDamage = function (enemy, damage) {
+    return damage * this.areaDamageReductionAt(enemy.x, enemy.y);
   };
 
   VoidBloom.prototype.findNearestEnemy = function () {
@@ -1068,9 +1643,16 @@
     var target = this.findNearestEnemy();
     if (!target) return;
     var angle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
-    var shots = level >= 7 ? 3 : level >= 4 ? 2 : 1;
+    var shots = this.evolutions.quantumBuckshot ? 5 : level >= 7 ? 3 : level >= 4 ? 2 : 1;
+    var spread = this.evolutions.quantumBuckshot ? 0.13 : 0.16;
     for (var i = 0; i < shots; i += 1) {
-      this.spawnProjectile(angle + (i - (shots - 1) / 2) * 0.16, 520, this.rollDamage(13 + level * 4), 5, "#45d7ff", 1 + Math.floor(level / 4), "pulse");
+      var roll = this.rollDamageMeta((13 + level * 4) * (this.evolutions.quantumBuckshot ? 0.78 : 1));
+      this.spawnProjectile(angle + (i - (shots - 1) / 2) * spread, 520, roll.amount, 5, "#45d7ff", 1 + Math.floor(level / 4), "pulse", roll);
+      if (this.evolutions.quantumBuckshot && roll.crit && this.projectiles.length < this.projectileCap - 3) {
+        for (var q = 0; q < 3; q += 1) {
+          this.spawnProjectile(angle + (this.random() - 0.5) * 0.75, 430, roll.amount * 0.34, 3, "#b8f4ff", 1, "pulseShard", { crit: false, source: "霰星" });
+        }
+      }
     }
     this.cooldowns.pulse = Math.max(0.16, (0.54 - level * 0.022) * this.stats.cooldownMult);
   };
@@ -1081,7 +1663,8 @@
     var target = this.findNearestEnemy();
     if (!target) return;
     var angle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
-    this.spawnProjectile(angle, 430, this.rollDamage(18 + level * 5), 7, "#ff5aa5", 1, "splitter");
+    var roll = this.rollDamageMeta(18 + level * 5);
+    this.spawnProjectile(angle, 430, roll.amount, 7, "#ff5aa5", 1, "splitter", roll);
     this.cooldowns.splitter = Math.max(0.42, (1.25 - level * 0.045) * this.stats.cooldownMult);
   };
 
@@ -1092,8 +1675,22 @@
     for (var i = 0; i < strikes; i += 1) {
       var target = this.enemies[Math.floor(this.random() * this.enemies.length)];
       if (target && target.active) {
-        this.damageArea(target.x, target.y, 58 + level * 5, this.rollDamage(30 + level * 7), "#ffd166");
+        var roll = this.rollDamageMeta(30 + level * 7);
+        this.damageArea(target.x, target.y, 58 + level * 5, roll.amount, "#ffd166", null, false, { crit: roll.crit, source: "雷击" });
         this.addParticle(target.x, target.y - 90, target.x, target.y, "#ffd166", 0.22, 4, "bolt");
+        if (this.evolutions.stormExecution) {
+          this.fields.push({
+            type: "storm",
+            x: target.x,
+            y: target.y,
+            radius: this.areaValue(72 + level * 4),
+            damage: (22 + level * 4) * this.damageMultiplier(),
+            life: 1.6,
+            maxLife: 1.6,
+            color: "#ffd166",
+            tick: 0
+          });
+        }
       }
     }
     this.cooldowns.lightning = Math.max(0.95, (3.2 - level * 0.13) * this.stats.cooldownMult);
@@ -1104,14 +1701,18 @@
     if (!level || this.cooldowns.gravity > 0) return;
     var target = this.findNearestEnemy();
     if (!target) return;
+    var evolved = !!this.evolutions.singularityBloom;
+    var radius = this.areaValue((78 + level * 8) * (evolved ? 1.45 : 1));
+    var life = (3.0 + level * 0.15) * (evolved ? 1.18 : 1);
     this.fields.push({
       type: "gravity",
       x: target.x,
       y: target.y,
-      radius: 78 + level * 8,
-      damage: this.rollDamage(7 + level * 2),
-      life: 3.0 + level * 0.15,
-      maxLife: 3.0 + level * 0.15,
+      radius: radius,
+      damage: this.rollDamage((7 + level * 2) * (evolved ? 1.18 : 1)),
+      collapseDamage: evolved ? this.rollDamage(95 + level * 12) : 0,
+      life: life,
+      maxLife: life,
       color: "#9b7cff",
       tick: 0
     });
@@ -1126,7 +1727,8 @@
     var angle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
     var range = Math.max(this.width, this.height) * 1.3;
     var width = 16 + level * 2;
-    var damage = this.rollDamage(52 + level * 13);
+    var roll = this.rollDamageMeta(52 + level * 13);
+    var damage = roll.amount;
     var angles = level >= 6 ? [angle - 0.16, angle + 0.16] : [angle];
     for (var a = 0; a < angles.length; a += 1) {
       var beamAngle = angles[a];
@@ -1138,7 +1740,7 @@
         var along = ex * Math.cos(beamAngle) + ey * Math.sin(beamAngle);
         var cross = Math.abs(ex * Math.sin(beamAngle) - ey * Math.cos(beamAngle));
         if (along > -20 && along < range && cross < width + e.radius) {
-          this.damageEnemy(e, damage * (angles.length > 1 ? 0.78 : 1), "#ffffff");
+          this.damageEnemy(e, damage * (angles.length > 1 ? 0.78 : 1), "#ffffff", false, { crit: roll.crit, source: "射线" });
         }
       }
       this.addParticle(this.player.x, this.player.y, this.player.x + Math.cos(beamAngle) * range, this.player.y + Math.sin(beamAngle) * range, "#ffffff", 0.18, width, "laser");
@@ -1152,12 +1754,13 @@
     if (!level || this.cooldowns.arcSpear > 0) return;
     var target = this.findNearestEnemy();
     if (!target) return;
-    var damage = this.rollDamage(18 + level * 5);
+    var roll = this.rollDamageMeta(18 + level * 5);
+    var damage = roll.amount;
     var jumps = Math.min(7, 2 + Math.floor(level / 2));
     var previous = { x: this.player.x, y: this.player.y };
     var hit = [];
     for (var i = 0; i < jumps && target; i += 1) {
-      this.damageEnemy(target, damage * Math.pow(0.86, i), "#8de7ff");
+      this.damageEnemy(target, damage * Math.pow(0.86, i), "#8de7ff", false, { crit: roll.crit && i === 0, source: "链矛" });
       this.addParticle(previous.x, previous.y, target.x, target.y, "#8de7ff", 0.18, 4, "bolt");
       this.tryQuantumEchoHit(target, damage * 0.45, previous.x, previous.y);
       hit.push(target);
@@ -1202,8 +1805,8 @@
       this.satellites.length = 0;
       return;
     }
-    var count = Math.min(6, 1 + Math.ceil(level / 2));
-    var radius = 82 + level * 4;
+    var count = this.evolutions.swarmProtocol ? Math.min(8, 4 + Math.ceil(level / 2)) : Math.min(6, 1 + Math.ceil(level / 2));
+    var radius = 82 + level * 4 + (this.evolutions.swarmProtocol ? 18 : 0);
     this.satellites.length = 0;
     for (var i = 0; i < count; i += 1) {
       var angle = -this.time * (1.8 + level * 0.05) + i * Math.PI * 2 / count;
@@ -1214,19 +1817,37 @@
         var target = this.findNearestEnemyFrom(sx, sy, null, 340 + level * 18);
         if (target) {
           var shotAngle = Math.atan2(target.y - sy, target.x - sx);
+          var mirror = this.stats.mirrorPrismLevel > 0 && this.random() < Math.min(0.42, 0.08 + this.stats.mirrorPrismLevel * 0.045);
           this.projectiles.push({
             active: true,
             x: sx,
             y: sy,
             vx: Math.cos(shotAngle) * 500,
             vy: Math.sin(shotAngle) * 500,
-            damage: this.rollDamage(9 + level * 3),
+            damage: this.rollDamage((9 + level * 3) * (this.evolutions.swarmProtocol ? 1.12 : 1)),
             radius: 4,
             color: "#7df9ff",
             pierce: 1,
             type: "satellite",
+            meta: null,
             life: 0.9
           });
+          if (mirror || this.evolutions.swarmProtocol) {
+            this.projectiles.push({
+              active: true,
+              x: sx,
+              y: sy,
+              vx: Math.cos(shotAngle + (mirror ? 0.22 : -0.18)) * 470,
+              vy: Math.sin(shotAngle + (mirror ? 0.22 : -0.18)) * 470,
+              damage: this.rollDamage(6 + level * 2.1),
+              radius: 3,
+              color: mirror ? "#d8f5ff" : "#7df9ff",
+              pierce: 1,
+              type: "satellite",
+              meta: null,
+              life: 0.8
+            });
+          }
         }
       }
     }
@@ -1250,7 +1871,7 @@
       var distance = Math.hypot(dx, dy) || 1;
       var delta = Math.atan2(Math.sin(Math.atan2(dy, dx) - face.angle), Math.cos(Math.atan2(dy, dx) - face.angle));
       if (distance < radius + e.radius && Math.abs(delta) < angleWidth) {
-        this.damageEnemy(e, damage, "#d8f5ff");
+        this.damageEnemy(e, damage, "#d8f5ff", false, { source: "斩波" });
         this.tryQuantumEchoHit(e, damage * 0.35, this.player.x, this.player.y);
       }
     }
@@ -1330,13 +1951,14 @@
     var level = this.weaponLevels.frostfireNova || 0;
     if (!level || this.cooldowns.frostfireNova > 0) return;
     var radius = this.areaValue(132 + level * 13);
-    var damage = this.rollDamage(34 + level * 8);
+    var roll = this.rollDamageMeta(34 + level * 8);
+    var damage = roll.amount;
     for (var i = 0; i < this.enemies.length; i += 1) {
       var e = this.enemies[i];
       if (!e.active) continue;
       if (distSq(e.x, e.y, this.player.x, this.player.y) < Math.pow(radius + e.radius, 2)) {
         e.freeze = Math.max(e.freeze, 0.75 + level * 0.08);
-        this.damageEnemy(e, damage, i % 2 ? "#ff7a38" : "#8de7ff");
+        this.damageEnemy(e, damage, i % 2 ? "#ff7a38" : "#8de7ff", false, { crit: roll.crit, source: "新星" });
       }
     }
     this.fields.push({
@@ -1355,6 +1977,31 @@
     this.addBurst(this.player.x, this.player.y, "#ff7a38", 24, 4.2);
     this.cooldowns.frostfireNova = Math.max(2.4, (5.8 - level * 0.18) * this.stats.cooldownMult);
     this.shake(3);
+  };
+
+  VoidBloom.prototype.fireBlackHoleBloom = function () {
+    var level = this.weaponLevels.blackHoleBloom || 0;
+    if (!level || this.cooldowns.blackHoleBloom > 0) return;
+    var target = this.findNearestEnemy();
+    if (!target) return;
+    var life = 2.8 + level * 0.13;
+    this.fields.push({
+      type: "blackhole",
+      x: target.x,
+      y: target.y,
+      radius: this.areaValue(92 + level * 9),
+      damage: (18 + level * 5) * this.damageMultiplier(),
+      collapseDamage: (82 + level * 13) * this.damageMultiplier(),
+      pull: 98 + level * 8,
+      life: life,
+      maxLife: life,
+      color: "#7c3cff",
+      tick: 0,
+      seed: this.random() * 1000
+    });
+    this.addDamageText(target.x, target.y - 30, "黑洞花", "#b26cff", { priority: 2, size: 14 });
+    this.playSfx("shield", 0.65);
+    this.cooldowns.blackHoleBloom = Math.max(3.6, (6.8 - level * 0.18) * this.stats.cooldownMult);
   };
 
   VoidBloom.prototype.updateAura = function (dt) {
@@ -1426,7 +2073,7 @@
     }
   };
 
-  VoidBloom.prototype.spawnProjectile = function (angle, speed, damage, radius, color, pierce, type) {
+  VoidBloom.prototype.spawnProjectile = function (angle, speed, damage, radius, color, pierce, type, meta) {
     if (this.projectiles.length >= this.projectileCap) return;
     this.projectiles.push({
       active: true,
@@ -1439,6 +2086,7 @@
       color: color,
       pierce: pierce || 1,
       type: type,
+      meta: meta || null,
       life: 1.5
     });
   };
@@ -1461,6 +2109,11 @@
       f.life -= dt;
       f.tick = (f.tick || 0) - dt;
       if (f.life <= 0) {
+        if ((f.type === "blackhole" || f.type === "gravity") && f.collapseDamage) {
+          this.damageArea(f.x, f.y, f.radius * (f.type === "blackhole" ? 1.05 : 0.82), f.collapseDamage, f.color, 38, false, { source: "坍缩", area: true });
+          this.addBurst(f.x, f.y, f.color, f.type === "blackhole" ? 46 : 34, 5.2);
+          this.shake(f.type === "blackhole" ? 4 : 3);
+        }
         this.fields.splice(i, 1);
         continue;
       }
@@ -1495,6 +2148,26 @@
         }
         if (triggered) {
           this.damageArea(f.x, f.y, f.radius, f.damage, f.color, 18);
+          if (this.evolutions.chainMinefield) {
+            for (var cm = 0; cm < 3; cm += 1) {
+              var angle = this.time + cm * Math.PI * 2 / 3;
+              var x2 = wrapValue(f.x + Math.cos(angle) * (128 + (this.weaponLevels.warpMine || 0) * 5), this.world.width);
+              var y2 = wrapValue(f.y + Math.sin(angle) * (128 + (this.weaponLevels.warpMine || 0) * 5), this.world.height);
+              this.fields.push({
+                type: "trail",
+                x1: f.x,
+                y1: f.y,
+                x2: x2,
+                y2: y2,
+                width: 16 + (this.weaponLevels.warpMine || 0) * 1.5,
+                damage: (22 + (this.weaponLevels.warpMine || 0) * 5) * this.damageMultiplier(),
+                life: 1.35,
+                maxLife: 1.35,
+                color: "#f472ff",
+                tick: 0
+              });
+            }
+          }
           this.addBurst(f.x, f.y, f.color, 22, 4.5);
           this.fields.splice(i, 1);
           this.shake(2);
@@ -1508,6 +2181,11 @@
         this.damageArea(f.x, f.y, f.radius * 0.72, (24 + (this.weaponLevels.gravity || 0) * 5) * this.damageMultiplier(), f.color, 18, true);
         f.tick = 0.8;
       }
+      if (f.type === "blackhole" && f.tick <= 0) {
+        f.radius = Math.min(f.radius + 2.4, this.areaValue(160 + (this.weaponLevels.blackHoleBloom || 0) * 8));
+        this.damageArea(f.x, f.y, f.radius * 0.62, f.damage * 0.52, f.color, 26, true, { source: "黑洞", area: true });
+        f.tick = 0.42;
+      }
       for (var j = 0; j < this.enemies.length; j += 1) {
         var e = this.enemies[j];
         if (!e.active) continue;
@@ -1519,7 +2197,7 @@
           var px = f.x1 + lx * t;
           var py = f.y1 + ly * t;
           if (distSq(e.x, e.y, px, py) < Math.pow((f.width || 20) + e.radius, 2)) {
-            this.damageEnemy(e, f.damage * dt, f.color, true);
+            this.damageEnemy(e, f.damage * dt, f.color, true, { dot: true, source: f.type === "trail" ? "轨迹" : "裂隙" });
           }
           continue;
         }
@@ -1530,10 +2208,10 @@
         var dy = f.y - e.y;
         var d = Math.hypot(dx, dy) || 1;
         if (d < f.radius) {
-          var pull = f.type === "burn" ? 0 : 44;
+          var pull = f.type === "burn" || f.type === "storm" ? 0 : f.type === "blackhole" ? (f.pull || 110) : 44;
           e.x += dx / d * pull * dt;
           e.y += dy / d * pull * dt;
-          this.damageEnemy(e, f.damage * dt, f.color, true);
+          this.damageEnemy(e, f.damage * dt, f.color, true, { dot: true, source: f.type === "burn" ? "灼烧" : f.type === "storm" ? "电场" : f.type === "blackhole" ? "黑洞" : "力场", area: true });
         }
       }
     }
@@ -1631,7 +2309,7 @@
         var e = candidates[j];
         if (!e.active) continue;
         if (distSq(p.x, p.y, e.x, e.y) < Math.pow(p.radius + e.radius, 2)) {
-          this.damageEnemy(e, p.damage, p.color);
+          this.damageEnemy(e, p.damage, p.color, false, p.meta);
           p.pierce -= 1;
           if (p.type === "splitter" && p.pierce <= 0) {
             if ((this.weaponLevels.splitter || 0) >= 8) {
@@ -1659,14 +2337,19 @@
       if (!enemy.active) continue;
       if (distSq(enemy.x, enemy.y, this.player.x, this.player.y) < Math.pow(enemy.radius + this.stats.radius, 2)) {
         if (this.stats.invuln <= 0) {
-          var damage = Math.max(1, enemy.damage * (1 - this.stats.armor));
-          var shieldHit = Math.min(this.stats.shield || 0, damage);
+          var effectiveArmor = Math.max(0, this.stats.armor - (enemy.armorPierce || 0));
+          var rawDamage = Math.max(1, enemy.damage);
+          var damage = Math.max(1, rawDamage * (1 - effectiveArmor));
+          var shieldPressure = damage * (enemy.shieldDamage || 1);
+          var shieldHit = Math.min(this.stats.shield || 0, shieldPressure);
           if (shieldHit > 0) {
             this.stats.shield -= shieldHit;
-            damage -= shieldHit;
-            this.stats.shieldTimer = 4;
-            this.addDamageText(this.player.x, this.player.y - 24, "-" + Math.round(shieldHit) + "盾", "#66f0ff");
+            damage = Math.max(0, damage - shieldHit / (enemy.shieldDamage || 1));
+            this.stats.shieldTimer = Math.max(this.stats.shieldTimer || 0, enemy.shieldDamage > 1 ? 7 : 5.5);
+            this.addDamageText(this.player.x, this.player.y - 24, "-" + Math.round(shieldHit) + "盾", "#66f0ff", { kind: "shield", priority: 2, size: 15 });
+            this.playSfx("shield", enemy.shieldDamage || 1);
             if (this.stats.shield <= 0 && this.stats.overloadShieldLevel > 0) {
+              this.stats.shieldFatigue = (this.stats.shieldFatigue || 0) + 1;
               var radius = this.areaValue(112 + this.stats.overloadShieldLevel * 16);
               this.damageArea(this.player.x, this.player.y, radius, (42 + this.stats.overloadShieldLevel * 12) * this.damageMultiplier(), "#66f0ff", 28);
               for (var s = 0; s < this.enemies.length; s += 1) {
@@ -1676,11 +2359,15 @@
                 }
               }
               this.shake(3.5);
+              this.playSfx("hurt", 1.2);
+              this.addDamageText(this.player.x, this.player.y - 42, "破盾", "#66f0ff", { priority: 3, size: 18 });
             }
           }
           if (damage > 0) {
             this.stats.hp -= damage;
-            this.addDamageText(this.player.x, this.player.y - 24, "-" + Math.round(damage), "#ff6b6b");
+            this.stats.recentHitTimer = 2.2;
+            this.addDamageText(this.player.x, this.player.y - 24, "-" + Math.round(damage), "#ff6b6b", { kind: "hurt", priority: 3, size: 18 });
+            this.playSfx("hurt", damage / 18);
           }
           this.stats.invuln = 0.6;
           this.shake(5);
@@ -1713,8 +2400,7 @@
       if (prop.type === "crystal") {
         this.dropGem(prop.x, prop.y, 10 + Math.floor(this.time / 60));
       } else if (prop.type === "crate") {
-        this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + 18);
-        this.addDamageText(prop.x, prop.y - 18, "+18", "#78f7d2");
+        this.applyHealing(18, "crate", prop.x, prop.y - 18);
       } else if (prop.type === "magnet") {
         if (this.stats.magnetTimer <= 0) {
           this.stats.pickupRadius += 140;
@@ -1736,7 +2422,23 @@
         for (var n = 0; n < 8; n += 1) {
           this.dropGem(prop.x + (this.random() - 0.5) * 110, prop.y + (this.random() - 0.5) * 110, 4 + Math.floor(this.time / 90));
         }
+        this.dropChest(prop.x, prop.y, "elite");
         this.addDamageText(prop.x, prop.y - 22, "精英巢穴", "#ffb347");
+      } else if (prop.type === "altar") {
+        this.stats.hp = Math.max(1, this.stats.hp - Math.max(8, this.stats.maxHp * 0.12));
+        this.stats.damageMult += 0.08;
+        this.dropChest(prop.x, prop.y, "cursed");
+        this.addDamageText(prop.x, prop.y - 24, "血月祭坛", "#ff335f", { priority: 3, size: 16 });
+      } else if (prop.type === "tower") {
+        this.stats.critChance = Math.min(0.72, this.stats.critChance + 0.06);
+        this.stats.echoTempoTimer = Math.max(this.stats.echoTempoTimer || 0, 12);
+        this.dropChest(prop.x, prop.y, "elite");
+        this.addDamageText(prop.x, prop.y - 24, "棱镜塔", "#ffd166", { priority: 3, size: 16 });
+      } else if (prop.type === "vault") {
+        this.stats.rerolls += 1;
+        this.stats.banishes += 1;
+        this.dropChest(prop.x, prop.y, this.random() < 0.22 ? "boss" : "elite");
+        this.addDamageText(prop.x, prop.y - 24, "星核宝库", "#7df9ff", { priority: 3, size: 16 });
       }
     }
   };
@@ -1758,12 +2460,30 @@
         color: "#ff9ad0",
         pierce: 1,
         type: "split",
+        meta: projectile.meta || null,
         life: 0.65
       });
     }
   };
 
-  VoidBloom.prototype.damageEnemy = function (enemy, damage, color, silent) {
+  VoidBloom.prototype.damageEnemy = function (enemy, damage, color, silent, meta) {
+    meta = meta || {};
+    if (!enemy || !enemy.active || damage <= 0) return;
+    if (meta.area) {
+      damage = this.scaleAreaDamage(enemy, damage);
+    }
+    if (this.stats.executionLevel > 0 && (enemy.type === "elite" || enemy.type === "boss")) {
+      var executeBonus = 1 + this.stats.executionLevel * 0.08;
+      if (enemy.hp / Math.max(1, enemy.maxHp) < 0.22) executeBonus += 0.16 + this.stats.executionLevel * 0.04;
+      damage *= executeBonus;
+      meta.priority = Math.max(meta.priority || 0, enemy.hp / Math.max(1, enemy.maxHp) < 0.22 ? 2 : 1);
+      meta.source = meta.source || "处刑";
+    }
+    if (silent || meta.dot) {
+      this.queueDotText(enemy, damage, color, meta);
+    } else {
+      this.addDamageNumber(enemy, damage, color, meta);
+    }
     enemy.hp -= damage;
     enemy.hitFlash = 1;
     if (!silent && this.stats.doomMarkLevel > 0 && enemy.active) {
@@ -1775,7 +2495,7 @@
         enemy.hp -= burst;
         this.addParticle(enemy.x - 28, enemy.y - 28, enemy.x + 28, enemy.y + 28, "#f7d46b", 0.28, 4, "doom");
         this.damageArea(enemy.x, enemy.y, this.areaValue(48 + this.stats.doomMarkLevel * 7), burst * 0.48, "#f7d46b", 8, true);
-        this.addDamageText(enemy.x, enemy.y - 20, "刻印爆裂", "#f7d46b");
+        this.addDamageText(enemy.x, enemy.y - 20, "刻印爆裂", "#f7d46b", { priority: 3, size: 16 });
       }
     }
     if (!silent && this.random() < 0.16) {
@@ -1783,7 +2503,44 @@
     }
     if (enemy.hp <= 0 && enemy.active) {
       this.killEnemy(enemy);
+    } else if (!silent && meta.crit) {
+      this.playSfx("crit", Math.min(2.2, damage / 35));
+    } else if (!silent) {
+      this.playSfx("hit", Math.min(1.6, damage / 28));
     }
+  };
+
+  VoidBloom.prototype.queueDotText = function (enemy, damage, color, meta) {
+    if (!enemy || (enemy.type === "seeker" && this.random() > 0.025)) return;
+    enemy.dotBucket = enemy.dotBucket || { amount: 0, timer: 0.42, color: color, source: meta && meta.source };
+    enemy.dotBucket.amount += damage;
+    enemy.dotBucket.color = color || enemy.dotBucket.color;
+    enemy.dotBucket.source = (meta && meta.source) || enemy.dotBucket.source;
+    enemy.dotBucket.timer -= this.fixedStep;
+    if (enemy.dotBucket.timer <= 0 || enemy.dotBucket.amount > enemy.maxHp * 0.1) {
+      this.addDamageNumber(enemy, enemy.dotBucket.amount, enemy.dotBucket.color, { dot: true, source: enemy.dotBucket.source });
+      enemy.dotBucket.amount = 0;
+      enemy.dotBucket.timer = 0.42;
+    }
+  };
+
+  VoidBloom.prototype.addDamageNumber = function (enemy, amount, color, meta) {
+    meta = meta || {};
+    var important = meta.crit || enemy.type === "elite" || enemy.type === "boss" || amount > enemy.maxHp * 0.12 || meta.priority > 1;
+    if (!important && this.random() > 0.2) return;
+    var text = Math.max(1, Math.round(amount)).toString() + (meta.crit ? "!" : "");
+    var size = meta.crit ? 20 : enemy.type === "boss" ? 16 : enemy.type === "elite" ? 14 : meta.dot ? 11 : 12;
+    var priority = meta.crit ? 3 : enemy.type === "boss" || enemy.type === "elite" ? 2 : meta.dot ? 0 : 1;
+    this.addDamageText(enemy.x + (this.random() - 0.5) * enemy.radius * 1.3, enemy.y - enemy.radius - 8 + (this.random() - 0.5) * 8, text, meta.crit ? "#ffd166" : color || "#eafaff", {
+      kind: meta.crit ? "crit" : meta.dot ? "dot" : "damage",
+      priority: priority,
+      size: size,
+      stroke: meta.crit ? "#3b2200" : null,
+      scale: meta.crit ? 1.28 : 1,
+      vx: (this.random() - 0.5) * 22,
+      vy: meta.crit ? -42 : -26,
+      life: meta.crit ? 0.85 : 0.58
+    });
   };
 
   VoidBloom.prototype.killEnemy = function (enemy) {
@@ -1794,40 +2551,77 @@
     if (this.stats.bloodHarvestLevel > 0) {
       this.stats.harvestStacks += enemy.type === "boss" ? 12 : enemy.type === "elite" ? 6 : 1;
     }
+    if (this.stats.stormCrownLevel > 0) {
+      this.stats.stormKills += enemy.type === "boss" ? 18 : enemy.type === "elite" ? 8 : 1;
+      var stormNeed = Math.max(18, 42 - this.stats.stormCrownLevel * 4);
+      if (this.stats.stormKills >= stormNeed) {
+        this.stats.stormKills = 0;
+        var jumps = 8 + this.stats.stormCrownLevel * 3;
+        var origin = { x: enemy.x, y: enemy.y };
+        var hit = [];
+        var target = this.findNearestEnemyFrom(origin.x, origin.y, hit, 520);
+        for (var st = 0; st < jumps && target; st += 1) {
+          this.damageEnemy(target, (34 + this.stats.stormCrownLevel * 8) * this.damageMultiplier(), "#ffd166", false, { source: "雷暴" });
+          this.addParticle(origin.x, origin.y, target.x, target.y, "#ffd166", 0.18, 4, "bolt");
+          hit.push(target);
+          origin = target;
+          target = this.findNearestEnemyFrom(origin.x, origin.y, hit, 360);
+        }
+        this.addDamageText(enemy.x, enemy.y - 30, "雷暴王冠", "#ffd166", { priority: 3, size: 16 });
+        this.playSfx("crit", 1.1);
+      }
+    }
+    if (this.stats.bloodDebtLevel > 0 && this.stats.hp / this.stats.maxHp < 0.42) {
+      this.applyHealing((enemy.type === "boss" ? 6 : enemy.type === "elite" ? 3 : 0.8) * this.stats.bloodDebtLevel, "bloodDebt", enemy.x, enemy.y - 18);
+    }
+    if (this.stats.scarletLevel > 0 && this.random() < 0.16 + this.stats.scarletLevel * 0.025) {
+      this.applyHealing(enemy.type === "boss" ? 8 : enemy.type === "elite" ? 3.5 : 0.7, "scarlet", enemy.x, enemy.y - 18);
+    }
     this.score += enemy.score + Math.floor(this.time);
     this.dropGem(enemy.x, enemy.y, Math.ceil(enemy.xp * (1 + Math.min(1.15, this.time / 360))));
     if (enemy.type === "boss") {
       for (var bossGem = 0; bossGem < 16; bossGem += 1) {
         this.dropGem(enemy.x + (this.random() - 0.5) * 180, enemy.y + (this.random() - 0.5) * 180, 5 + Math.floor(this.time / 120));
       }
-      this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + 24);
-      this.addDamageText(enemy.x, enemy.y - 30, "首领坠落", "#fff3a3");
+      this.applyHealing(12, "bossKill", enemy.x, enemy.y - 30);
+      this.addDamageText(enemy.x, enemy.y - 44, "首领坠落", "#fff3a3", { priority: 3, size: 18 });
+      this.dropChest(enemy.x, enemy.y, "boss");
+    } else if (enemy.type === "elite") {
+      var chestChance = Math.min(0.92, 0.56 + (this.stats.treasureLevel || 0) * 0.075);
+      if (this.random() < chestChance) {
+        this.dropChest(enemy.x, enemy.y, this.random() < 0.12 + (this.stats.treasureLevel || 0) * 0.035 ? "cursed" : "elite");
+      }
     }
     this.addBurst(enemy.x, enemy.y, enemy.color, enemy.type === "boss" ? 60 : 14, enemy.type === "boss" ? 7 : 3);
+    this.playSfx(enemy.type === "boss" || enemy.type === "elite" ? "crit" : "kill", enemy.type === "boss" ? 2 : enemy.type === "elite" ? 1.35 : 0.75);
     if (enemy.type === "bomber") {
       this.damageArea(enemy.x, enemy.y, 72, 38 * this.damageMultiplier(), "#ffd166");
       this.shake(3);
     }
-    if (this.stats.chainChance > 0 && this.random() < this.stats.chainChance) {
-      this.damageArea(enemy.x, enemy.y, 58 + this.stats.chainChance * 70, 34 * this.damageMultiplier(), "#ff9f55");
+    if (this.stats.chainChance > 0 && this.chainBudget > 0 && this.random() < this.stats.chainChance) {
+      this.chainBudget -= 1;
+      this.damageArea(enemy.x, enemy.y, 58 + this.stats.chainChance * 70, 34 * this.damageMultiplier(), "#ff9f55", 12, true, { area: true, source: "爆破" });
     }
-    if (this.stats.sparkEvery > 0) {
+    if (this.stats.sparkEvery > 0 && this.sparkIcd <= 0) {
       this.sparkCounter += 1;
       if (this.sparkCounter >= this.stats.sparkEvery) {
         this.sparkCounter = 0;
-        this.damageArea(this.player.x, this.player.y, Math.max(this.width, this.height), 70 * this.damageMultiplier(), "#ffd166", 16);
+        this.sparkIcd = 5;
+        this.damageArea(this.player.x, this.player.y, Math.max(this.width, this.height), 70 * this.damageMultiplier(), "#ffd166", 24, true, { area: true, source: "火花" });
         this.addBurst(this.player.x, this.player.y, "#ffd166", 50, 5);
+        this.playSfx("crit", 1.4);
         this.shake(4);
       }
     }
   };
 
-  VoidBloom.prototype.damageArea = function (x, y, radius, damage, color, maxHits, silent) {
+  VoidBloom.prototype.damageArea = function (x, y, radius, damage, color, maxHits, silent, meta) {
+    meta = Object.assign({ area: true }, meta || {});
     var hits = 0;
     for (var i = 0; i < this.enemies.length; i += 1) {
       var e = this.enemies[i];
       if (e.active && distSq(e.x, e.y, x, y) < Math.pow(radius + e.radius, 2)) {
-        this.damageEnemy(e, damage, color, silent);
+        this.damageEnemy(e, damage, color, silent, meta);
         hits += 1;
         if (maxHits && hits >= maxHits) break;
       }
@@ -1848,6 +2642,40 @@
         value: Math.max(1, Math.ceil(value / count)),
         color: "#22e6b7"
       });
+    }
+  };
+
+  VoidBloom.prototype.dropChest = function (x, y, tier) {
+    if (this.chests.length >= 12) {
+      this.chests.shift();
+    }
+    this.chests.push({
+      x: wrapValue(x + (this.random() - 0.5) * 34, this.world.width),
+      y: wrapValue(y + (this.random() - 0.5) * 34, this.world.height),
+      tier: tier || "elite",
+      radius: tier === "boss" ? 23 : tier === "cursed" ? 20 : 18,
+      color: tier === "boss" ? "#fff3a3" : tier === "cursed" ? "#ff335f" : "#ffd166",
+      pulse: this.random() * Math.PI * 2
+    });
+    this.addDamageText(x, y - 32, tier === "boss" ? "首领宝箱" : "宝箱", tier === "boss" ? "#fff3a3" : "#ffd166", { priority: 3, size: 16 });
+  };
+
+  VoidBloom.prototype.updateChests = function (dt) {
+    for (var i = this.chests.length - 1; i >= 0; i -= 1) {
+      var chest = this.chests[i];
+      chest.pulse += dt * 4;
+      var dx = this.shortestDelta(chest.x, this.player.x, this.world.width);
+      var dy = this.shortestDelta(chest.y, this.player.y, this.world.height);
+      var d = Math.hypot(dx, dy) || 1;
+      if (d < this.stats.pickupRadius * 0.65) {
+        chest.x = wrapValue(chest.x + dx / d * 340 * dt, this.world.width);
+        chest.y = wrapValue(chest.y + dy / d * 340 * dt, this.world.height);
+      }
+      if (d < chest.radius + this.stats.radius + 8) {
+        this.chests.splice(i, 1);
+        this.showChestReward(chest);
+        return;
+      }
     }
   };
 
@@ -1888,8 +2716,28 @@
     }
   };
 
-  VoidBloom.prototype.addDamageText = function (x, y, text, color) {
-    this.damageTexts.push({ x: x, y: y, vx: 0, vy: -26, text: text, color: color, life: 0.7, maxLife: 0.7 });
+  VoidBloom.prototype.addDamageText = function (x, y, text, color, options) {
+    options = options || {};
+    this.damageTexts.push({
+      x: x,
+      y: y,
+      vx: options.vx == null ? 0 : options.vx,
+      vy: options.vy == null ? -26 : options.vy,
+      text: text,
+      color: color,
+      life: options.life || 0.7,
+      maxLife: options.life || 0.7,
+      size: options.size || 12,
+      stroke: options.stroke || null,
+      scale: options.scale || 1,
+      priority: options.priority || 0,
+      kind: options.kind || "text"
+    });
+    var maxTexts = window.innerWidth < 760 ? 45 : 90;
+    if (this.damageTexts.length > maxTexts) {
+      this.damageTexts.sort(function (a, b) { return (b.priority || 0) - (a.priority || 0); });
+      this.damageTexts.length = maxTexts;
+    }
   };
 
   VoidBloom.prototype.shake = function (amount) {
@@ -1898,30 +2746,46 @@
     }
   };
 
-  VoidBloom.prototype.showUpgrade = function () {
+  VoidBloom.prototype.showChestReward = function (chest) {
     var self = this;
-    this.state = "upgrade";
+    this.state = "chest";
     this.paused = true;
-    this.pendingUpgrade = true;
+    this.pendingChest = chest;
     this.stopLoop();
-    var choices = this.buildUpgradeChoices(this.level % 5 === 0 ? 4 : 3);
+    var count = chest && chest.tier === "boss" ? 4 : 3;
+    var choices = this.buildUpgradeChoices(count, { source: "chest", forceRare: true, includeEvolution: true });
     this.panel.innerHTML = "";
-    var card = createElement("div", "void-bloom-card");
-    card.innerHTML = "<h3>等级 " + this.level + "</h3><p>选择一个升级，决定这一局能走多远。</p>";
+    var card = createElement("div", "void-bloom-card void-bloom-chest-card");
+    card.innerHTML = [
+      "<h3>" + (chest && chest.tier === "boss" ? "首领宝箱" : "虚空宝箱") + "</h3>",
+      "<p>选择一份奖励。宝箱更偏向成型流派，也更容易触发组合进化。</p>"
+    ].join("");
     var list = createElement("div", "void-bloom-upgrades" + (choices.length === 4 ? " has-four" : ""));
-    choices.forEach(function (choice) {
+    choices.forEach(function (choice, index) {
       var button = createElement("button", "void-bloom-upgrade");
       button.type = "button";
-      button.setAttribute("data-rarity", choice.rarity.id);
+      button.setAttribute("data-shortcut", String(index + 1));
+      button.setAttribute("data-rarity", choice.evolution ? "legendary" : choice.rarity.id);
       button.innerHTML = [
-        "<em>" + choice.rarity.label + " · " + self.typeLabel(choice.data.type) + " · 等级 " + choice.currentLevel + " → " + choice.nextLevel + "</em>",
-        "<strong>" + choice.data.name + "</strong>",
+        "<em>" + (choice.evolution ? "进化" : choice.rarity.label + " · " + self.typeLabel(choice.data.type)) + "</em>",
+        "<strong>" + (choice.evolution ? choice.name : choice.data.name) + "</strong>",
         "<span>" + choice.text + "</span>"
       ].join("");
       button.addEventListener("click", function () {
-        self.applyUpgrade(choice);
+        if (choice.evolution) {
+          self.applyEvolution(choice);
+        } else {
+          self.applyUpgrade(choice);
+        }
+        if (chest && chest.tier === "boss") {
+          var bonus = self.buildUpgradeChoices(1, { forceRare: true })[0];
+          if (bonus) {
+            self.applyUpgrade(bonus);
+            self.addDamageText(self.player.x, self.player.y - 64, "首领连升：" + bonus.data.name, bonus.data.color || "#fff3a3", { priority: 3, size: 15 });
+          }
+        }
         self.hidePanel();
-        self.pendingUpgrade = false;
+        self.pendingChest = null;
         self.state = "playing";
         self.paused = false;
         self.resume();
@@ -1931,29 +2795,125 @@
     card.appendChild(list);
     this.panel.appendChild(card);
     this.panel.classList.add("is-visible");
+    this.addBurst(this.player.x, this.player.y, chest && chest.color ? chest.color : "#ffd166", 54, 4.8);
+    this.playSfx("upgrade", 1);
+    this.draw();
   };
 
-  VoidBloom.prototype.buildUpgradeChoices = function (count) {
+  VoidBloom.prototype.showUpgrade = function () {
+    this.state = "upgrade";
+    this.paused = true;
+    this.pendingUpgrade = true;
+    this.stopLoop();
+    if (this.level % 5 === 0) {
+      this.stats.rerolls += 1;
+    }
+    this.currentChoices = this.buildUpgradeChoices(this.level % 5 === 0 ? 4 : 3, { includeEvolution: true });
+    this.renderUpgradeOffer();
+  };
+
+  VoidBloom.prototype.renderUpgradeOffer = function () {
+    var self = this;
+    var choices = this.currentChoices || [];
+    this.panel.innerHTML = "";
+    var card = createElement("div", "void-bloom-card");
+    card.innerHTML = [
+      "<h3>等级 " + this.level + "</h3>",
+      "<p>选择一个升级。刷新和放逐会改变这一局的构筑方向。</p>"
+    ].join("");
+    var list = createElement("div", "void-bloom-upgrades" + (choices.length === 4 ? " has-four" : ""));
+    choices.forEach(function (choice, index) {
+      var button = createElement("button", "void-bloom-upgrade");
+      button.type = "button";
+      button.setAttribute("data-shortcut", String(index + 1));
+      button.setAttribute("data-rarity", choice.evolution ? "legendary" : choice.rarity.id);
+      button.innerHTML = [
+        "<em>" + (choice.evolution ? "进化 · 质变" : choice.rarity.label + " · " + self.typeLabel(choice.data.type) + " · 等级 " + choice.currentLevel + " → " + choice.nextLevel) + "</em>",
+        "<strong>" + (choice.evolution ? choice.name : choice.data.name) + "</strong>",
+        "<span>" + choice.text + "</span>"
+      ].join("");
+      button.addEventListener("click", function () {
+        self.acceptUpgradeChoice(choice);
+      });
+      list.appendChild(button);
+    });
+    card.appendChild(list);
+    var actions = createElement("div", "void-bloom-choice-tools");
+    var reroll = createElement("button", "void-bloom-tool-button", "刷新 x" + this.stats.rerolls);
+    var banish = createElement("button", "void-bloom-tool-button void-bloom-secondary", "放逐最差 x" + this.stats.banishes);
+    reroll.type = "button";
+    banish.type = "button";
+    reroll.disabled = this.stats.rerolls <= 0;
+    banish.disabled = this.stats.banishes <= 0 || !choices.some(function (choice) { return !choice.evolution; });
+    reroll.addEventListener("click", function () {
+      if (self.stats.rerolls <= 0) return;
+      self.stats.rerolls -= 1;
+      self.currentChoices = self.buildUpgradeChoices(self.level % 5 === 0 ? 4 : 3, { includeEvolution: true });
+      self.playSfx("gem", 1.2);
+      self.renderUpgradeOffer();
+    });
+    banish.addEventListener("click", function () {
+      if (self.stats.banishes <= 0) return;
+      var target = choices
+        .filter(function (choice) { return !choice.evolution; })
+        .sort(function (a, b) { return (a.rarity.power || 1) - (b.rarity.power || 1); })[0];
+      if (!target) return;
+      self.stats.banishes -= 1;
+      self.banished[target.id] = true;
+      self.addDamageText(self.player.x, self.player.y - 42, "放逐：" + target.data.name, "#a7b7ff", { priority: 2, size: 14 });
+      self.currentChoices = self.buildUpgradeChoices(self.level % 5 === 0 ? 4 : 3, { includeEvolution: true });
+      self.playSfx("shield", 0.65);
+      self.renderUpgradeOffer();
+    });
+    actions.appendChild(reroll);
+    actions.appendChild(banish);
+    card.appendChild(actions);
+    this.panel.appendChild(card);
+    this.panel.classList.add("is-visible");
+  };
+
+  VoidBloom.prototype.acceptUpgradeChoice = function (choice) {
+    if (choice.evolution) {
+      this.applyEvolution(choice);
+    } else {
+      this.applyUpgrade(choice);
+    }
+    this.currentChoices = null;
+    this.hidePanel();
+    this.pendingUpgrade = false;
+    this.state = "playing";
+    this.paused = false;
+    this.resume();
+  };
+
+  VoidBloom.prototype.buildUpgradeChoices = function (count, options) {
+    options = options || {};
     var choices = [];
     var used = Object.create(null);
-    var upgrades = CONFIG.upgrades || [];
-    var rarities = CONFIG.rarities || [{ id: "common", label: "普通", weight: 1, power: 1 }];
+    var upgrades = this.getWeightedUpgradePool(CONFIG.upgrades || []);
     var self = this;
+    var evolutionChoices = options.includeEvolution ? this.buildEvolutionChoices() : [];
+    if (evolutionChoices.length && (options.source === "chest" || this.random() < 0.32)) {
+      var evo = evolutionChoices[Math.floor(this.random() * evolutionChoices.length)];
+      choices.push(evo);
+      used[evo.id] = true;
+    }
 
     function addChoice(pool) {
+      if (choices.length >= count) return;
       var candidates = pool.filter(function (item) {
-        return item && !used[item.id];
+        return item && !used[item.id] && (options.ignoreBanish || !self.banished[item.id]);
       });
       if (!candidates.length) {
         candidates = upgrades.filter(function (item) {
-          return item && !used[item.id];
+          return item && !used[item.id] && (options.ignoreBanish || !self.banished[item.id]);
         });
       }
       if (!candidates.length) {
         return;
       }
       var data = candidates[Math.floor(self.random() * candidates.length)];
-      var rarity = weightedChoice(rarities, self.random);
+      var rarity = self.rollUpgradeRarity(options);
       var currentLevel = self.currentUpgradeLevel(data.id, data.type);
       var nextLevel = currentLevel + (data.type === "weapon" ? Math.max(1, Math.round(rarity.power)) : 1);
       used[data.id] = true;
@@ -1969,15 +2929,15 @@
     }
 
     addChoice(upgrades.filter(function (item) { return item.type === "weapon"; }));
-    addChoice(upgrades.filter(function (item) { return ["speed", "magnet", "regen", "armor", "aura", "fusionCore", "bloodHarvest"].indexOf(item.id) !== -1; }));
-    addChoice(upgrades.filter(function (item) { return ["cooldown", "crit", "glass", "quantumEcho", "chainExplosion", "lowHpRage", "dashDamage", "sparkBurst", "emberTrail", "overloadShield", "doomMark"].indexOf(item.id) !== -1; }));
+    addChoice(upgrades.filter(function (item) { return ["speed", "magnet", "regen", "armor", "aura", "fusionCore", "bloodHarvest", "greedCore", "scarletPact", "voidThrone", "kineticBloom", "treasureSense", "mirrorPrism", "executionSight", "cursedDice"].indexOf(item.id) !== -1; }));
+    addChoice(upgrades.filter(function (item) { return ["cooldown", "crit", "glass", "quantumEcho", "chainExplosion", "lowHpRage", "dashDamage", "sparkBurst", "emberTrail", "overloadShield", "doomMark", "stormCrown", "chronoWatch", "rerollCharm", "banishSeal", "lastStand", "echoMagazine", "bloodDebt", "shortCircuitDash", "voidInsurance"].indexOf(item.id) !== -1; }));
 
     var guard = 0;
     while (choices.length < count && guard < 100) {
       guard += 1;
       var data = upgrades[Math.floor(this.random() * upgrades.length)];
-      if (!data || used[data.id]) continue;
-      var rarity = weightedChoice(rarities, this.random);
+      if (!data || used[data.id] || (!options.ignoreBanish && this.banished[data.id])) continue;
+      var rarity = this.rollUpgradeRarity(options);
       var currentLevel = this.currentUpgradeLevel(data.id, data.type);
       var nextLevel = currentLevel + (data.type === "weapon" ? Math.max(1, Math.round(rarity.power)) : 1);
       used[data.id] = true;
@@ -1991,7 +2951,105 @@
         text: this.describeUpgrade(data, rarity.power, currentLevel, nextLevel)
       });
     }
+    if (!choices.length && !options.ignoreBanish && (CONFIG.upgrades || []).length) {
+      return this.buildUpgradeChoices(count, Object.assign({}, options, { ignoreBanish: true, includeEvolution: false }));
+    }
     return choices;
+  };
+
+  VoidBloom.prototype.getWeightedUpgradePool = function (upgrades) {
+    var pool = upgrades.slice();
+    var trait = this.runTrait && this.runTrait.id;
+    var weights = Object.create(null);
+    if (trait === "bloodMoon") {
+      ["scarletPact", "lastStand", "bloodDebt", "lowHpRage", "bloodHarvest"].forEach(function (id) { weights[id] = 3; });
+    }
+    if (trait === "swarm") {
+      ["satellite", "mirrorPrism", "quantumEcho", "orbit", "cooldown"].forEach(function (id) { weights[id] = 3; });
+    }
+    if (trait === "riftMiner") {
+      ["gravity", "voidRift", "warpMine", "blackHoleBloom", "fusionCore", "emberTrail"].forEach(function (id) { weights[id] = 3; });
+    }
+    if (trait === "prismFocus") {
+      ["crit", "echoMagazine", "executionSight", "pulse", "laser", "doomMark"].forEach(function (id) { weights[id] = 2; });
+    }
+    if (trait === "lightRunner") {
+      ["speed", "dashDamage", "shortCircuitDash", "phaseSlash", "kineticBloom"].forEach(function (id) { weights[id] = 3; });
+    }
+    upgrades.forEach(function (item) {
+      var extra = weights[item.id] || 0;
+      for (var i = 0; i < extra; i += 1) {
+        pool.push(item);
+      }
+    });
+    return pool;
+  };
+
+  VoidBloom.prototype.rollUpgradeRarity = function (options) {
+    options = options || {};
+    var rarities = (CONFIG.rarities || [{ id: "common", label: "普通", weight: 1, power: 1 }]).map(function (item) {
+      return Object.assign({}, item);
+    });
+    var luck = (this.stats.treasureLevel || 0) * 0.08 + (this.stats.rerollCharmLevel || 0) * 0.08 + (this.stats.cursedDiceLevel || 0) * 0.06;
+    if (this.runTrait && this.runTrait.id === "gambler") luck += 0.12;
+    for (var i = 0; i < rarities.length; i += 1) {
+      if (options.forceRare && rarities[i].id === "common") rarities[i].weight *= 0.35;
+      if (rarities[i].id === "rare") rarities[i].weight *= 1 + luck * 1.8;
+      if (rarities[i].id === "epic") rarities[i].weight *= 1 + luck * 2.8;
+      if (rarities[i].id === "legendary") rarities[i].weight *= 1 + luck * 4.2;
+    }
+    var rarity = weightedChoice(rarities, this.random);
+    if (options.forceRare && rarity.id === "common" && this.random() < 0.55) {
+      rarity = rarities.find(function (item) { return item.id === "rare"; }) || rarity;
+    }
+    if (this.stats.cursedDiceLevel > 0 && this.random() < Math.min(0.18, 0.08 + this.stats.cursedDiceLevel * 0.025)) {
+      var order = ["common", "rare", "epic", "legendary"];
+      var index = Math.min(order.length - 1, order.indexOf(rarity.id) + 1);
+      rarity = rarities.find(function (item) { return item.id === order[index]; }) || rarity;
+      if (this.random() < 0.28) {
+        this.spawnTimer = Math.min(this.spawnTimer, 0.05);
+        this.addDamageText(this.player.x, this.player.y - 60, "诅咒骰子", "#f7d46b", { priority: 2, size: 14 });
+      }
+    }
+    return rarity;
+  };
+
+  VoidBloom.prototype.buildEvolutionChoices = function () {
+    var self = this;
+    return (CONFIG.evolutions || [])
+      .filter(function (evolution) { return self.canApplyEvolution(evolution); })
+      .map(function (evolution) {
+        return {
+          id: evolution.id,
+          evolution: true,
+          name: evolution.name,
+          color: evolution.color,
+          data: { type: "evolution", name: evolution.name, color: evolution.color },
+          text: evolution.text,
+          source: evolution
+        };
+      });
+  };
+
+  VoidBloom.prototype.canApplyEvolution = function (evolution) {
+    if (!evolution || this.evolutions[evolution.id]) return false;
+    if ((this.weaponLevels[evolution.weapon] || 0) < (evolution.weaponLevel || 8)) return false;
+    var requires = evolution.requires || [];
+    for (var i = 0; i < requires.length; i += 1) {
+      if ((this.upgrades[requires[i].id] || 0) < (requires[i].level || 1)) return false;
+    }
+    return true;
+  };
+
+  VoidBloom.prototype.applyEvolution = function (choice) {
+    if (!choice || !choice.id || this.evolutions[choice.id]) return;
+    this.evolutions[choice.id] = true;
+    this.score += 450 + this.level * 30;
+    this.addDamageText(this.player.x, this.player.y - 58, "进化：" + choice.name, choice.color || "#fff3a3", { priority: 4, size: 20, stroke: "#10203a" });
+    this.addBurst(this.player.x, this.player.y, choice.color || "#fff3a3", 92, 6);
+    this.playSfx("upgrade", 1.6);
+    this.shake(6);
+    this.updateHud(true);
   };
 
   VoidBloom.prototype.currentUpgradeLevel = function (id, type) {
@@ -2043,6 +3101,24 @@
     if (data.id === "emberTrail") detail = "冲刺留下燃烧轨迹，边跑边烧，风筝流核心。";
     if (data.id === "overloadShield") detail = "获得可再生护盾，破盾时电磁爆环会替你清出空间。";
     if (data.id === "doomMark") detail = "强敌会被刻印叠层，满层直接爆开处决。";
+    if (data.id === "stormCrown") detail = "连杀积攒雷暴，满层后自动释放多段连锁闪电。";
+    if (data.id === "blackHoleBloom") detail = "在敌群中生成黑洞花，持续吸附并在结束时坍缩。";
+    if (data.id === "greedCore") detail = "吸取范围和宝箱质量提高，但敌潮也会稍微更凶。";
+    if (data.id === "scarletPact") detail = "牺牲生命上限换取暴击、伤害和击杀吸血。";
+    if (data.id === "chronoWatch") detail = "濒死时触发时停、短暂无敌和回血，每次触发后进入冷却。";
+    if (data.id === "voidThrone") detail = "站桩会蓄力增伤，动起来会掉层，适合赌命输出。";
+    if (data.id === "kineticBloom") detail = "移动和冲刺积攒动能，满后释放一圈高伤爆发。";
+    if (data.id === "treasureSense") detail = "精英更容易掉宝箱，宝箱也更容易开出高稀有奖励。";
+    if (data.id === "rerollCharm") detail = "增加刷新次数，并提高稀有选项概率。";
+    if (data.id === "banishSeal") detail = "增加放逐次数，把不想再见的卡踢出本局。";
+    if (data.id === "mirrorPrism") detail = "卫星和召唤攻击更容易复制，召唤流核心。";
+    if (data.id === "lastStand") detail = "血越低伤害越高，低血局会更刺激。";
+    if (data.id === "cursedDice") detail = "更容易把卡牌品质往上推，但可能引来更急的敌潮。";
+    if (data.id === "echoMagazine") detail = "暴击后进入短暂残响窗口，射速和伤害一起抬升。";
+    if (data.id === "bloodDebt") detail = "低血击杀会吸血，危险时更容易打出续命反杀。";
+    if (data.id === "shortCircuitDash") detail = "冲刺后弹射电弧，操作流的清怪能力会明显提升。";
+    if (data.id === "executionSight") detail = "对精英和首领增伤，残血强敌会被额外处决。";
+    if (data.id === "voidInsurance") detail = "获得一次致死保险，濒死清场并短暂无敌。";
     return "等级 " + currentLevel + " → " + nextLevel + "。 " + detail + " " + boost;
   };
 
@@ -2056,40 +3132,76 @@
       this.weaponLevels[id] = (this.weaponLevels[id] || 0) + Math.max(1, Math.round(power));
     }
     if (id === "speed") this.stats.speed += 20 * power;
-    if (id === "cooldown") this.stats.cooldownMult *= Math.max(0.72, 1 - 0.07 * power);
+    if (id === "cooldown") this.stats.cooldownMult = Math.max(0.48, this.stats.cooldownMult * Math.max(0.78, 1 - 0.055 * power));
     if (id === "magnet") this.stats.pickupRadius += 28 * power;
     if (id === "crit") {
-      this.stats.critChance += 0.055 * power;
-      this.stats.critDamage += 0.16 * power;
+      this.stats.critChance = Math.min(0.72, this.stats.critChance + 0.045 * power / (1 + level * 0.08));
+      this.stats.critDamage = Math.min(3.2, this.stats.critDamage + 0.12 * power / (1 + level * 0.08));
     }
-    if (id === "regen") this.stats.regen += 0.9 * power;
-    if (id === "armor") this.stats.armor = Math.min(0.58, this.stats.armor + 0.07 * power);
+    if (id === "regen") this.stats.regen = Math.min(4.2, this.stats.regen + 0.55 * power / (1 + level * 0.18));
+    if (id === "armor") this.stats.armor = Math.min(0.45, this.stats.armor + 0.055 * power / (1 + level * 0.16));
     if (id === "glass") {
-      this.stats.damageMult += 0.32 * power;
+      this.stats.damageMult = Math.min(4.2, this.stats.damageMult + 0.26 * power / (1 + level * 0.08));
       this.stats.maxHp = Math.max(38, this.stats.maxHp - 9 * power);
       this.stats.hp = Math.min(this.stats.hp, this.stats.maxHp);
     }
-    if (id === "chainExplosion") this.stats.chainChance = Math.min(0.44, this.stats.chainChance + 0.07 * power);
+    if (id === "chainExplosion") this.stats.chainChance = Math.min(0.32, this.stats.chainChance + 0.055 * power);
     if (id === "frostPulse") this.stats.frostLevel += Math.max(1, Math.round(power));
     if (id === "lowHpRage") this.stats.rageLevel += Math.max(1, Math.round(power));
     if (id === "dashDamage") this.stats.dashDamage += 38 * power;
-    if (id === "sparkBurst") this.stats.sparkEvery = Math.max(24, (this.stats.sparkEvery || 88) - Math.round(12 * power));
+    if (id === "sparkBurst") this.stats.sparkEvery = Math.max(40, (this.stats.sparkEvery || 96) - Math.round(9 * power));
     if (id === "emberTrail") this.stats.emberTrailLevel += Math.max(1, Math.round(power));
-    if (id === "fusionCore") this.stats.fusionLevel += Math.max(1, Math.round(power));
+    if (id === "fusionCore") this.stats.fusionLevel = Math.min(8, this.stats.fusionLevel + Math.max(1, Math.round(power)));
     if (id === "bloodHarvest") {
       this.stats.bloodHarvestLevel += Math.max(1, Math.round(power));
       this.stats.harvestTimer = Math.min(this.stats.harvestTimer || 12, 10);
     }
     if (id === "overloadShield") {
       this.stats.overloadShieldLevel += Math.max(1, Math.round(power));
-      this.stats.shieldMax += 20 + 8 * power;
-      this.stats.shield = Math.min(this.stats.shieldMax, this.stats.shield + 22 + 8 * power);
+      this.stats.shieldMax = Math.min(90, this.stats.shieldMax + 12 + 5 * power);
+      this.stats.shield = Math.min(this.stats.shieldMax, this.stats.shield + 14 + 5 * power);
       this.stats.shieldTimer = 0;
     }
     if (id === "doomMark") this.stats.doomMarkLevel += Math.max(1, Math.round(power));
     if (id === "quantumEcho") {
-      this.stats.echoChance = Math.min(0.42, this.stats.echoChance + 0.07 * power);
-      this.stats.echoPower = Math.min(0.72, this.stats.echoPower + 0.04 * power);
+      this.stats.echoChance = Math.min(0.35, this.stats.echoChance + 0.055 * power);
+      this.stats.echoPower = Math.min(0.6, this.stats.echoPower + 0.03 * power);
+    }
+    if (id === "stormCrown") this.stats.stormCrownLevel += Math.max(1, Math.round(power));
+    if (id === "greedCore") {
+      this.stats.greedLevel += Math.max(1, Math.round(power));
+      this.stats.pickupRadius += 22 * power;
+    }
+    if (id === "scarletPact") {
+      this.stats.scarletLevel += Math.max(1, Math.round(power));
+      this.stats.maxHp = Math.max(46, this.stats.maxHp - 8 * power);
+      this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + 5);
+      this.stats.damageMult += 0.08 * power;
+      this.stats.critChance = Math.min(0.72, this.stats.critChance + 0.025 * power);
+    }
+    if (id === "chronoWatch") {
+      this.stats.chronoLevel += Math.max(1, Math.round(power));
+      this.stats.chronoCooldown = Math.min(this.stats.chronoCooldown || 54, 42);
+    }
+    if (id === "voidThrone") this.stats.voidThroneLevel += Math.max(1, Math.round(power));
+    if (id === "kineticBloom") this.stats.kineticLevel += Math.max(1, Math.round(power));
+    if (id === "treasureSense") this.stats.treasureLevel += Math.max(1, Math.round(power));
+    if (id === "rerollCharm") {
+      this.stats.rerollCharmLevel += Math.max(1, Math.round(power));
+      this.stats.rerolls += 1 + Math.floor(power);
+    }
+    if (id === "banishSeal") this.stats.banishes += 1 + Math.floor(power / 1.8);
+    if (id === "mirrorPrism") this.stats.mirrorPrismLevel += Math.max(1, Math.round(power));
+    if (id === "lastStand") this.stats.lastStandLevel += Math.max(1, Math.round(power));
+    if (id === "cursedDice") this.stats.cursedDiceLevel += Math.max(1, Math.round(power));
+    if (id === "echoMagazine") this.stats.echoMagazineLevel += Math.max(1, Math.round(power));
+    if (id === "bloodDebt") this.stats.bloodDebtLevel += Math.max(1, Math.round(power));
+    if (id === "shortCircuitDash") this.stats.shortCircuitLevel += Math.max(1, Math.round(power));
+    if (id === "executionSight") this.stats.executionLevel += Math.max(1, Math.round(power));
+    if (id === "voidInsurance") this.stats.voidInsuranceLevel += Math.max(1, Math.round(power));
+    var unlocked = this.buildEvolutionChoices();
+    if (unlocked.length && this.random() < 0.72) {
+      this.addDamageText(this.player.x, this.player.y - 66, "进化可用：" + unlocked[0].name, unlocked[0].color || "#fff3a3", { priority: 3, size: 15 });
     }
     if (level % 3 === 0 && choice.data.type !== "passive") {
       this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + 10);
@@ -2097,9 +3209,11 @@
     if (choice.data.type === "weapon" && previousWeaponLevel < 8 && (this.weaponLevels[id] || 0) >= 8) {
       this.addDamageText(this.player.x, this.player.y - 46, "觉醒：" + choice.data.name, choice.data.color || "#ffffff");
       this.addBurst(this.player.x, this.player.y, choice.data.color || "#45d7ff", 70, 5);
+      this.playSfx("upgrade", 1.4);
       this.shake(5);
     } else {
       this.addBurst(this.player.x, this.player.y, choice.data.color || "#45d7ff", 32, 3);
+      this.playSfx("upgrade", 0.8);
     }
     this.updateHud(true);
   };
@@ -2160,7 +3274,13 @@
     } else {
       this.dashPill.textContent = "冲刺 " + this.stats.dashTimer.toFixed(1) + "秒";
     }
-    if (this.bossTimer <= 24) {
+    if (this.stats.healBlockTimer > 0) {
+      this.alertPill.textContent = "禁疗压制";
+    } else if (this.tide && this.tide.active) {
+      this.alertPill.textContent = "潮汐 " + Math.ceil(this.tide.timer) + "秒";
+    } else if (this.tide && this.tide.nextTime - this.time <= 8) {
+      this.alertPill.textContent = "潮汐将至";
+    } else if (this.bossTimer <= 24) {
       this.alertPill.textContent = "首领 " + Math.ceil(this.bossTimer) + "秒";
     } else if (this.eliteTimer <= 16) {
       this.alertPill.textContent = "精英 " + Math.ceil(this.eliteTimer) + "秒";
@@ -2207,6 +3327,7 @@
     this.drawFields(ctx);
     this.drawProps(ctx);
     this.drawGems(ctx);
+    this.drawChests(ctx);
     this.drawProjectiles(ctx);
     this.drawEnemies(ctx);
     this.drawPlayer(ctx);
@@ -2409,17 +3530,64 @@
         }
         ctx.closePath();
         ctx.fill();
+      } else if (e.type === "piercer") {
+        ctx.beginPath();
+        ctx.moveTo(e.radius * 1.25, 0);
+        ctx.lineTo(-e.radius * 0.85, -e.radius * 0.55);
+        ctx.lineTo(-e.radius * 0.45, 0);
+        ctx.lineTo(-e.radius * 0.85, e.radius * 0.55);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.55)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      } else if (e.type === "suppressor") {
+        ctx.beginPath();
+        ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,79,109,0.5)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, e.radius * 1.55 + Math.sin(this.time * 5 + i) * 2, 0, Math.PI * 2);
+        ctx.stroke();
       } else {
         ctx.beginPath();
         ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
+      if (e.suppressAura && this.isNearView(e.x, e.y, 60)) {
+        ctx.save();
+        ctx.globalAlpha = 0.08;
+        ctx.strokeStyle = "#ff4f6d";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.suppressAura, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+      if (e.bulwarkAura && this.isNearView(e.x, e.y, 60)) {
+        ctx.save();
+        ctx.globalAlpha = 0.08;
+        ctx.strokeStyle = "#fff3a3";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.bulwarkAura, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
       if (e.type === "elite" || e.type === "boss") {
         ctx.fillStyle = "rgba(255,255,255,0.15)";
         ctx.fillRect(e.x - e.radius, e.y - e.radius - 12, e.radius * 2, 4);
         ctx.fillStyle = e.color;
         ctx.fillRect(e.x - e.radius, e.y - e.radius - 12, e.radius * 2 * clamp(e.hp / e.maxHp, 0, 1), 4);
+        if (e.affixes && e.affixes.length) {
+          ctx.strokeStyle = e.affixes.indexOf("breaker") !== -1 ? "#66f0ff" : e.affixes.indexOf("suppressor") !== -1 ? "#ff4f6d" : "#fff3a3";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(e.x, e.y, e.radius + 6 + Math.sin(this.time * 4) * 1.5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
       }
     }
   };
@@ -2500,6 +3668,34 @@
         ctx.stroke();
         ctx.globalAlpha *= 0.42;
         ctx.fill();
+      } else if (p.type === "altar") {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        for (var a = 0; a < 6; a += 1) {
+          var aa = a * Math.PI / 3 + this.time * 0.25;
+          ctx.lineTo(Math.cos(aa) * p.radius * 0.7, Math.sin(aa) * p.radius * 0.7);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      } else if (p.type === "tower") {
+        ctx.beginPath();
+        ctx.moveTo(0, -p.radius);
+        ctx.lineTo(p.radius * 0.72, p.radius * 0.55);
+        ctx.lineTo(-p.radius * 0.72, p.radius * 0.55);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius * 0.38 + Math.sin(this.time * 4) * 2, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (p.type === "vault") {
+        ctx.rotate(-this.time * 0.6);
+        ctx.strokeRect(-p.radius * 0.72, -p.radius * 0.72, p.radius * 1.44, p.radius * 1.44);
+        ctx.rotate(this.time * 1.2);
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius * 0.58, 0, Math.PI * 2);
+        ctx.stroke();
       } else {
         ctx.beginPath();
         ctx.moveTo(0, -p.radius);
@@ -2529,6 +3725,34 @@
       ctx.lineTo(-5, 0);
       ctx.closePath();
       ctx.fill();
+      ctx.restore();
+    }
+  };
+
+  VoidBloom.prototype.drawChests = function (ctx) {
+    for (var i = 0; i < this.chests.length; i += 1) {
+      var c = this.chests[i];
+      if (!this.isNearView(c.x, c.y, 120)) continue;
+      var pulse = 1 + Math.sin(this.time * 5 + c.pulse) * 0.08;
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.scale(pulse, pulse);
+      ctx.rotate(Math.sin(this.time * 2 + i) * 0.08);
+      ctx.shadowBlur = c.tier === "boss" ? 28 : 18;
+      ctx.shadowColor = c.color;
+      ctx.fillStyle = c.tier === "cursed" ? "rgba(255,51,95,0.24)" : "rgba(255,209,102,0.22)";
+      ctx.strokeStyle = c.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.rect(-c.radius, -c.radius * 0.72, c.radius * 2, c.radius * 1.44);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-c.radius, -2);
+      ctx.lineTo(c.radius, -2);
+      ctx.moveTo(0, -c.radius * 0.72);
+      ctx.lineTo(0, c.radius * 0.72);
+      ctx.stroke();
       ctx.restore();
     }
   };
@@ -2639,6 +3863,46 @@
         ctx.restore();
         continue;
       }
+      if (f.type === "blackhole") {
+        var swirl = this.time * 3 + (f.seed || 0);
+        ctx.globalAlpha = 0.18 + ratio * 0.36;
+        ctx.fillStyle = "rgba(124,60,255,0.18)";
+        ctx.strokeStyle = f.color;
+        ctx.shadowBlur = 32;
+        ctx.shadowColor = f.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.radius * (1.04 - ratio * 0.1), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        for (var bh = 0; bh < 4; bh += 1) {
+          ctx.globalAlpha = 0.26 + ratio * 0.24;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.radius * (0.25 + bh * 0.17), swirl + bh, swirl + bh + Math.PI * 1.35);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 0.92;
+        ctx.fillStyle = "#120719";
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, Math.max(10, f.radius * 0.12), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
+      if (f.type === "timeStop") {
+        ctx.globalAlpha = 0.18 + ratio * 0.5;
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 4;
+        ctx.shadowBlur = 26;
+        ctx.shadowColor = f.color;
+        for (var ts = 0; ts < 3; ts += 1) {
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.radius * (0.45 + ts * 0.24 + (1 - ratio) * 0.12), 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+        continue;
+      }
       ctx.globalAlpha = 0.16 + ratio * 0.18;
       ctx.strokeStyle = f.color;
       ctx.lineWidth = 3;
@@ -2698,13 +3962,24 @@
 
   VoidBloom.prototype.drawDamageTexts = function (ctx) {
     ctx.save();
-    ctx.font = "700 12px Trebuchet MS, Helvetica, sans-serif";
     ctx.textAlign = "center";
     for (var i = 0; i < this.damageTexts.length; i += 1) {
       var p = this.damageTexts[i];
-      ctx.globalAlpha = clamp(p.life / p.maxLife, 0, 1);
+      var alpha = clamp(p.life / p.maxLife, 0, 1);
+      var scale = 1 + ((p.scale || 1) - 1) * alpha;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.scale(scale, scale);
+      ctx.globalAlpha = alpha;
+      ctx.font = "700 " + (p.size || 12) + "px Trebuchet MS, Helvetica, sans-serif";
+      if (p.stroke) {
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = p.stroke;
+        ctx.strokeText(p.text, 0, 0);
+      }
       ctx.fillStyle = p.color;
-      ctx.fillText(p.text, p.x, p.y);
+      ctx.fillText(p.text, 0, 0);
+      ctx.restore();
     }
     ctx.restore();
   };

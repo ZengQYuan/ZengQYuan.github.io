@@ -301,6 +301,7 @@ body.void-bloom-open {
 
 .void-bloom-upgrade {
   appearance: none;
+  position: relative;
   min-height: 150px;
   border: 1px solid rgba(148, 201, 255, 0.16);
   border-radius: 12px;
@@ -311,6 +312,26 @@ body.void-bloom-open {
   padding: 14px;
   text-align: left;
   transition: transform var(--motion), border-color var(--motion), background-color var(--motion), box-shadow var(--motion);
+}
+
+.void-bloom-upgrade[data-shortcut]::before {
+  content: attr(data-shortcut);
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(3, 10, 22, 0.62);
+  color: #dceaff;
+  font-size: 0.76em;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
 }
 
 .void-bloom-upgrade:hover,
@@ -365,6 +386,58 @@ body.void-bloom-open {
 
 .void-bloom-upgrade[data-rarity="legendary"] em {
   color: var(--void-gold);
+}
+
+.void-bloom-trait-card .void-bloom-upgrade {
+  border-color: color-mix(in srgb, var(--trait-color, #45d7ff) 34%, rgba(148, 201, 255, 0.16));
+}
+
+.void-bloom-trait-card .void-bloom-upgrade:hover,
+.void-bloom-trait-card .void-bloom-upgrade:focus {
+  border-color: var(--trait-color, #45d7ff);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--trait-color, #45d7ff) 24%, transparent), 0 18px 42px rgba(0, 0, 0, 0.28);
+}
+
+.void-bloom-chest-card {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 209, 102, 0.18), transparent 32%),
+    radial-gradient(circle at 16% 16%, rgba(69, 215, 255, 0.12), transparent 34%),
+    rgba(7, 18, 35, 0.96);
+}
+
+.void-bloom-choice-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.void-bloom-tool-button {
+  appearance: none;
+  border: 1px solid rgba(148, 201, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(69, 215, 255, 0.12);
+  color: #dceaff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88em;
+  font-weight: 800;
+  padding: 8px 13px;
+  transition: transform var(--motion), border-color var(--motion), background-color var(--motion);
+}
+
+.void-bloom-tool-button:hover,
+.void-bloom-tool-button:focus {
+  border-color: rgba(69, 215, 255, 0.54);
+  background: rgba(69, 215, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.void-bloom-tool-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+  transform: none;
 }
 
 .void-bloom-actions {
