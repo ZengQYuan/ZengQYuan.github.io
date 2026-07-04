@@ -5,9 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Qingyuan Zeng - Academic homepage: machine learning, trustworthy AI, and AI for healthcare.">
   <title>Qingyuan Zeng (曾清源) | Academic Homepage</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23224b8d'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-family='Arial,Helvetica,sans-serif' font-size='24' font-weight='700' fill='white'%3EQZ%3C/text%3E%3C/svg%3E">
   
   <!-- Font Awesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="assets/game/survivor.css?v=20260705-local">
   
   <style>
     :root {
@@ -1310,6 +1312,7 @@
         <a href="#experience">Experience</a>
         <a href="#awards">Awards</a>
         <a href="#service">Service</a>
+        <a href="#playground">小游戏</a>
         <a href="#global-footprint">Global</a>
       </nav>
     </div>
@@ -1861,6 +1864,26 @@
         </ul>
       </section>
 
+      <section class="section" id="playground">
+        <h2>小游戏</h2>
+        <div class="game-entry">
+          <div>
+            <h3>虚空绽放：幸存者</h3>
+            <p>一个轻量肉鸽割草小游戏。</p>
+            <div class="game-entry-stats" aria-label="虚空绽放本地记录">
+              <span>最高分 <strong id="void-bloom-best-score">0</strong></span>
+              <span>最长时间 <strong id="void-bloom-best-time">0:00</strong></span>
+              <span>最高等级 <strong id="void-bloom-best-level">1</strong></span>
+            </div>
+            <p class="void-bloom-error" id="void-bloom-entry-error" role="status"></p>
+          </div>
+          <button class="game-play-button" id="void-bloom-open" type="button">
+            <i class="fas fa-play"></i>
+            开始游戏
+          </button>
+        </div>
+      </section>
+
       <section class="section" id="global-footprint">
         <h2>Global Footprint</h2>
         <div class="global-footprint-panel">
@@ -1881,9 +1904,24 @@
     </div>
   </main>
 
+  <div class="void-bloom-modal" id="void-bloom-modal" aria-hidden="true">
+    <div class="void-bloom-shell" role="dialog" aria-modal="true" aria-labelledby="void-bloom-heading">
+      <div class="void-bloom-header">
+        <div class="void-bloom-title">
+          <strong id="void-bloom-heading">虚空绽放：幸存者</strong>
+          <span>WASD/方向键移动 · 空格冲刺 · P/Esc 暂停</span>
+        </div>
+        <button class="void-bloom-close" id="void-bloom-close" type="button" aria-label="关闭游戏">&times;</button>
+      </div>
+      <div class="void-bloom-root" id="void-bloom-root"></div>
+    </div>
+  </div>
+
   <footer>
     <p>Last updated: July 3, 2026. &copy; 2026 Qingyuan Zeng. All rights reserved.</p>
   </footer>
+  <script src="assets/game/survivor-config.js?v=20260705-local" defer></script>
+  <script src="assets/game/survivor-game.js?v=20260705-local" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/globe.gl" defer></script>
   <script src="assets/js/global-footprint.js?v=20260704-hover6" defer></script>
   <script>
@@ -2015,6 +2053,110 @@
         }
       });
     })();
+  </script>
+  <script>
+    window.addEventListener("DOMContentLoaded", function () {
+      var openButton = document.getElementById("void-bloom-open");
+      var closeButton = document.getElementById("void-bloom-close");
+      var modal = document.getElementById("void-bloom-modal");
+      var root = document.getElementById("void-bloom-root");
+      var entryError = document.getElementById("void-bloom-entry-error");
+      var bestScore = document.getElementById("void-bloom-best-score");
+      var bestTime = document.getElementById("void-bloom-best-time");
+      var bestLevel = document.getElementById("void-bloom-best-level");
+      var controller = null;
+      var lastFocus = null;
+
+      function formatTime(seconds) {
+        seconds = Math.max(0, Math.floor(Number(seconds) || 0));
+        var minutes = Math.floor(seconds / 60);
+        var rest = String(seconds % 60).padStart(2, "0");
+        return minutes + ":" + rest;
+      }
+
+      function showError(message) {
+        if (!entryError) {
+          return;
+        }
+        entryError.textContent = message || "";
+        entryError.classList.toggle("is-visible", Boolean(message));
+      }
+
+      function updateBest() {
+        var best = window.VoidBloomSurvivor && window.VoidBloomSurvivor.readBest
+          ? window.VoidBloomSurvivor.readBest()
+          : null;
+        if (bestScore) {
+          bestScore.textContent = String((best && best.bestScore) || 0);
+        }
+        if (bestTime) {
+          bestTime.textContent = formatTime((best && best.bestTime) || 0);
+        }
+        if (bestLevel) {
+          bestLevel.textContent = String((best && best.bestLevel) || 1);
+        }
+      }
+
+      function closeGame() {
+        if (!modal) {
+          return;
+        }
+        if (controller && controller.deactivate) {
+          controller.deactivate();
+        }
+        modal.classList.remove("is-open");
+        modal.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("void-bloom-open");
+        updateBest();
+        if (lastFocus && typeof lastFocus.focus === "function") {
+          lastFocus.focus({ preventScroll: true });
+        }
+      }
+
+      function openGame() {
+        if (!window.VoidBloomSurvivor || !window.VoidBloomSurvivor.mount) {
+          showError("游戏脚本还在加载，请稍后再试。");
+          return;
+        }
+        showError("");
+        lastFocus = document.activeElement;
+        modal.classList.add("is-open");
+        modal.setAttribute("aria-hidden", "false");
+        document.body.classList.add("void-bloom-open");
+        if (!controller) {
+          controller = window.VoidBloomSurvivor.mount(root, {
+            onBestChange: updateBest,
+            onClose: closeGame
+          });
+        }
+        if (controller && controller.activate) {
+          controller.activate();
+        }
+        if (controller && controller.resume) {
+          controller.resume();
+        }
+        if (root && typeof root.focus === "function") {
+          root.setAttribute("tabindex", "-1");
+          root.focus({ preventScroll: true });
+        }
+      }
+
+      updateBest();
+
+      if (openButton) {
+        openButton.addEventListener("click", openGame);
+      }
+      if (closeButton) {
+        closeButton.addEventListener("click", closeGame);
+      }
+      if (modal) {
+        modal.addEventListener("click", function (event) {
+          if (event.target === modal) {
+            closeGame();
+          }
+        });
+      }
+    });
   </script>
 </body>
 </html>
