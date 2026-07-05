@@ -3229,6 +3229,9 @@
         while (this.xp >= this.nextXp) {
           this.xp -= this.nextXp;
           this.level += 1;
+          var playerConfig = CONFIG.player || {};
+          var levelHeal = (playerConfig.levelHealFlat || 0) + this.stats.maxHp * (playerConfig.levelHealRatio || 0);
+          this.applyHealing(levelHeal, "levelUp", this.player.x, this.player.y - 34);
           this.nextXp = this.getNextXp();
           this.showUpgrade();
           return;

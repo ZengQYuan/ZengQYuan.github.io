@@ -5,7 +5,9 @@
     storageKey: "zqy-survivor:v1",
     player: {
       hp: 150,
-      baseRegen: 1.25,
+      baseRegen: 1.8,
+      levelHealFlat: 3,
+      levelHealRatio: 0.07,
       speed: 230,
       radius: 13,
       dashDistance: 150,
