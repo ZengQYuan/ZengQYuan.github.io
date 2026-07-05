@@ -431,17 +431,16 @@
       recentHitTimer: 0,
       magnetTimer: 0
     };
-    this.chapter = {
-      index: 1,
-      startedAt: 0,
-      duration: (CONFIG.chapters && CONFIG.chapters.duration) || 180,
-      bossSpawned: false,
-      bossAlive: false,
-      bossSpawnedAt: 0,
-      bossOvertime: 0,
-      pressure: 0,
-      pressureTimer: 0
+    this.director = {
+      heat: 0,
+      lastPerformance: 0,
+      recoveryTimer: 0,
+      recoveryMode: false,
+      recentDamage: 0,
+      recentHits: 0,
+      history: []
     };
+    this.chapter = this.createChapterState(1, 0);
     this.recoveryWindow = {
       startedAt: 0,
       capped: 0
@@ -486,7 +485,7 @@
     };
     this.spawnTimer = 0;
     this.eliteTimer = 62;
-    this.bossTimer = this.chapter.duration || 180;
+    this.bossTimer = this.getChapterBossWindows(this.chapter.index).hard;
     this.frostTimer = 12;
     this.sparkCounter = 0;
     this.screenShake = 0;
@@ -518,8 +517,62 @@
     });
   };
 
+  VoidBloom.prototype.getChapterGoal = function (chapterIndex) {
+    var bases = (CONFIG.chapters && CONFIG.chapters.bases) || [];
+    var index = Math.max(1, Math.floor(chapterIndex || 1));
+    var endlessLoop = Math.max(0, index - Math.max(1, bases.length || 1));
+    var heat = this.director ? Math.max(0, this.director.heat || 0) : 0;
+    return Math.round((70 + (index - 1) * 24 + endlessLoop * 28) * (1 + heat * 0.035));
+  };
+
+  VoidBloom.prototype.getChapterBossWindows = function (chapterIndex) {
+    var index = Math.max(1, Math.floor(chapterIndex || 1));
+    var heat = this.director ? (this.director.heat || 0) : 0;
+    return {
+      min: clamp(45 + index * 3.5 - Math.max(0, heat) * 3.4, 36, 64),
+      soft: clamp(84 + index * 5.5 - Math.max(0, heat) * 4.6, 72, 126),
+      hard: clamp(122 + index * 7 - Math.max(0, heat) * 5.2, 108, 166)
+    };
+  };
+
+  VoidBloom.prototype.createChapterState = function (chapterIndex, startedAt) {
+    var rules = this.getChapterRules(chapterIndex);
+    return {
+      index: Math.max(1, Math.floor(chapterIndex || 1)),
+      startedAt: startedAt || 0,
+      duration: rules.duration || 180,
+      goal: this.getChapterGoal(chapterIndex),
+      progress: 0,
+      kills: 0,
+      eliteKills: 0,
+      bossSpawned: false,
+      bossAlive: false,
+      bossSpawnedAt: 0,
+      bossOvertime: 0,
+      pressure: 0,
+      pressureTimer: 0,
+      bossDelayUntil: 0,
+      bossDelayAnnounced: false,
+      metrics: {
+        damageDealt: 0,
+        damageTaken: 0,
+        hitsTaken: 0,
+        lowHpTime: 0,
+        enemySamples: 0,
+        enemyTotal: 0,
+        targetSamples: 0,
+        targetTotal: 0,
+        minHpRatio: 1,
+        insuranceUsedAtStart: this.stats ? !!this.stats.voidInsuranceUsed : false
+      }
+    };
+  };
+
   VoidBloom.prototype.getChapterProgress = function () {
     if (!this.chapter) return clamp((this.time % 180) / 180, 0, 1);
+    if (this.chapter.goal) {
+      return clamp((this.chapter.progress || 0) / Math.max(1, this.chapter.goal), 0, 1);
+    }
     return clamp((this.time - this.chapter.startedAt) / Math.max(1, this.chapter.duration || 180), 0, 1);
   };
 
@@ -532,21 +585,40 @@
     var cursed = this.stats ? (this.stats.cursedDiceLevel || 0) : 0;
     var pressure = this.chapter ? (this.chapter.pressure || 0) : 0;
     var endlessLoop = rules.endlessLoop || 0;
+    var heat = this.director ? (this.director.heat || 0) : 0;
+    var recoveryMode = !!(this.director && this.director.recoveryTimer > 0);
     var progressHp = 0.18 + Math.min(0.22, (chapter - 1) * 0.035);
     var progressDamage = 0.065 + Math.min(0.13, (chapter - 1) * 0.018);
     var progressSpawn = 0.18 + Math.min(0.2, (chapter - 1) * 0.025);
+    var heatHp = clamp(1 + heat * 0.09, 0.88, 1.58);
+    var heatDamage = clamp(1 + heat * 0.045, 0.92, 1.28);
+    var heatSpeed = clamp(1 + heat * 0.026, 0.96, 1.16);
+    var heatSpawn = clamp(1 + heat * 0.16, 0.78, 1.9);
+    var heatElite = clamp(1 - heat * 0.07, 0.6, 1.25);
+    var recoverySpawn = recoveryMode ? 0.74 : 1;
+    var recoveryDamage = recoveryMode ? 0.9 : 1;
+    var recoverySpeed = recoveryMode ? 0.94 : 1;
+    var baseHp = (rules.hp + progress * progressHp) * (1 + endlessLoop * (endless.hp || 0.36)) * (1 + pressure * 0.075) + greed * 0.035;
+    var baseDamage = (rules.damage + progress * progressDamage) * (1 + endlessLoop * (endless.damage || 0.18)) * (1 + pressure * 0.065) + cursed * 0.025;
+    var baseSpeed = (rules.speed + progress * 0.06) * (1 + endlessLoop * (endless.speed || 0.055)) * (1 + Math.min(0.28, pressure * 0.022));
+    var baseSpawn = (rules.spawn + progress * progressSpawn) * (1 + Math.max(0, chapter - 1) * 0.1) * (1 + endlessLoop * (endless.spawn || 0.2)) * (1 + pressure * 0.11) + greed * 0.045;
     return {
       chapter: chapter,
       chapterLabel: rules.label || "虚空轮回",
       chapterProgress: progress,
       endlessLoop: endlessLoop,
       bossPressure: pressure,
-      hpMult: (rules.hp + progress * progressHp) * (1 + endlessLoop * (endless.hp || 0.36)) * (1 + pressure * 0.075) + greed * 0.035,
-      damageMult: (rules.damage + progress * progressDamage) * (1 + endlessLoop * (endless.damage || 0.18)) * (1 + pressure * 0.065) + cursed * 0.025,
-      speedMult: Math.min(2.28, (rules.speed + progress * 0.06) * (1 + endlessLoop * (endless.speed || 0.055)) * (1 + Math.min(0.28, pressure * 0.022))),
-      spawnMult: (rules.spawn + progress * progressSpawn) * (1 + Math.max(0, chapter - 1) * 0.1) * (1 + endlessLoop * (endless.spawn || 0.2)) * (1 + pressure * 0.11) + greed * 0.045,
-      affixCount: Math.min(4, (rules.affixes || 0) + (progress > 0.72 ? 1 : 0) + endlessLoop * (endless.affixes || 1) + (pressure >= 3 ? 1 : 0)),
-      eliteInterval: clamp((rules.eliteInterval || 48) - progress * 8 - endlessLoop * 4 - pressure * 1.5, 12, 70),
+      heat: heat,
+      recoveryMode: recoveryMode,
+      hpMult: baseHp * heatHp,
+      damageMult: baseDamage * heatDamage * recoveryDamage,
+      speedMult: Math.min(2.34, baseSpeed * heatSpeed * recoverySpeed),
+      spawnMult: baseSpawn * heatSpawn * recoverySpawn,
+      affixCount: Math.min(4, (rules.affixes || 0) + (progress > 0.72 ? 1 : 0) + endlessLoop * (endless.affixes || 1) + (pressure >= 3 ? 1 : 0) + (heat > 1.6 ? 1 : 0)),
+      eliteInterval: clamp(((rules.eliteInterval || 48) - progress * 8 - endlessLoop * 4 - pressure * 1.5) * heatElite * (recoveryMode ? 1.22 : 1), 10, 74),
+      functionalMult: clamp(1 + heat * 0.22, 0.72, 2.25) * (recoveryMode ? 0.68 : 1),
+      tideMult: clamp(1 + heat * 0.18, 0.8, 1.85) * (recoveryMode ? 0.72 : 1),
+      bossCooldownMult: clamp(1 - heat * 0.06, 0.68, 1.16) * (recoveryMode ? 1.18 : 1),
       crisis: rules.crisis || "mixed",
       bossCycle: chapter
     };
@@ -555,16 +627,18 @@
   VoidBloom.prototype.recoveryMultiplier = function (source) {
     var chapter = this.chapter ? this.chapter.index : 1;
     var pressure = this.chapter ? (this.chapter.pressure || 0) : 0;
+    var heat = this.director ? Math.max(0, this.director.heat || 0) : 0;
     var late = clamp(1 - Math.max(0, chapter - 3) * 0.055 - Math.max(0, this.time - 720) / 1600, 0.56, 1);
+    var heatTax = 1 / (1 + heat * 0.055);
     var recent = source === "regen" && this.stats.recentHitTimer > 0 ? 0.35 : 1;
     var suppress = this.stats.healBlockTimer > 0 ? 0.45 : 1;
     var tide = this.tide && this.tide.active ? (this.tide.theme === "healLock" ? 0.54 : 0.76) : 1;
     var boss = this.chapter && this.chapter.bossAlive ? 1 / (1 + pressure * 0.08) : 1;
-    return late * recent * suppress * tide * boss;
+    return late * heatTax * recent * suppress * tide * boss;
   };
 
   VoidBloom.prototype.isCappedRecoverySource = function (source) {
-    return ["bloodDebt", "scarlet", "harvest"].indexOf(source) !== -1;
+    return ["regen", "bloodDebt", "bloodDebtMajor", "scarlet", "scarletMajor", "harvest"].indexOf(source) !== -1;
   };
 
   VoidBloom.prototype.limitRecoveryByWindow = function (amount, source) {
@@ -575,8 +649,10 @@
       this.recoveryWindow.capped = 0;
     }
     var chapter = this.chapter ? this.chapter.index : 1;
+    var heat = this.director ? Math.max(0, this.director.heat || 0) : 0;
     var chapterTax = Math.min(0.1, Math.max(0, chapter - 1) * 0.018);
-    var cap = Math.max(10, this.stats.maxHp * (0.24 - chapterTax) + 5 + this.level * 0.22);
+    var heatTax = Math.min(0.08, heat * 0.018);
+    var cap = Math.max(8, this.stats.maxHp * (0.23 - chapterTax - heatTax) + 5 + this.level * 0.16);
     if (this.chapter && this.chapter.bossAlive) cap *= 0.82;
     if (this.tide && this.tide.active && this.tide.theme === "healLock") cap *= 0.62;
     var room = Math.max(0, cap - this.recoveryWindow.capped);
@@ -597,6 +673,126 @@
       this.addDamageText(x == null ? this.player.x : x, y == null ? this.player.y - 20 : y, "+" + Math.round(gained), "#78f7d2", { kind: "heal", priority: 2, size: 14 });
     }
     return gained;
+  };
+
+  VoidBloom.prototype.getActiveEnemyCount = function () {
+    var count = 0;
+    for (var i = 0; i < this.enemies.length; i += 1) {
+      if (this.enemies[i].active) count += 1;
+    }
+    return count;
+  };
+
+  VoidBloom.prototype.recordChapterMetrics = function (dt) {
+    if (!this.chapter || !this.chapter.metrics || this.state !== "playing") return;
+    var metrics = this.chapter.metrics;
+    var hpRatio = this.stats.hp / Math.max(1, this.stats.maxHp);
+    metrics.minHpRatio = Math.min(metrics.minHpRatio == null ? 1 : metrics.minHpRatio, hpRatio);
+    if (hpRatio < 0.34) {
+      metrics.lowHpTime += dt;
+    }
+    metrics.enemySamples += 1;
+    metrics.enemyTotal += this.getActiveEnemyCount();
+    var target = this.getEnemyPopulationTarget(this.getDifficultyState());
+    metrics.targetSamples += 1;
+    metrics.targetTotal += target;
+  };
+
+  VoidBloom.prototype.updateDirectorRecovery = function (dt) {
+    if (!this.director || !this.stats) return;
+    var director = this.director;
+    director.recentDamage = Math.max(0, (director.recentDamage || 0) - this.stats.maxHp * 0.12 * dt);
+    director.recentHits = Math.max(0, (director.recentHits || 0) - 0.9 * dt);
+    var hpRatio = this.stats.hp / Math.max(1, this.stats.maxHp);
+    var diff = this.getDifficultyState();
+    var activeCount = this.getActiveEnemyCount();
+    var targetCount = this.getEnemyPopulationTarget(diff);
+    var overwhelmed = targetCount > 0 && activeCount > targetCount * 1.34;
+    var danger = hpRatio < 0.28 ||
+      (hpRatio < 0.46 && director.recentDamage > this.stats.maxHp * 0.16) ||
+      director.recentHits >= 4.5 ||
+      overwhelmed;
+    if (danger) {
+      var room = hpRatio < 0.28 ? 7.2 : overwhelmed ? 5.2 : 4.4;
+      director.recoveryTimer = Math.max(director.recoveryTimer || 0, room);
+    }
+    director.recoveryTimer = Math.max(0, (director.recoveryTimer || 0) - dt);
+    director.recoveryMode = director.recoveryTimer > 0;
+  };
+
+  VoidBloom.prototype.getChapterProgressValue = function (enemy) {
+    if (!enemy) return 0;
+    if (enemy.type === "boss") return 0;
+    if (enemy.type === "elite") return 14;
+    if (enemy.type === "nestMother") return 5;
+    if (enemy.type === "prismGuard") return 3;
+    if (enemy.type === "leechMoth" || enemy.type === "suppressor" || enemy.type === "starMiner" || enemy.type === "riftHunter") return 2.2;
+    if (enemy.type === "bomber" || enemy.type === "piercer") return 1.4;
+    return 1;
+  };
+
+  VoidBloom.prototype.addChapterProgress = function (amount, reason) {
+    if (!this.chapter || this.chapter.bossSpawned || amount <= 0) return;
+    var chapter = this.chapter;
+    var before = chapter.progress || 0;
+    chapter.progress = Math.max(0, before + amount);
+    if (before < chapter.goal && chapter.progress >= chapter.goal) {
+      this.addDamageText(this.player.x, this.player.y - 58, "目标达成", "#fff3a3", { priority: 3, size: 18, stroke: "#312300" });
+      this.playSfx("upgrade", 0.7);
+    } else if (reason === "crisis") {
+      this.addDamageText(this.player.x, this.player.y - 52, "目标 +" + Math.round(amount), "#fff3a3", { priority: 2, size: 14 });
+    }
+  };
+
+  VoidBloom.prototype.canSpawnChapterBoss = function (diff) {
+    if (!this.chapter || this.chapter.bossSpawned) return false;
+    var chapter = this.chapter;
+    var elapsed = this.time - chapter.startedAt;
+    var windows = this.getChapterBossWindows(chapter.index);
+    var progress = chapter.progress || 0;
+    var goal = Math.max(1, chapter.goal || this.getChapterGoal(chapter.index));
+    var timeAssist = clamp((elapsed - 70) / 2.5, 0, goal * 0.3);
+    var ready = (elapsed >= windows.min && progress + timeAssist >= goal) ||
+      (elapsed >= windows.soft && progress + timeAssist >= goal * 0.72 && (chapter.eliteKills || 0) >= 1);
+    var forced = elapsed >= windows.hard;
+    if (!ready && !forced) return false;
+    var hpRatio = this.stats.hp / Math.max(1, this.stats.maxHp);
+    var target = this.getEnemyPopulationTarget(diff || this.getDifficultyState());
+    var active = this.getActiveEnemyCount();
+    var dangerDelay = !forced && (hpRatio < 0.3 || active > target * 1.25);
+    if (dangerDelay) {
+      if (!chapter.bossDelayUntil) {
+        chapter.bossDelayUntil = this.time + 8;
+        if (!chapter.bossDelayAnnounced) {
+          chapter.bossDelayAnnounced = true;
+          this.addDamageText(this.player.x, this.player.y - 56, "首领压制延迟", "#78f7d2", { priority: 3, size: 16 });
+        }
+      }
+      if (this.time < chapter.bossDelayUntil) return false;
+    }
+    return true;
+  };
+
+  VoidBloom.prototype.spawnChapterBoss = function (diff) {
+    if (!this.chapter || this.chapter.bossSpawned) return;
+    var chapter = this.chapter;
+    chapter.bossSpawned = true;
+    chapter.bossAlive = true;
+    chapter.bossSpawnedAt = this.time;
+    chapter.bossOvertime = 0;
+    chapter.pressure = 0;
+    chapter.pressureTimer = 9.5;
+    var goal = Math.max(1, chapter.goal || this.getChapterGoal(chapter.index));
+    var progressRatio = (chapter.progress || 0) / goal;
+    var bossHpMod = progressRatio < 0.72 ? 0.9 : progressRatio > 1.12 ? 1.08 : 1;
+    var boss = this.spawnEnemy("boss", diff, { chapterBoss: true, hp: bossHpMod });
+    if (boss) {
+      boss.chapterBoss = true;
+      boss.label = "第" + chapter.index + "章首领";
+    }
+    this.addDamageText(this.player.x, this.player.y - 64, "第" + chapter.index + "章首领降临", "#fff3a3", { priority: 4, size: 22, stroke: "#312300" });
+    this.playSfx("boss", 1.2);
+    this.shake(6);
   };
 
   VoidBloom.prototype.createMapDecor = function () {
@@ -1155,6 +1351,8 @@
     this.stats.gateTimer = Math.max(0, this.stats.gateTimer - dt);
     this.updateDefensiveSystems(dt);
     this.updateBuildSystems(dt);
+    this.updateDirectorRecovery(dt);
+    this.recordChapterMetrics(dt);
     if (this.stats.regen > 0) {
       this.applyHealing(this.stats.regen * dt, "regen");
     }
@@ -1303,6 +1501,14 @@
     if (damage > 0) {
       this.stats.hp -= damage;
       this.stats.recentHitTimer = 2.2;
+      if (this.chapter && this.chapter.metrics) {
+        this.chapter.metrics.damageTaken += damage;
+        this.chapter.metrics.hitsTaken += 1;
+      }
+      if (this.director) {
+        this.director.recentDamage = (this.director.recentDamage || 0) + damage;
+        this.director.recentHits = (this.director.recentHits || 0) + 1;
+      }
       this.addDamageText(this.player.x, this.player.y - 24, "-" + Math.round(damage) + (label ? " " + label : ""), color || "#ff6b6b", { kind: "hurt", priority: 3, size: 18 });
       this.playSfx("hurt", damage / 16);
     }
@@ -1514,22 +1720,10 @@
     if (!this.chapter) return;
     var chapter = this.chapter;
     var elapsed = this.time - chapter.startedAt;
-    this.bossTimer = chapter.bossSpawned ? 0 : Math.max(0, (chapter.duration || 180) - elapsed);
-    if (!chapter.bossSpawned && elapsed >= (chapter.duration || 180)) {
-      chapter.bossSpawned = true;
-      chapter.bossAlive = true;
-      chapter.bossSpawnedAt = this.time;
-      chapter.bossOvertime = 0;
-      chapter.pressure = 0;
-      chapter.pressureTimer = 10;
-      var boss = this.spawnEnemy("boss", diff, { chapterBoss: true });
-      if (boss) {
-        boss.chapterBoss = true;
-        boss.label = "第" + chapter.index + "章首领";
-      }
-      this.addDamageText(this.player.x, this.player.y - 64, "第" + chapter.index + "章首领降临", "#fff3a3", { priority: 4, size: 22, stroke: "#312300" });
-      this.playSfx("boss", 1.2);
-      this.shake(6);
+    var windows = this.getChapterBossWindows(chapter.index);
+    this.bossTimer = chapter.bossSpawned ? 0 : Math.max(0, (chapter.bossDelayUntil || (chapter.startedAt + windows.hard)) - this.time);
+    if (!chapter.bossSpawned && this.canSpawnChapterBoss(diff)) {
+      this.spawnChapterBoss(diff);
     }
     if (!chapter.bossAlive) return;
     var alive = false;
@@ -1544,7 +1738,7 @@
       return;
     }
     chapter.bossOvertime = Math.max(0, this.time - chapter.bossSpawnedAt - 34);
-    var pressure = Math.min(8 + (diff.endlessLoop || 0) * 2, Math.floor(chapter.bossOvertime / 14));
+    var pressure = Math.min(8 + (diff.endlessLoop || 0) * 2 + Math.max(0, Math.floor((diff.heat || 0) / 2)), Math.floor(chapter.bossOvertime / 14));
     if (pressure > chapter.pressure) {
       chapter.pressure = pressure;
       this.addDamageText(this.player.x, this.player.y - 58, "首领压力 +" + pressure, "#ff6b6b", { priority: 3, size: 17 });
@@ -1554,7 +1748,7 @@
     chapter.pressureTimer -= dt;
     if (chapter.bossOvertime > 0 && chapter.pressureTimer <= 0) {
       this.spawnBossPressureWave(diff);
-      chapter.pressureTimer = clamp(8.5 - chapter.pressure * 0.45, 4.2, 8.5);
+      chapter.pressureTimer = clamp(8.5 - chapter.pressure * 0.45, 4.2, 8.5) * (diff.recoveryMode ? 1.24 : 1);
     }
   };
 
@@ -1593,21 +1787,82 @@
       pressure * (mobile ? 12 : 24);
     if (this.tide && this.tide.active) target += mobile ? 24 : 42;
     if (this.chapter && this.chapter.bossAlive) target += mobile ? 28 : 54;
+    target *= clamp(1 + (diff.heat || 0) * 0.12, 0.82, 1.56) * (diff.recoveryMode ? 0.82 : 1);
     return Math.floor(Math.min(this.enemyCap * 0.94, target * warmup));
+  };
+
+  VoidBloom.prototype.getChapterRank = function (score) {
+    if (score >= 90) return "S";
+    if (score >= 76) return "A";
+    if (score >= 60) return "B";
+    if (score >= 44) return "C";
+    return "D";
+  };
+
+  VoidBloom.prototype.getHeatText = function () {
+    var heat = this.director ? (this.director.heat || 0) : 0;
+    if (heat <= 0.25) return "";
+    var level = clamp(Math.ceil(heat), 1, 5);
+    return "热度 " + ["", "I", "II", "III", "IV", "V"][level];
+  };
+
+  VoidBloom.prototype.settleChapterDirector = function (cleared) {
+    var director = this.director || { heat: 0, history: [] };
+    var chapter = this.chapter || {};
+    var metrics = chapter.metrics || {};
+    var elapsed = Math.max(1, this.time - (chapter.startedAt || 0));
+    var windows = this.getChapterBossWindows(cleared);
+    var bossTime = chapter.bossSpawnedAt ? Math.max(1, this.time - chapter.bossSpawnedAt) : windows.hard;
+    var goal = Math.max(1, chapter.goal || this.getChapterGoal(cleared));
+    var progressRatio = (chapter.progress || 0) / goal;
+    var targetAvg = metrics.targetSamples ? metrics.targetTotal / metrics.targetSamples : this.getEnemyPopulationTarget(this.getDifficultyState());
+    var enemyAvg = metrics.enemySamples ? metrics.enemyTotal / metrics.enemySamples : targetAvg;
+    var damageRatio = (metrics.damageTaken || 0) / Math.max(1, this.stats.maxHp);
+    var speedScore = clamp((windows.soft + 26 - elapsed) / 46, -1, 1.2) * 16;
+    var bossScore = clamp((54 - bossTime) / 34, -1, 1.15) * 13;
+    var killScore = clamp((progressRatio - 0.76) * 28, -10, 16);
+    var fieldScore = clamp((enemyAvg / Math.max(1, targetAvg) - 0.72) * 8, -6, 7);
+    var survivalScore = clamp(11 - damageRatio * 11 - (metrics.lowHpTime || 0) * 0.34 - (metrics.hitsTaken || 0) * 0.72, -20, 11);
+    var insuranceUsedThisChapter = !!(this.stats.voidInsuranceUsed && !metrics.insuranceUsedAtStart);
+    var savePenalty = (insuranceUsedThisChapter ? 12 : 0) + ((metrics.minHpRatio || 1) < 0.2 ? 6 : 0);
+    var score = clamp(50 + speedScore + bossScore + killScore + fieldScore + survivalScore - savePenalty, 0, 100);
+    var delta = score >= 88 ? 1.0 : score >= 72 ? 0.55 : score >= 58 ? 0.18 : score >= 42 ? -0.25 : -0.72;
+    if (insuranceUsedThisChapter || (metrics.minHpRatio || 1) < 0.25 || bossTime > 72 || damageRatio > 1.15) {
+      delta = Math.min(delta, 0);
+    }
+    var cap = 0.8 + cleared * 0.65;
+    var previous = director.heat || 0;
+    director.heat = clamp(previous + delta, -1.5, cap);
+    director.lastPerformance = score;
+    director.recoveryTimer = 0;
+    director.recoveryMode = false;
+    director.recentDamage = 0;
+    director.recentHits = 0;
+    director.history = director.history || [];
+    director.history.push({
+      chapter: cleared,
+      score: score,
+      delta: delta,
+      heat: director.heat,
+      elapsed: elapsed,
+      bossTime: bossTime
+    });
+    if (director.history.length > 8) director.history.shift();
+    this.director = director;
+    return {
+      score: score,
+      rank: this.getChapterRank(score),
+      delta: delta,
+      heat: director.heat
+    };
   };
 
   VoidBloom.prototype.completeChapter = function (enemy) {
     if (!this.chapter || !enemy || !enemy.chapterBoss) return;
     var cleared = this.chapter.index;
-    this.chapter.index += 1;
-    this.chapter.startedAt = this.time;
-    this.chapter.bossSpawned = false;
-    this.chapter.bossAlive = false;
-    this.chapter.bossSpawnedAt = 0;
-    this.chapter.bossOvertime = 0;
-    this.chapter.pressure = 0;
-    this.chapter.pressureTimer = 0;
-    this.bossTimer = this.chapter.duration || 180;
+    var result = this.settleChapterDirector(cleared);
+    this.chapter = this.createChapterState(cleared + 1, this.time);
+    this.bossTimer = this.getChapterBossWindows(this.chapter.index).hard;
     this.eliteTimer = Math.min(this.eliteTimer, this.getDifficultyState().eliteInterval * 0.78);
     if (this.tide) {
       this.tide.active = false;
@@ -1621,7 +1876,8 @@
     }
     this.score += 350 + cleared * 120;
     this.applyHealing(Math.min(24, 10 + cleared * 2.2), "chapterClear", enemy.x, enemy.y - 34);
-    this.addDamageText(enemy.x, enemy.y - 66, "晋级第" + this.chapter.index + "章", "#fff3a3", { priority: 4, size: 22, stroke: "#312300" });
+    this.addDamageText(enemy.x, enemy.y - 66, "评价" + result.rank + " · 热度" + (result.delta >= 0 ? "+" : "") + result.delta.toFixed(1), "#fff3a3", { priority: 4, size: 18, stroke: "#312300" });
+    this.addDamageText(enemy.x, enemy.y - 92, "晋级第" + this.chapter.index + "章", "#ffffff", { priority: 4, size: 22, stroke: "#312300" });
     this.addBurst(enemy.x, enemy.y, "#fff3a3", 88, 7.5);
     this.shake(7);
   };
@@ -1649,14 +1905,19 @@
       this.spawnTimer = interval;
     }
     this.eliteTimer -= dt;
-    if (this.eliteTimer <= 0) {
+    var chapterElapsed = this.chapter ? this.time - this.chapter.startedAt : this.time;
+    if (this.eliteTimer <= 0 && chapterElapsed >= 12 && !diff.recoveryMode) {
       this.spawnEnemy("elite", diff);
       this.eliteTimer = diff.eliteInterval * (0.92 + this.random() * 0.18);
+    } else if (this.eliteTimer <= 0 && diff.recoveryMode) {
+      this.eliteTimer = 4.5;
     }
   };
 
   VoidBloom.prototype.updateTide = function (dt, diff) {
     if (!this.tide) return;
+    var chapterElapsed = this.chapter ? this.time - this.chapter.startedAt : this.time;
+    if (!this.tide.active && chapterElapsed < 12) return;
     var theme = this.getCrisisTheme(diff.chapter);
     if (!this.tide.active) {
       this.tide.theme = theme.id;
@@ -1674,9 +1935,9 @@
       this.tide.label = theme.label;
       this.tide.timer = 10 + diff.chapter * 0.9 + (diff.endlessLoop || 0) * 1.6;
       this.tide.spawnTimer = 0;
-      this.tide.budget = 14 + diff.chapter * 5 + (diff.endlessLoop || 0) * 8 + (diff.bossPressure || 0) * 3;
+      this.tide.budget = Math.round((14 + diff.chapter * 5 + (diff.endlessLoop || 0) * 8 + (diff.bossPressure || 0) * 3) * (diff.tideMult || 1));
       this.tide.warned = false;
-      this.tide.nextTime += clamp(64 - diff.chapter * 2.5 - (diff.endlessLoop || 0) * 3, 38, 64);
+      this.tide.nextTime += clamp((64 - diff.chapter * 2.5 - (diff.endlessLoop || 0) * 3) / clamp(diff.tideMult || 1, 0.8, 1.6), 34, 64);
       this.addDamageText(this.player.x, this.player.y - 54, theme.label, theme.color, { priority: 3, size: 20 });
       this.playSfx("boss", 0.9);
     }
@@ -1691,16 +1952,17 @@
       if (activeTheme.id !== this.tide.theme) {
         activeTheme = { id: this.tide.theme, label: this.tide.label || theme.label, color: theme.color, text: theme.text };
       }
-      var batch = Math.min(this.tide.budget, 4 + Math.floor(diff.chapter / 2) + (diff.endlessLoop || 0));
+      var batch = Math.min(this.tide.budget, Math.round((4 + Math.floor(diff.chapter / 2) + (diff.endlessLoop || 0)) * clamp(diff.tideMult || 1, 0.8, 1.8)));
       for (var i = 0; i < batch; i += 1) {
         var type = this.pickCrisisEnemyType(activeTheme, i + this.tide.budget, diff);
         this.spawnEnemy(type, diff, { tide: true, hp: 0.78, damage: 0.86, speed: 1.08 });
       }
       this.tide.budget -= batch;
-      this.tide.spawnTimer = clamp(0.72 - diff.chapter * 0.025, 0.45, 0.72);
+      this.tide.spawnTimer = clamp((0.72 - diff.chapter * 0.025) / clamp(diff.tideMult || 1, 0.85, 1.55), 0.36, 0.72);
     }
     if (this.tide.timer <= 0 && this.tide.budget <= 0) {
       this.tide.active = false;
+      this.addChapterProgress(12 + diff.chapter * 3, "crisis");
     }
   };
 
@@ -1708,17 +1970,19 @@
     diff = diff || this.getDifficultyState();
     var chapter = diff.chapter || 1;
     var progress = diff.chapterProgress || 0;
-    var table = [{ id: "seeker", weight: Math.max(20, 64 - chapter * 7) }];
-    if (this.time > 38 || progress > 0.18) table.push({ id: "runner", weight: 18 + chapter });
+    var functional = diff.functionalMult || 1;
+    var heat = Math.max(0, diff.heat || 0);
+    var table = [{ id: "seeker", weight: Math.max(16, 64 - chapter * 7 - heat * 3) }];
+    if (this.time > 38 || progress > 0.18) table.push({ id: "runner", weight: 18 + chapter + heat });
     if (this.time > 75 || chapter >= 2) table.push({ id: "drifter", weight: 14 + Math.floor(chapter * 0.8) });
-    if (this.time > 125 || chapter >= 2) table.push({ id: "bomber", weight: 9 + Math.floor(chapter * 0.7) });
-    if (chapter >= 2) table.push({ id: "leechMoth", weight: 5 + chapter });
-    if (chapter >= 2) table.push({ id: "suppressor", weight: 4 + Math.floor(chapter * 1.3) });
-    if (chapter >= 2) table.push({ id: "piercer", weight: 5 + Math.floor(chapter * 1.5) });
-    if (chapter >= 3) table.push({ id: "prismGuard", weight: 6 + chapter });
-    if (chapter >= 3) table.push({ id: "riftHunter", weight: 7 + chapter });
-    if (chapter >= 4) table.push({ id: "starMiner", weight: 7 + Math.floor(chapter * 0.8) });
-    if (chapter >= 5 || diff.endlessLoop > 0) table.push({ id: "nestMother", weight: 4 + Math.floor(chapter * 0.7) });
+    if (this.time > 125 || chapter >= 2) table.push({ id: "bomber", weight: 9 + Math.floor(chapter * 0.7) + heat * 0.6 });
+    if (chapter >= 2) table.push({ id: "leechMoth", weight: (5 + chapter) * functional });
+    if (chapter >= 2) table.push({ id: "suppressor", weight: (4 + Math.floor(chapter * 1.3)) * functional });
+    if (chapter >= 2) table.push({ id: "piercer", weight: (5 + Math.floor(chapter * 1.5)) * functional });
+    if (chapter >= 3) table.push({ id: "prismGuard", weight: (6 + chapter) * functional });
+    if (chapter >= 3) table.push({ id: "riftHunter", weight: (7 + chapter) * functional });
+    if (chapter >= 4) table.push({ id: "starMiner", weight: (7 + Math.floor(chapter * 0.8)) * functional });
+    if (chapter >= 5 || diff.endlessLoop > 0) table.push({ id: "nestMother", weight: (4 + Math.floor(chapter * 0.7)) * functional });
     return weightedChoice(table, this.random).id;
   };
 
@@ -1876,7 +2140,7 @@
       }
       this.addDamageText(boss.x, boss.y - boss.radius - 28, "首领召唤", theme.color, { priority: 3, size: 15 });
     }
-    boss.bossSkillTimer = clamp(4.2 - chapter * 0.22 - pressure * 0.2, 1.55, 4.2);
+    boss.bossSkillTimer = clamp(4.2 - chapter * 0.22 - pressure * 0.2, 1.55, 4.2) * (diff.bossCooldownMult || 1);
     this.playSfx("boss", 0.72 + pressure * 0.08);
     this.shake(2.4 + Math.min(3, pressure * 0.45));
   };
@@ -3209,6 +3473,9 @@
       meta.priority = Math.max(meta.priority || 0, 2);
       meta.source = meta.source || "锁定";
     }
+    if (this.chapter && this.chapter.metrics) {
+      this.chapter.metrics.damageDealt += Math.min(damage, Math.max(0, enemy.hp));
+    }
     if (silent || meta.dot) {
       this.queueDotText(enemy, damage, color, meta);
     } else {
@@ -3278,6 +3545,13 @@
     this.kills += 1;
     if (enemy.type === "elite") this.eliteKills += 1;
     if (enemy.type === "boss") this.bossKills += 1;
+    if (this.chapter) {
+      if (enemy.type !== "boss") {
+        this.chapter.kills = (this.chapter.kills || 0) + 1;
+        if (enemy.type === "elite") this.chapter.eliteKills = (this.chapter.eliteKills || 0) + 1;
+        this.addChapterProgress(this.getChapterProgressValue(enemy), enemy.tide ? "crisis" : "kill");
+      }
+    }
     if (this.stats.bloodHarvestLevel > 0) {
       this.stats.harvestStacks += enemy.type === "boss" ? 12 : enemy.type === "elite" ? 6 : 1;
     }
@@ -4008,8 +4282,13 @@
     this.hpFill.style.transform = "scaleX(" + clamp(this.stats.hp / this.stats.maxHp, 0, 1) + ")";
     this.xpFill.style.transform = "scaleX(" + clamp(this.xp / Math.max(1, this.nextXp), 0, 1) + ")";
     var chapter = this.chapter || { index: 1, startedAt: 0, duration: 180 };
-    var chapterElapsed = clamp(this.time - chapter.startedAt, 0, chapter.duration || 180);
-    this.timePill.textContent = "第" + chapter.index + "章 " + formatTime(chapterElapsed) + "/" + formatTime(chapter.duration || 180);
+    var diff = this.getDifficultyState();
+    var chapterElapsed = Math.max(0, this.time - chapter.startedAt);
+    var goal = Math.max(1, chapter.goal || this.getChapterGoal(chapter.index));
+    var progressText = Math.min(goal, Math.floor(chapter.progress || 0)) + "/" + goal;
+    this.timePill.textContent = (chapter.bossAlive || chapter.bossSpawned)
+      ? "第" + chapter.index + "章 首领战"
+      : "第" + chapter.index + "章 目标 " + progressText;
     this.levelPill.textContent = "等级 " + this.level;
     this.killsPill.textContent = "击杀 " + this.kills;
     if (this.stats.dashTimer <= 0) {
@@ -4019,6 +4298,10 @@
     }
     if (this.chapter && this.chapter.bossAlive) {
       this.alertPill.textContent = this.chapter.pressure > 0 ? "Boss 压力 " + this.chapter.pressure : "Boss 战";
+    } else if (this.chapter && this.chapter.bossDelayUntil > this.time) {
+      this.alertPill.textContent = "首领延迟 " + Math.ceil(this.chapter.bossDelayUntil - this.time) + "秒";
+    } else if (this.chapter && !this.chapter.bossSpawned && chapterElapsed >= this.getChapterBossWindows(chapter.index).min && (chapter.progress || 0) >= goal) {
+      this.alertPill.textContent = "首领召唤中";
     } else if (this.tide && this.tide.active) {
       this.alertPill.textContent = "危机·" + (this.tide.label || "虚空") + " " + Math.ceil(this.tide.timer) + "秒";
     } else if (this.stats.healBlockTimer > 0) {
@@ -4029,8 +4312,10 @@
       this.alertPill.textContent = "Boss " + Math.ceil(this.bossTimer) + "秒";
     } else if (this.eliteTimer <= 16) {
       this.alertPill.textContent = "精英 " + Math.ceil(this.eliteTimer) + "秒";
+    } else if (diff.recoveryMode) {
+      this.alertPill.textContent = "喘息保护";
     } else {
-      this.alertPill.textContent = "构筑成长中";
+      this.alertPill.textContent = this.getHeatText() || "构筑成长中";
     }
     this.buildPill.textContent = this.getBuildSummary();
   };
