@@ -349,14 +349,6 @@
         color: "#ffd166"
       },
       {
-        id: "aimMatrix",
-        type: "passive",
-        name: "锁定矩阵",
-        description: "强化鼠标锁定半径、软锁角度，并提高锁定目标伤害。",
-        color: "#66f0ff",
-        maxLevel: 6
-      },
-      {
         id: "voidInsurance",
         type: "trigger",
         name: "虚空保险",

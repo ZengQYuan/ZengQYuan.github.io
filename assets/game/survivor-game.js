@@ -30,10 +30,6 @@
     return distSq(px, py, x, y);
   }
 
-  function angleDelta(a, b) {
-    return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
-  }
-
   function formatTime(seconds) {
     seconds = Math.max(0, Math.floor(seconds || 0));
     var minutes = Math.floor(seconds / 60);
@@ -150,7 +146,6 @@
 
     this.keys = Object.create(null);
     this.pointer = { active: false, id: null, originX: 0, originY: 0, x: 0, y: 0, vx: 0, vy: 0 };
-    this.mouse = { x: 0, y: 0, inside: false, lastMove: -Infinity };
     this.dpr = 1;
     this.width = 900;
     this.height = 560;
@@ -225,16 +220,6 @@
       }
       self.keys[event.key.toLowerCase()] = false;
     };
-    this.onMouseMove = function (event) {
-      var rect = self.canvas.getBoundingClientRect();
-      self.mouse.x = (event.clientX - rect.left) * self.width / Math.max(1, rect.width);
-      self.mouse.y = (event.clientY - rect.top) * self.height / Math.max(1, rect.height);
-      self.mouse.inside = true;
-      self.mouse.lastMove = performance.now();
-    };
-    this.onMouseLeave = function () {
-      self.mouse.inside = false;
-    };
     this.onVisibility = function () {
       if (document.hidden && self.active) {
         self.pause();
@@ -250,8 +235,6 @@
     window.addEventListener("keydown", this.onKeyDown, { passive: false });
     window.addEventListener("keyup", this.onKeyUp);
     this.root.addEventListener("pointerdown", this.onUserGesture, { passive: true });
-    this.canvas.addEventListener("mousemove", this.onMouseMove);
-    this.canvas.addEventListener("mouseleave", this.onMouseLeave);
     document.addEventListener("visibilitychange", this.onVisibility);
     window.addEventListener("blur", this.onBlur);
 
@@ -417,7 +400,6 @@
       bloodDebtLevel: 0,
       shortCircuitLevel: 0,
       executionLevel: 0,
-      aimMatrixLevel: 0,
       voidInsuranceLevel: 0,
       voidInsuranceUsed: false,
       rerollCharmLevel: 0,
@@ -438,6 +420,12 @@
       recoveryMode: false,
       recentDamage: 0,
       recentHits: 0,
+      liveHeat: 0,
+      powerTier: 0,
+      pressureTimer: 0,
+      sampleTimer: 0,
+      evalTimer: 0,
+      samples: [],
       history: []
     };
     this.chapter = this.createChapterState(1, 0);
@@ -553,6 +541,8 @@
       pressureTimer: 0,
       bossDelayUntil: 0,
       bossDelayAnnounced: false,
+      goalReachedAt: 0,
+      bossSummonAt: 0,
       metrics: {
         damageDealt: 0,
         damageTaken: 0,
@@ -586,15 +576,17 @@
     var pressure = this.chapter ? (this.chapter.pressure || 0) : 0;
     var endlessLoop = rules.endlessLoop || 0;
     var heat = this.director ? (this.director.heat || 0) : 0;
+    var liveHeat = this.director ? (this.director.liveHeat || 0) : 0;
+    var totalHeat = heat + liveHeat;
     var recoveryMode = !!(this.director && this.director.recoveryTimer > 0);
     var progressHp = 0.18 + Math.min(0.22, (chapter - 1) * 0.035);
     var progressDamage = 0.065 + Math.min(0.13, (chapter - 1) * 0.018);
     var progressSpawn = 0.18 + Math.min(0.2, (chapter - 1) * 0.025);
-    var heatHp = clamp(1 + heat * 0.09, 0.88, 1.58);
-    var heatDamage = clamp(1 + heat * 0.045, 0.92, 1.28);
-    var heatSpeed = clamp(1 + heat * 0.026, 0.96, 1.16);
-    var heatSpawn = clamp(1 + heat * 0.16, 0.78, 1.9);
-    var heatElite = clamp(1 - heat * 0.07, 0.6, 1.25);
+    var heatHp = clamp(1 + totalHeat * 0.075, 0.88, 1.62);
+    var heatDamage = clamp(1 + heat * 0.035 + liveHeat * 0.018, 0.92, 1.18);
+    var heatSpeed = clamp(1 + totalHeat * 0.024, 0.96, 1.16);
+    var heatSpawn = clamp(1 + heat * 0.14 + liveHeat * 0.18, 0.78, 2.05);
+    var heatElite = clamp(1 - totalHeat * 0.06, 0.58, 1.25);
     var recoverySpawn = recoveryMode ? 0.74 : 1;
     var recoveryDamage = recoveryMode ? 0.9 : 1;
     var recoverySpeed = recoveryMode ? 0.94 : 1;
@@ -609,16 +601,18 @@
       endlessLoop: endlessLoop,
       bossPressure: pressure,
       heat: heat,
+      liveHeat: liveHeat,
+      powerTier: this.director ? (this.director.powerTier || 0) : 0,
       recoveryMode: recoveryMode,
       hpMult: baseHp * heatHp,
       damageMult: baseDamage * heatDamage * recoveryDamage,
       speedMult: Math.min(2.34, baseSpeed * heatSpeed * recoverySpeed),
       spawnMult: baseSpawn * heatSpawn * recoverySpawn,
-      affixCount: Math.min(4, (rules.affixes || 0) + (progress > 0.72 ? 1 : 0) + endlessLoop * (endless.affixes || 1) + (pressure >= 3 ? 1 : 0) + (heat > 1.6 ? 1 : 0)),
+      affixCount: Math.min(4, (rules.affixes || 0) + (progress > 0.72 ? 1 : 0) + endlessLoop * (endless.affixes || 1) + (pressure >= 3 ? 1 : 0) + (totalHeat > 1.6 ? 1 : 0)),
       eliteInterval: clamp(((rules.eliteInterval || 48) - progress * 8 - endlessLoop * 4 - pressure * 1.5) * heatElite * (recoveryMode ? 1.22 : 1), 10, 74),
-      functionalMult: clamp(1 + heat * 0.22, 0.72, 2.25) * (recoveryMode ? 0.68 : 1),
-      tideMult: clamp(1 + heat * 0.18, 0.8, 1.85) * (recoveryMode ? 0.72 : 1),
-      bossCooldownMult: clamp(1 - heat * 0.06, 0.68, 1.16) * (recoveryMode ? 1.18 : 1),
+      functionalMult: clamp(1 + heat * 0.18 + liveHeat * 0.32, 0.72, 2.65) * (recoveryMode ? 0.68 : 1),
+      tideMult: clamp(1 + heat * 0.15 + liveHeat * 0.24, 0.8, 2.0) * (recoveryMode ? 0.72 : 1),
+      bossCooldownMult: clamp(1 - heat * 0.045 - liveHeat * 0.055, 0.66, 1.16) * (recoveryMode ? 1.18 : 1),
       crisis: rules.crisis || "mixed",
       bossCycle: chapter
     };
@@ -720,6 +714,138 @@
     director.recoveryMode = director.recoveryTimer > 0;
   };
 
+  VoidBloom.prototype.getCurrentBoss = function () {
+    for (var i = 0; i < this.enemies.length; i += 1) {
+      var e = this.enemies[i];
+      if (e.active && e.type === "boss" && e.chapterBoss) return e;
+    }
+    return null;
+  };
+
+  VoidBloom.prototype.updateAdaptiveDirector = function (dt) {
+    if (!this.director || !this.chapter || this.state !== "playing") return;
+    var director = this.director;
+    director.sampleTimer = (director.sampleTimer || 0) - dt;
+    director.evalTimer = (director.evalTimer || 0) - dt;
+    director.pressureTimer = Math.max(0, (director.pressureTimer || 0) - dt);
+    if (director.sampleTimer <= 0) {
+      var diff = this.getDifficultyState();
+      var boss = this.getCurrentBoss();
+      director.samples = director.samples || [];
+      director.samples.push({
+        time: this.time,
+        kills: this.kills,
+        progress: this.chapter.progress || 0,
+        damageDealt: this.chapter.metrics ? (this.chapter.metrics.damageDealt || 0) : 0,
+        damageTaken: this.chapter.metrics ? (this.chapter.metrics.damageTaken || 0) : 0,
+        hpRatio: this.stats.hp / Math.max(1, this.stats.maxHp),
+        enemies: this.getActiveEnemyCount(),
+        target: this.getEnemyPopulationTarget(diff),
+        level: this.level,
+        bossHpRatio: boss ? boss.hp / Math.max(1, boss.maxHp) : null
+      });
+      while (director.samples.length && this.time - director.samples[0].time > 10) {
+        director.samples.shift();
+      }
+      director.sampleTimer = 1;
+    }
+    if (director.evalTimer > 0) return;
+    director.evalTimer = 3;
+    this.evaluateAdaptiveDirector();
+  };
+
+  VoidBloom.prototype.evaluateAdaptiveDirector = function () {
+    var director = this.director;
+    var samples = director && director.samples;
+    if (!samples || samples.length < 3) return;
+    var first = samples[0];
+    var last = samples[samples.length - 1];
+    var span = Math.max(1, last.time - first.time);
+    var goal = Math.max(1, this.chapter.goal || this.getChapterGoal(this.chapter.index));
+    var progressDelta = Math.max(0, last.progress - first.progress);
+    var killDelta = Math.max(0, last.kills - first.kills);
+    var damageDelta = Math.max(0, last.damageDealt - first.damageDealt);
+    var takenDelta = Math.max(0, last.damageTaken - first.damageTaken);
+    var enemyAvg = 0;
+    var targetAvg = 0;
+    var minHp = 1;
+    for (var i = 0; i < samples.length; i += 1) {
+      enemyAvg += samples[i].enemies || 0;
+      targetAvg += samples[i].target || 0;
+      minHp = Math.min(minHp, samples[i].hpRatio == null ? 1 : samples[i].hpRatio);
+    }
+    enemyAvg /= samples.length;
+    targetAvg = Math.max(1, targetAvg / samples.length);
+    var enemyRatio = enemyAvg / targetAvg;
+    var expectedProgress = goal * span / 78;
+    var progressPower = progressDelta / Math.max(1, expectedProgress);
+    var killPower = killDelta / Math.max(8, targetAvg * 0.12);
+    var expectedDamage = targetAvg * (18 + this.chapter.index * 5) * span / 8;
+    var damagePower = damageDelta / Math.max(1, expectedDamage);
+    var chapterCap = this.chapter.index === 1 ? 0.6 : this.chapter.index === 2 ? 1.2 : Math.min(3.4, 1.2 + (this.chapter.index - 2) * 0.55);
+    var tier = 0;
+    if (minHp < 0.3 || takenDelta > this.stats.maxHp * 0.4) {
+      tier = -2;
+    } else if (minHp < 0.46 || enemyRatio > 1.26 || takenDelta > this.stats.maxHp * 0.22) {
+      tier = -1;
+    } else {
+      var score = 0;
+      if (progressPower > 1.35) score += 1;
+      if (killPower > 1.25) score += 1;
+      if (damagePower > 1.3) score += 1;
+      if (enemyRatio < 0.62) score += 1;
+      if (last.hpRatio > 0.82 && takenDelta < this.stats.maxHp * 0.045 && span >= 7) score += 1;
+      tier = score >= 4 ? 2 : score >= 2 ? 1 : 0;
+    }
+    var boss = this.getCurrentBoss();
+    if (boss && this.time - (this.chapter.bossSpawnedAt || this.time) < 22 && boss.hp / Math.max(1, boss.maxHp) < 0.45) {
+      tier = Math.max(tier, 2);
+    }
+    var targetHeat = tier <= -2 ? -0.55 : tier === -1 ? -0.2 : tier === 1 ? 0.72 : tier >= 2 ? 1.45 : 0;
+    if (this.director.recoveryMode) targetHeat = Math.min(targetHeat, -0.25);
+    director.liveHeat = clamp(lerp(director.liveHeat || 0, targetHeat, tier > 0 ? 0.42 : 0.34), -0.65, chapterCap);
+    director.powerTier = tier;
+    director.pressureFocus = this.getAdaptivePressureFocus({
+      enemyRatio: enemyRatio,
+      takenDelta: takenDelta,
+      minHp: minHp,
+      progressPower: progressPower,
+      damagePower: damagePower
+    });
+    if (tier >= 2 && !this.director.recoveryMode && (director.pressureTimer || 0) <= 0) {
+      this.spawnAdaptivePressureWave(this.getDifficultyState());
+      director.pressureTimer = clamp(18 - tier * 2 - Math.max(0, director.liveHeat || 0), 12, 18);
+    }
+  };
+
+  VoidBloom.prototype.getAdaptivePressureFocus = function (state) {
+    if (state.minHp > 0.82 && state.takenDelta < this.stats.maxHp * 0.045) return "regen";
+    if (this.stats.shieldMax > 30 && state.takenDelta < this.stats.maxHp * 0.08) return "shield";
+    if (state.enemyRatio < 0.62 || state.progressPower > 1.45 || state.damagePower > 1.35) return "clear";
+    return "mixed";
+  };
+
+  VoidBloom.prototype.spawnAdaptivePressureWave = function (diff) {
+    diff = diff || this.getDifficultyState();
+    var focus = (this.director && this.director.pressureFocus) || "mixed";
+    var chapter = diff.chapter || 1;
+    var pools = {
+      regen: chapter === 1 && this.time < 60 ? ["leechMoth", "runner", "bomber"] : ["leechMoth", "suppressor", "runner"],
+      shield: chapter < 2 ? ["bomber", "runner"] : ["piercer", "riftHunter", "prismGuard"],
+      clear: chapter < 3 ? ["bomber", "drifter", "runner"] : ["prismGuard", "starMiner", "nestMother", "bomber"],
+      mixed: ["runner", "bomber", "piercer", "leechMoth", "prismGuard"]
+    };
+    var pool = pools[focus] || pools.mixed;
+    var count = Math.min(18, 6 + Math.floor(chapter * 1.2) + Math.max(0, this.director.powerTier || 0) * 3);
+    for (var i = 0; i < count; i += 1) {
+      var type = pool[i % pool.length];
+      this.spawnEnemy(type, diff, { pressure: true, hp: 0.92, damage: 0.95, speed: 1.1 });
+    }
+    var label = focus === "regen" ? "禁疗压力" : focus === "shield" ? "破盾压力" : focus === "clear" ? "清场反制" : "虚空增压";
+    this.addDamageText(this.player.x, this.player.y - 56, label, "#fff3a3", { priority: 3, size: 16, stroke: "#312300" });
+    this.playSfx("boss", 0.62);
+  };
+
   VoidBloom.prototype.getChapterProgressValue = function (enemy) {
     if (!enemy) return 0;
     if (enemy.type === "boss") return 0;
@@ -737,6 +863,8 @@
     var before = chapter.progress || 0;
     chapter.progress = Math.max(0, before + amount);
     if (before < chapter.goal && chapter.progress >= chapter.goal) {
+      chapter.goalReachedAt = this.time;
+      chapter.bossSummonAt = this.time + 1.5;
       this.addDamageText(this.player.x, this.player.y - 58, "目标达成", "#fff3a3", { priority: 3, size: 18, stroke: "#312300" });
       this.playSfx("upgrade", 0.7);
     } else if (reason === "crisis") {
@@ -751,8 +879,17 @@
     var windows = this.getChapterBossWindows(chapter.index);
     var progress = chapter.progress || 0;
     var goal = Math.max(1, chapter.goal || this.getChapterGoal(chapter.index));
+    if (progress >= goal && !chapter.goalReachedAt) {
+      chapter.goalReachedAt = this.time;
+      chapter.bossSummonAt = this.time + 1.5;
+    }
     var timeAssist = clamp((elapsed - 70) / 2.5, 0, goal * 0.3);
-    var ready = (elapsed >= windows.min && progress + timeAssist >= goal) ||
+    var earlyMin = chapter.index === 1 ? 35 : chapter.index === 2 ? 42 : 45;
+    var quickGoalReady = chapter.goalReachedAt &&
+      this.time >= Math.min(chapter.startedAt + earlyMin, chapter.goalReachedAt + 8) &&
+      this.time >= (chapter.bossSummonAt || chapter.goalReachedAt + 1.5);
+    var ready = quickGoalReady ||
+      (elapsed >= windows.min && progress + timeAssist >= goal) ||
       (elapsed >= windows.soft && progress + timeAssist >= goal * 0.72 && (chapter.eliteKills || 0) >= 1);
     var forced = elapsed >= windows.hard;
     if (!ready && !forced) return false;
@@ -1052,8 +1189,6 @@
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("blur", this.onBlur);
     this.root.removeEventListener("pointerdown", this.onUserGesture);
-    this.canvas.removeEventListener("mousemove", this.onMouseMove);
-    this.canvas.removeEventListener("mouseleave", this.onMouseLeave);
     document.removeEventListener("visibilitychange", this.onVisibility);
   };
 
@@ -1353,6 +1488,7 @@
     this.updateBuildSystems(dt);
     this.updateDirectorRecovery(dt);
     this.recordChapterMetrics(dt);
+    this.updateAdaptiveDirector(dt);
     if (this.stats.regen > 0) {
       this.applyHealing(this.stats.regen * dt, "regen");
     }
@@ -1721,7 +1857,8 @@
     var chapter = this.chapter;
     var elapsed = this.time - chapter.startedAt;
     var windows = this.getChapterBossWindows(chapter.index);
-    this.bossTimer = chapter.bossSpawned ? 0 : Math.max(0, (chapter.bossDelayUntil || (chapter.startedAt + windows.hard)) - this.time);
+    var summonTime = chapter.bossDelayUntil || chapter.bossSummonAt || (chapter.startedAt + windows.hard);
+    this.bossTimer = chapter.bossSpawned ? 0 : Math.max(0, summonTime - this.time);
     if (!chapter.bossSpawned && this.canSpawnChapterBoss(diff)) {
       this.spawnChapterBoss(diff);
     }
@@ -1787,7 +1924,7 @@
       pressure * (mobile ? 12 : 24);
     if (this.tide && this.tide.active) target += mobile ? 24 : 42;
     if (this.chapter && this.chapter.bossAlive) target += mobile ? 28 : 54;
-    target *= clamp(1 + (diff.heat || 0) * 0.12, 0.82, 1.56) * (diff.recoveryMode ? 0.82 : 1);
+    target *= clamp(1 + (diff.heat || 0) * 0.1 + (diff.liveHeat || 0) * 0.18, 0.82, 1.72) * (diff.recoveryMode ? 0.82 : 1);
     return Math.floor(Math.min(this.enemyCap * 0.94, target * warmup));
   };
 
@@ -1800,10 +1937,11 @@
   };
 
   VoidBloom.prototype.getHeatText = function () {
-    var heat = this.director ? (this.director.heat || 0) : 0;
+    var heat = this.director ? ((this.director.heat || 0) + Math.max(0, this.director.liveHeat || 0)) : 0;
     if (heat <= 0.25) return "";
     var level = clamp(Math.ceil(heat), 1, 5);
-    return "热度 " + ["", "I", "II", "III", "IV", "V"][level];
+    var tier = this.director ? (this.director.powerTier || 0) : 0;
+    return "热度 " + ["", "I", "II", "III", "IV", "V"][level] + (tier >= 2 ? " ↑" : "");
   };
 
   VoidBloom.prototype.settleChapterDirector = function (cleared) {
@@ -1893,7 +2031,7 @@
       var activeCount = this.compactEnemies();
       var targetCount = this.getEnemyPopulationTarget(diff);
       var deficitBoost = activeCount < targetCount ? Math.ceil((targetCount - activeCount) / (window.innerWidth < 760 ? 8 : 7)) : 0;
-      var baseCount = 2 + Math.floor((diff.chapter - 1) * 1.15) + Math.floor(diff.chapterProgress * 3.3) + (this.random() < 0.7 ? 1 : 0);
+      var baseCount = 2 + Math.floor((diff.chapter - 1) * 1.15) + Math.floor(diff.chapterProgress * 3.3) + Math.max(0, diff.powerTier || 0) + (this.random() < 0.7 ? 1 : 0);
       if (this.chapter && this.chapter.bossAlive) baseCount += 2 + Math.min(8, (this.chapter.pressure || 0) * 2);
       var count = Math.min(window.innerWidth < 760 ? 26 : 42, Math.ceil(baseCount * Math.min(2.45, diff.spawnMult)) + Math.min(window.innerWidth < 760 ? 12 : 22, deficitBoost));
       var overflow = Math.max(window.innerWidth < 760 ? 8 : 14, Math.floor(targetCount * 0.1)) + ((this.chapter && this.chapter.bossAlive) ? Math.min(28, (this.chapter.pressure || 0) * 5 + 10) : 0);
@@ -1971,7 +2109,8 @@
     var chapter = diff.chapter || 1;
     var progress = diff.chapterProgress || 0;
     var functional = diff.functionalMult || 1;
-    var heat = Math.max(0, diff.heat || 0);
+    var heat = Math.max(0, (diff.heat || 0) + (diff.liveHeat || 0));
+    var focus = this.director ? (this.director.pressureFocus || "mixed") : "mixed";
     var table = [{ id: "seeker", weight: Math.max(16, 64 - chapter * 7 - heat * 3) }];
     if (this.time > 38 || progress > 0.18) table.push({ id: "runner", weight: 18 + chapter + heat });
     if (this.time > 75 || chapter >= 2) table.push({ id: "drifter", weight: 14 + Math.floor(chapter * 0.8) });
@@ -1983,6 +2122,19 @@
     if (chapter >= 3) table.push({ id: "riftHunter", weight: (7 + chapter) * functional });
     if (chapter >= 4) table.push({ id: "starMiner", weight: (7 + Math.floor(chapter * 0.8)) * functional });
     if (chapter >= 5 || diff.endlessLoop > 0) table.push({ id: "nestMother", weight: (4 + Math.floor(chapter * 0.7)) * functional });
+    if ((diff.powerTier || 0) > 0) {
+      if (focus === "regen") {
+        table.push({ id: "leechMoth", weight: 10 * functional });
+        if (!(chapter === 1 && this.time < 60)) table.push({ id: "suppressor", weight: 8 * functional });
+      } else if (focus === "shield") {
+        if (chapter >= 2) table.push({ id: "piercer", weight: 11 * functional });
+        if (chapter >= 3) table.push({ id: "riftHunter", weight: 9 * functional });
+      } else if (focus === "clear") {
+        if (chapter >= 3) table.push({ id: "prismGuard", weight: 12 * functional });
+        if (chapter >= 4) table.push({ id: "starMiner", weight: 10 * functional });
+        if (chapter >= 5) table.push({ id: "nestMother", weight: 7 * functional });
+      }
+    }
     return weightedChoice(table, this.random).id;
   };
 
@@ -2367,156 +2519,33 @@
     return best;
   };
 
-  VoidBloom.prototype.getAimRules = function () {
-    var level = this.stats ? (this.stats.aimMatrixLevel || 0) : 0;
-    return {
-      strongRadius: 110 + level * 18,
-      cone: (32 + level * 3) * Math.PI / 180,
-      range: 720,
-      minDistance: 36,
-      damageBonus: 1 + level * 0.04
-    };
-  };
-
-  VoidBloom.prototype.getAimIntent = function () {
-    var rules = this.getAimRules();
-    var mouse = this.mouse || {};
-    var now = window.performance && performance.now ? performance.now() : Date.now();
-    var playerScreenX = this.player.x - this.camera.x;
-    var playerScreenY = this.player.y - this.camera.y;
-    var dx = (mouse.x || 0) - playerScreenX;
-    var dy = (mouse.y || 0) - playerScreenY;
-    var distance = Math.hypot(dx, dy);
-    var active = !!mouse.inside && now - (mouse.lastMove || -Infinity) <= 2000 && distance > rules.minDistance;
-    var angle = distance > 0 ? Math.atan2(dy, dx) : this.player.angle || 0;
-    var clampedDistance = Math.min(distance || rules.minDistance, rules.range);
-    return {
-      active: active,
-      screenX: mouse.x || 0,
-      screenY: mouse.y || 0,
-      playerScreenX: playerScreenX,
-      playerScreenY: playerScreenY,
-      worldX: wrapValue(this.camera.x + (mouse.x || 0), this.world.width),
-      worldY: wrapValue(this.camera.y + (mouse.y || 0), this.world.height),
-      clampedX: wrapValue(this.player.x + Math.cos(angle) * clampedDistance, this.world.width),
-      clampedY: wrapValue(this.player.y + Math.sin(angle) * clampedDistance, this.world.height),
-      dx: dx,
-      dy: dy,
-      distance: distance,
-      angle: angle,
-      rules: rules
-    };
-  };
-
-  VoidBloom.prototype.getAimedTargetPriority = function (enemy) {
-    if (!enemy) return 0;
-    var priority = 0;
-    if (enemy.type === "boss") priority += 80;
-    if (enemy.type === "elite") priority += 62;
-    if (["suppressor", "leechMoth", "prismGuard", "riftHunter", "starMiner", "nestMother"].indexOf(enemy.type) !== -1) {
-      priority += 34;
-    }
-    if (["piercer", "bomber"].indexOf(enemy.type) !== -1) {
-      priority += 12;
-    }
-    if (enemy.affixes && enemy.affixes.length) {
-      priority += 10 + enemy.affixes.length * 4;
-    }
-    return priority;
-  };
-
-  VoidBloom.prototype.findAimedTarget = function (intent) {
-    intent = intent || this.getAimIntent();
-    if (!intent.active) return null;
-    var rules = intent.rules || this.getAimRules();
-    var bestStrong = null;
-    var bestStrongScore = -Infinity;
-    var bestSoft = null;
-    var bestSoftScore = -Infinity;
-    for (var i = 0; i < this.enemies.length; i += 1) {
-      var e = this.enemies[i];
-      if (!e.active) continue;
-      var toEnemyX = this.shortestDelta(this.player.x, e.x, this.world.width);
-      var toEnemyY = this.shortestDelta(this.player.y, e.y, this.world.height);
-      var distance = Math.hypot(toEnemyX, toEnemyY) || 1;
-      if (distance > rules.range + e.radius) continue;
-      var priority = this.getAimedTargetPriority(e);
-      var aimDx = this.shortestDelta(intent.worldX, e.x, this.world.width);
-      var aimDy = this.shortestDelta(intent.worldY, e.y, this.world.height);
-      var aimDistance = Math.hypot(aimDx, aimDy);
-      if (aimDistance <= rules.strongRadius + e.radius) {
-        var strongScore = 100000 + priority * 1000 + (rules.strongRadius + e.radius - aimDistance) * 10 - distance * 0.08;
-        if (strongScore > bestStrongScore) {
-          bestStrongScore = strongScore;
-          bestStrong = e;
-        }
-        continue;
-      }
-      var enemyAngle = Math.atan2(toEnemyY, toEnemyX);
-      var radiusAllowance = Math.min(0.12, e.radius / distance);
-      var delta = angleDelta(enemyAngle, intent.angle);
-      if (delta <= rules.cone + radiusAllowance) {
-        var softScore = 50000 + priority * 1000 - delta * 900 - distance * 0.12;
-        if (softScore > bestSoftScore) {
-          bestSoftScore = softScore;
-          bestSoft = e;
-        }
-      }
-    }
-    return bestStrong || bestSoft;
-  };
-
-  VoidBloom.prototype.getAimedAngle = function (options) {
+  VoidBloom.prototype.getAutoAttackAngle = function (options) {
     options = options || {};
-    var intent = this.getAimIntent();
-    if (intent.active) {
-      var aimed = this.findAimedTarget(intent);
-      if (aimed) {
-        var dx = this.shortestDelta(this.player.x, aimed.x, this.world.width);
-        var dy = this.shortestDelta(this.player.y, aimed.y, this.world.height);
-        return { angle: Math.atan2(dy, dx), target: aimed, intent: intent, active: true, locked: true, x: aimed.x, y: aimed.y };
-      }
-      return { angle: intent.angle, target: null, intent: intent, active: true, locked: false, x: intent.clampedX, y: intent.clampedY };
-    }
-    if (options.fallback === "facing") {
-      var face = this.getFacingVector();
-      return { angle: face.angle, target: null, intent: intent, active: false, locked: false, x: this.player.x + face.x * 160, y: this.player.y + face.y * 160 };
-    }
     var target = this.findNearestEnemy();
     if (target) {
       var tx = this.shortestDelta(this.player.x, target.x, this.world.width);
       var ty = this.shortestDelta(this.player.y, target.y, this.world.height);
-      return { angle: Math.atan2(ty, tx), target: target, intent: intent, active: false, locked: false, x: target.x, y: target.y };
+      return { angle: Math.atan2(ty, tx), target: target, x: target.x, y: target.y };
     }
-    if (options.allowFacing) {
-      var fallbackFace = this.getFacingVector();
-      return { angle: fallbackFace.angle, target: null, intent: intent, active: false, locked: false, x: this.player.x + fallbackFace.x * 160, y: this.player.y + fallbackFace.y * 160 };
-    }
-    return null;
+    if (!options.allowFacing && options.fallback !== "facing") return null;
+    var face = this.getFacingVector();
+    return { angle: face.angle, target: null, x: this.player.x + face.x * 160, y: this.player.y + face.y * 160 };
   };
 
-  VoidBloom.prototype.getAimedPoint = function () {
-    var aim = this.getAimedAngle();
+  VoidBloom.prototype.getAutoAttackPoint = function () {
+    var aim = this.getAutoAttackAngle({ allowFacing: true });
     if (!aim) return null;
     return {
       x: aim.x,
       y: aim.y,
-      target: aim.target,
-      intent: aim.intent,
-      active: aim.active,
-      locked: aim.locked
+      target: aim.target
     };
   };
 
-  VoidBloom.prototype.withAimMeta = function (meta, aim, source) {
+  VoidBloom.prototype.withWeaponMeta = function (meta, source) {
     var next = Object.assign({}, meta || {});
     if (source && !next.source) {
       next.source = source;
-    }
-    if (aim && aim.active && aim.target) {
-      next.aimLocked = true;
-      next.aimTarget = aim.target;
-      next.priority = Math.max(next.priority || 0, (this.stats.aimMatrixLevel || 0) > 0 ? 2 : 1);
     }
     return next;
   };
@@ -2552,17 +2581,17 @@
   VoidBloom.prototype.firePulse = function () {
     var level = this.weaponLevels.pulse || 0;
     if (!level || this.cooldowns.pulse > 0) return;
-    var aim = this.getAimedAngle();
+    var aim = this.getAutoAttackAngle();
     if (!aim) return;
     var angle = aim.angle;
     var shots = this.evolutions.quantumBuckshot ? 5 : level >= 7 ? 3 : level >= 4 ? 2 : 1;
     var spread = this.evolutions.quantumBuckshot ? 0.13 : 0.16;
     for (var i = 0; i < shots; i += 1) {
       var roll = this.rollDamageMeta((13 + level * 4) * (this.evolutions.quantumBuckshot ? 0.78 : 1));
-      this.spawnProjectile(angle + (i - (shots - 1) / 2) * spread, 520, roll.amount, 5, "#45d7ff", 1 + Math.floor(level / 4), "pulse", this.withAimMeta(roll, aim, "脉冲"));
+      this.spawnProjectile(angle + (i - (shots - 1) / 2) * spread, 520, roll.amount, 5, "#45d7ff", 1 + Math.floor(level / 4), "pulse", this.withWeaponMeta(roll, "脉冲"));
       if (this.evolutions.quantumBuckshot && roll.crit && this.projectiles.length < this.projectileCap - 3) {
         for (var q = 0; q < 3; q += 1) {
-          this.spawnProjectile(angle + (this.random() - 0.5) * 0.75, 430, roll.amount * 0.34, 3, "#b8f4ff", 1, "pulseShard", this.withAimMeta({ crit: false, source: "霰星" }, aim));
+          this.spawnProjectile(angle + (this.random() - 0.5) * 0.75, 430, roll.amount * 0.34, 3, "#b8f4ff", 1, "pulseShard", this.withWeaponMeta({ crit: false, source: "霰星" }));
         }
       }
     }
@@ -2572,11 +2601,11 @@
   VoidBloom.prototype.fireSplitter = function () {
     var level = this.weaponLevels.splitter || 0;
     if (!level || this.cooldowns.splitter > 0) return;
-    var aim = this.getAimedAngle();
+    var aim = this.getAutoAttackAngle();
     if (!aim) return;
     var angle = aim.angle;
     var roll = this.rollDamageMeta(18 + level * 5);
-    this.spawnProjectile(angle, 430, roll.amount, 7, "#ff5aa5", 1, "splitter", this.withAimMeta(roll, aim, "裂变"));
+    this.spawnProjectile(angle, 430, roll.amount, 7, "#ff5aa5", 1, "splitter", this.withWeaponMeta(roll, "裂变"));
     this.cooldowns.splitter = Math.max(0.42, (1.25 - level * 0.045) * this.stats.cooldownMult);
   };
 
@@ -2611,7 +2640,7 @@
   VoidBloom.prototype.fireGravity = function () {
     var level = this.weaponLevels.gravity || 0;
     if (!level || this.cooldowns.gravity > 0) return;
-    var aim = this.getAimedPoint();
+    var aim = this.getAutoAttackPoint();
     if (!aim) return;
     var evolved = !!this.evolutions.singularityBloom;
     var radius = this.areaValue((78 + level * 8) * (evolved ? 1.45 : 1));
@@ -2626,9 +2655,7 @@
       life: life,
       maxLife: life,
       color: "#9b7cff",
-      tick: 0,
-      aimLocked: aim.active && !!aim.target,
-      aimTarget: aim.target
+      tick: 0
     });
     this.playSfx("gravity", 0.75);
     this.cooldowns.gravity = Math.max(2.2, (7.2 - level * 0.28) * this.stats.cooldownMult);
@@ -2637,7 +2664,7 @@
   VoidBloom.prototype.fireLaser = function () {
     var level = this.weaponLevels.laser || 0;
     if (!level || this.cooldowns.laser > 0) return;
-    var aim = this.getAimedAngle();
+    var aim = this.getAutoAttackAngle({ fallback: "facing" });
     if (!aim) return;
     var angle = aim.angle;
     var range = Math.max(this.width, this.height) * 1.3;
@@ -2655,7 +2682,7 @@
         var along = ex * Math.cos(beamAngle) + ey * Math.sin(beamAngle);
         var cross = Math.abs(ex * Math.sin(beamAngle) - ey * Math.cos(beamAngle));
         if (along > -20 && along < range && cross < width + e.radius) {
-          this.damageEnemy(e, damage * (angles.length > 1 ? 0.78 : 1), "#ffffff", false, this.withAimMeta({ crit: roll.crit, source: "射线" }, aim));
+          this.damageEnemy(e, damage * (angles.length > 1 ? 0.78 : 1), "#ffffff", false, this.withWeaponMeta({ crit: roll.crit, source: "射线" }));
         }
       }
       this.addParticle(this.player.x, this.player.y, this.player.x + Math.cos(beamAngle) * range, this.player.y + Math.sin(beamAngle) * range, "#ffffff", 0.18, width, "laser");
@@ -2689,7 +2716,7 @@
   VoidBloom.prototype.fireVoidRift = function () {
     var level = this.weaponLevels.voidRift || 0;
     if (!level || this.cooldowns.voidRift > 0) return;
-    var aim = this.getAimedAngle({ fallback: "facing" });
+    var aim = this.getAutoAttackAngle({ fallback: "facing" });
     var face = { x: Math.cos(aim.angle), y: Math.sin(aim.angle), angle: aim.angle };
     var length = 190 + level * 16;
     var width = 28 + level * 2.5;
@@ -2710,9 +2737,7 @@
       life: life,
       maxLife: life,
       color: "#b26cff",
-      tick: 0,
-      aimLocked: aim.active && !!aim.target,
-      aimTarget: aim.target
+      tick: 0
     });
     this.addParticle(x1, y1, x2, y2, "#b26cff", 0.34, width, "rift");
     this.playSfx("rift", 0.8);
@@ -2779,7 +2804,7 @@
   VoidBloom.prototype.firePhaseSlash = function () {
     var level = this.weaponLevels.phaseSlash || 0;
     if (!level || this.cooldowns.phaseSlash > 0) return;
-    var aim = this.getAimedAngle({ fallback: "facing" });
+    var aim = this.getAutoAttackAngle({ fallback: "facing" });
     var face = { x: Math.cos(aim.angle), y: Math.sin(aim.angle), angle: aim.angle };
     var radius = 118 + level * 12;
     var angleWidth = Math.PI * (0.34 + Math.min(0.18, level * 0.012));
@@ -2792,7 +2817,7 @@
       var distance = Math.hypot(dx, dy) || 1;
       var delta = Math.atan2(Math.sin(Math.atan2(dy, dx) - face.angle), Math.cos(Math.atan2(dy, dx) - face.angle));
       if (distance < radius + e.radius && Math.abs(delta) < angleWidth) {
-        this.damageEnemy(e, damage, "#d8f5ff", false, this.withAimMeta({ source: "斩波" }, aim));
+        this.damageEnemy(e, damage, "#d8f5ff", false, this.withWeaponMeta({ source: "斩波" }));
         this.tryQuantumEchoHit(e, damage * 0.35, this.player.x, this.player.y);
       }
     }
@@ -2815,19 +2840,18 @@
   VoidBloom.prototype.fireMeteorRain = function () {
     var level = this.weaponLevels.meteorRain || 0;
     if (!level || this.cooldowns.meteorRain > 0) return;
-    var aim = this.getAimedPoint();
-    var useAim = aim && aim.active;
+    var aim = this.getAutoAttackPoint();
     var count = Math.min(9, 3 + Math.floor(level / 2));
     for (var i = 0; i < count; i += 1) {
       var target = this.enemies.length
         ? this.enemies[Math.floor(this.random() * this.enemies.length)]
         : null;
-      var x = useAim
+      var x = aim
         ? aim.x + (i === 0 ? 0 : (this.random() - 0.5) * 180)
         : target && target.active
         ? target.x + (this.random() - 0.5) * 180
         : wrapValue(this.player.x + (this.random() - 0.5) * this.width, this.world.width);
-      var y = useAim
+      var y = aim
         ? aim.y + (i === 0 ? 0 : (this.random() - 0.5) * 180)
         : target && target.active
         ? target.y + (this.random() - 0.5) * 180
@@ -2843,9 +2867,7 @@
         life: delay + 0.72,
         maxLife: delay + 0.72,
         color: "#ffb347",
-        tick: 0,
-        aimLocked: useAim && !!aim.target,
-        aimTarget: useAim ? aim.target : null
+        tick: 0
       });
     }
     this.playSfx("meteor", 0.95);
@@ -3075,9 +3097,7 @@
         if ((f.type === "blackhole" || f.type === "gravity") && f.collapseDamage) {
           this.damageArea(f.x, f.y, f.radius * (f.type === "blackhole" ? 1.05 : 0.82), f.collapseDamage, f.color, 38, false, {
             source: "坍缩",
-            area: true,
-            aimLocked: f.aimLocked,
-            aimTarget: f.aimTarget
+            area: true
           });
           this.addBurst(f.x, f.y, f.color, f.type === "blackhole" ? 46 : 34, 5.2);
           this.shake(f.type === "blackhole" ? 4 : 3);
@@ -3090,9 +3110,7 @@
         if (f.delay <= 0 && !f.exploded) {
           f.exploded = true;
           this.damageArea(f.x, f.y, f.radius, f.damage, f.color, 22, false, {
-            source: "陨星",
-            aimLocked: f.aimLocked,
-            aimTarget: f.aimTarget
+            source: "陨星"
           });
           if ((this.weaponLevels.meteorRain || 0) >= 8) {
             this.fields.push({
@@ -3104,9 +3122,7 @@
               life: 1.6,
               maxLife: 1.6,
               color: "#ff7a38",
-              tick: 0,
-              aimLocked: f.aimLocked,
-              aimTarget: f.aimTarget
+              tick: 0
             });
           }
           this.addBurst(f.x, f.y, f.color, 26, 4.8);
@@ -3153,9 +3169,7 @@
       }
       if (f.type === "gravity" && f.tick <= 0 && (this.weaponLevels.gravity || 0) >= 7) {
         this.damageArea(f.x, f.y, f.radius * 0.72, (24 + (this.weaponLevels.gravity || 0) * 5) * this.damageMultiplier(), f.color, 18, true, {
-          source: "力场",
-          aimLocked: f.aimLocked,
-          aimTarget: f.aimTarget
+          source: "力场"
         });
         f.tick = 0.8;
       }
@@ -3177,9 +3191,7 @@
           if (distSq(e.x, e.y, px, py) < Math.pow((f.width || 20) + e.radius, 2)) {
             this.damageEnemy(e, f.damage * dt, f.color, true, {
               dot: true,
-              source: f.type === "trail" ? "轨迹" : "裂隙",
-              aimLocked: f.aimLocked,
-              aimTarget: f.aimTarget
+              source: f.type === "trail" ? "轨迹" : "裂隙"
             });
           }
           continue;
@@ -3197,9 +3209,7 @@
           this.damageEnemy(e, f.damage * dt, f.color, true, {
             dot: true,
             source: f.type === "burn" ? "灼烧" : f.type === "storm" ? "电场" : f.type === "blackhole" ? "黑洞" : "力场",
-            area: true,
-            aimLocked: f.aimLocked,
-            aimTarget: f.aimTarget
+            area: true
           });
         }
       }
@@ -3470,11 +3480,6 @@
       damage *= executeBonus;
       meta.priority = Math.max(meta.priority || 0, enemy.hp / Math.max(1, enemy.maxHp) < 0.22 ? 2 : 1);
       meta.source = meta.source || "处刑";
-    }
-    if (meta.aimLocked && meta.aimTarget === enemy && this.stats.aimMatrixLevel > 0) {
-      damage *= 1 + this.stats.aimMatrixLevel * 0.04;
-      meta.priority = Math.max(meta.priority || 0, 2);
-      meta.source = meta.source || "锁定";
     }
     if (this.chapter && this.chapter.metrics) {
       this.chapter.metrics.damageDealt += Math.min(damage, Math.max(0, enemy.hp));
@@ -3945,7 +3950,7 @@
     }
 
     addChoice(upgrades.filter(function (item) { return item.type === "weapon"; }));
-    addChoice(upgrades.filter(function (item) { return ["speed", "magnet", "regen", "armor", "aura", "fusionCore", "bloodHarvest", "greedCore", "scarletPact", "voidThrone", "kineticBloom", "treasureSense", "mirrorPrism", "executionSight", "aimMatrix", "cursedDice"].indexOf(item.id) !== -1; }));
+    addChoice(upgrades.filter(function (item) { return ["speed", "magnet", "regen", "armor", "aura", "fusionCore", "bloodHarvest", "greedCore", "scarletPact", "voidThrone", "kineticBloom", "treasureSense", "mirrorPrism", "executionSight", "cursedDice"].indexOf(item.id) !== -1; }));
     addChoice(upgrades.filter(function (item) { return ["cooldown", "crit", "glass", "quantumEcho", "chainExplosion", "lowHpRage", "dashDamage", "sparkBurst", "emberTrail", "overloadShield", "doomMark", "stormCrown", "chronoWatch", "rerollCharm", "banishSeal", "lastStand", "echoMagazine", "bloodDebt", "shortCircuitDash", "voidInsurance"].indexOf(item.id) !== -1; }));
 
     var guard = 0;
@@ -3987,7 +3992,7 @@
       ["gravity", "voidRift", "warpMine", "blackHoleBloom", "fusionCore", "emberTrail"].forEach(function (id) { weights[id] = 3; });
     }
     if (trait === "prismFocus") {
-      ["crit", "echoMagazine", "executionSight", "aimMatrix", "pulse", "laser", "doomMark"].forEach(function (id) { weights[id] = 2; });
+      ["crit", "echoMagazine", "executionSight", "pulse", "laser", "doomMark"].forEach(function (id) { weights[id] = 2; });
     }
     if (trait === "lightRunner") {
       ["speed", "dashDamage", "shortCircuitDash", "phaseSlash", "kineticBloom"].forEach(function (id) { weights[id] = 3; });
@@ -4134,7 +4139,6 @@
     if (data.id === "bloodDebt") detail = "低血击杀会吸血，危险时更容易打出续命反杀。";
     if (data.id === "shortCircuitDash") detail = "冲刺后弹射电弧，操作流的清怪能力会明显提升。";
     if (data.id === "executionSight") detail = "对精英和首领增伤，残血强敌会被额外处决。";
-    if (data.id === "aimMatrix") detail = "强锁半径 +18px、软锁角度 +3°，鼠标锁定目标伤害 +4%。";
     if (data.id === "voidInsurance") detail = "获得一次致死保险，濒死清场并短暂无敌。";
     return "等级 " + currentLevel + " → " + nextLevel + "。 " + detail + " " + boost;
   };
@@ -4215,7 +4219,6 @@
     if (id === "bloodDebt") this.stats.bloodDebtLevel += Math.max(1, Math.round(power));
     if (id === "shortCircuitDash") this.stats.shortCircuitLevel += Math.max(1, Math.round(power));
     if (id === "executionSight") this.stats.executionLevel += Math.max(1, Math.round(power));
-    if (id === "aimMatrix") this.stats.aimMatrixLevel = Math.min(6, this.stats.aimMatrixLevel + 1);
     if (id === "voidInsurance") this.stats.voidInsuranceLevel += Math.max(1, Math.round(power));
     var unlocked = this.buildEvolutionChoices();
     if (unlocked.length && this.random() < 0.72) {
@@ -4302,9 +4305,9 @@
     if (this.chapter && this.chapter.bossAlive) {
       this.alertPill.textContent = this.chapter.pressure > 0 ? "Boss 压力 " + this.chapter.pressure : "Boss 战";
     } else if (this.chapter && this.chapter.bossDelayUntil > this.time) {
-      this.alertPill.textContent = "首领延迟 " + Math.ceil(this.chapter.bossDelayUntil - this.time) + "秒";
-    } else if (this.chapter && !this.chapter.bossSpawned && chapterElapsed >= this.getChapterBossWindows(chapter.index).min && (chapter.progress || 0) >= goal) {
-      this.alertPill.textContent = "首领召唤中";
+      this.alertPill.textContent = "首领延迟：喘息 " + Math.ceil(this.chapter.bossDelayUntil - this.time) + "秒";
+    } else if (this.chapter && !this.chapter.bossSpawned && this.chapter.goalReachedAt) {
+      this.alertPill.textContent = this.bossTimer > 0 ? "首领降临 " + Math.ceil(this.bossTimer) + "秒" : "首领召唤中";
     } else if (this.tide && this.tide.active) {
       this.alertPill.textContent = "危机·" + (this.tide.label || "虚空") + " " + Math.ceil(this.tide.timer) + "秒";
     } else if (this.stats.healBlockTimer > 0) {
@@ -4364,7 +4367,6 @@
     this.drawProjectiles(ctx);
     this.drawEnemies(ctx);
     this.drawPlayer(ctx);
-    this.drawAimGuide(ctx);
     this.drawParticles(ctx);
     this.drawDamageTexts(ctx);
     ctx.restore();
@@ -4533,60 +4535,6 @@
       ctx.fill();
       ctx.restore();
     }
-  };
-
-  VoidBloom.prototype.drawAimGuide = function (ctx) {
-    var intent = this.getAimIntent();
-    if (!intent.active) return;
-    var target = this.findAimedTarget(intent);
-    var rules = intent.rules || this.getAimRules();
-    var pulse = 0.5 + Math.sin(this.time * 8) * 0.5;
-    ctx.save();
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "#66f0ff";
-    ctx.fillStyle = "#66f0ff";
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = "#66f0ff";
-
-    ctx.globalAlpha = 0.18;
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([10, 10]);
-    ctx.beginPath();
-    ctx.moveTo(this.player.x, this.player.y);
-    ctx.lineTo(intent.clampedX, intent.clampedY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.globalAlpha = 0.12;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(intent.worldX, intent.worldY, rules.strongRadius, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.globalAlpha = 0.34 + pulse * 0.12;
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.arc(intent.worldX, intent.worldY, 11, 0, Math.PI * 2);
-    ctx.moveTo(intent.worldX - 18, intent.worldY);
-    ctx.lineTo(intent.worldX - 7, intent.worldY);
-    ctx.moveTo(intent.worldX + 7, intent.worldY);
-    ctx.lineTo(intent.worldX + 18, intent.worldY);
-    ctx.moveTo(intent.worldX, intent.worldY - 18);
-    ctx.lineTo(intent.worldX, intent.worldY - 7);
-    ctx.moveTo(intent.worldX, intent.worldY + 7);
-    ctx.lineTo(intent.worldX, intent.worldY + 18);
-    ctx.stroke();
-
-    if (target) {
-      ctx.globalAlpha = 0.22 + pulse * 0.12;
-      ctx.strokeStyle = target.type === "boss" || target.type === "elite" ? "#fff3a3" : "#d8f5ff";
-      ctx.shadowColor = ctx.strokeStyle;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(target.x, target.y, target.radius + 9, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.restore();
   };
 
   VoidBloom.prototype.drawEnemies = function (ctx) {
