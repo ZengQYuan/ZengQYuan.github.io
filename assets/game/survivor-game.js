@@ -332,6 +332,9 @@
     this.upgrades = Object.create(null);
     this.weaponLevels = { pulse: 1 };
     this.evolutions = Object.create(null);
+    this.ascensions = Object.create(null);
+    this.ascensionLevels = Object.create(null);
+    this.ascensionRoutes = Object.create(null);
     this.banished = Object.create(null);
     this.currentChoices = null;
     this.lockedChoices = null;
@@ -411,7 +414,12 @@
       healBlockTimer: 0,
       hitTextTimer: 0,
       recentHitTimer: 0,
-      magnetTimer: 0
+      magnetTimer: 0,
+      pulseBeat: 0,
+      ascensionAreaBonus: 0,
+      ascensionCooldownBonus: 0,
+      ascensionProcBonus: 0,
+      ascensionGuardBonus: 0
     };
     this.director = {
       heat: 0,
@@ -425,6 +433,8 @@
       pressureTimer: 0,
       sampleTimer: 0,
       evalTimer: 0,
+      chapterAdjustment: 0,
+      chapterAdjustmentLabel: "平衡",
       samples: [],
       history: []
     };
@@ -516,10 +526,12 @@
   VoidBloom.prototype.getChapterBossWindows = function (chapterIndex) {
     var index = Math.max(1, Math.floor(chapterIndex || 1));
     var heat = this.director ? (this.director.heat || 0) : 0;
+    var adjustment = this.director ? (this.director.chapterAdjustment || 0) : 0;
+    var adjustmentShift = clamp(-adjustment * 18, -7, 11);
     return {
-      min: clamp(45 + index * 3.5 - Math.max(0, heat) * 3.4, 36, 64),
-      soft: clamp(84 + index * 5.5 - Math.max(0, heat) * 4.6, 72, 126),
-      hard: clamp(122 + index * 7 - Math.max(0, heat) * 5.2, 108, 166)
+      min: clamp(45 + index * 3.5 - Math.max(0, heat) * 3.4 + adjustmentShift, 36, 64),
+      soft: clamp(84 + index * 5.5 - Math.max(0, heat) * 4.6 + adjustmentShift * 1.4, 72, 126),
+      hard: clamp(122 + index * 7 - Math.max(0, heat) * 5.2 + adjustmentShift * 1.7, 108, 166)
     };
   };
 
@@ -577,6 +589,7 @@
     var endlessLoop = rules.endlessLoop || 0;
     var heat = this.director ? (this.director.heat || 0) : 0;
     var liveHeat = this.director ? (this.director.liveHeat || 0) : 0;
+    var adjustment = this.director ? (this.director.chapterAdjustment || 0) : 0;
     var totalHeat = heat + liveHeat;
     var recoveryMode = !!(this.director && this.director.recoveryTimer > 0);
     var progressHp = 0.18 + Math.min(0.22, (chapter - 1) * 0.035);
@@ -604,13 +617,13 @@
       liveHeat: liveHeat,
       powerTier: this.director ? (this.director.powerTier || 0) : 0,
       recoveryMode: recoveryMode,
-      hpMult: baseHp * heatHp,
-      damageMult: baseDamage * heatDamage * recoveryDamage,
+      hpMult: baseHp * heatHp * clamp(1 + adjustment * 0.28, 0.9, 1.1),
+      damageMult: baseDamage * heatDamage * recoveryDamage * clamp(1 + adjustment * 0.24, 0.9, 1.09),
       speedMult: Math.min(2.34, baseSpeed * heatSpeed * recoverySpeed),
-      spawnMult: baseSpawn * heatSpawn * recoverySpawn,
+      spawnMult: baseSpawn * heatSpawn * recoverySpawn * clamp(1 + adjustment * 0.34, 0.88, 1.12),
       affixCount: Math.min(4, (rules.affixes || 0) + (progress > 0.72 ? 1 : 0) + endlessLoop * (endless.affixes || 1) + (pressure >= 3 ? 1 : 0) + (totalHeat > 1.6 ? 1 : 0)),
       eliteInterval: clamp(((rules.eliteInterval || 48) - progress * 8 - endlessLoop * 4 - pressure * 1.5) * heatElite * (recoveryMode ? 1.22 : 1), 10, 74),
-      functionalMult: clamp(1 + heat * 0.18 + liveHeat * 0.32, 0.72, 2.65) * (recoveryMode ? 0.68 : 1),
+      functionalMult: clamp(1 + heat * 0.18 + liveHeat * 0.32 + adjustment * 0.18, 0.72, 2.65) * (recoveryMode ? 0.68 : 1),
       tideMult: clamp(1 + heat * 0.15 + liveHeat * 0.24, 0.8, 2.0) * (recoveryMode ? 0.72 : 1),
       bossCooldownMult: clamp(1 - heat * 0.045 - liveHeat * 0.055, 0.66, 1.16) * (recoveryMode ? 1.18 : 1),
       crisis: rules.crisis || "mixed",
@@ -1095,12 +1108,12 @@
       this.draw();
       return;
     }
-    if (!this.running) {
+    this.paused = false;
+    if (!this.running || !this.raf) {
       this.running = true;
       this.lastFrame = performance.now();
       this.raf = requestAnimationFrame(this.boundLoop);
     }
-    this.paused = false;
   };
 
   VoidBloom.prototype.stopLoop = function () {
@@ -1149,6 +1162,10 @@
     if (this.state === "start") {
       return;
     }
+    if (["trait", "upgrade", "chest"].indexOf(this.state) !== -1 && !this.panel.classList.contains("is-visible")) {
+      this.resumePlaying();
+      return;
+    }
     if (this.state === "playing") {
       this.pause();
       return;
@@ -1161,20 +1178,45 @@
     }
   };
 
+  VoidBloom.prototype.resumePlaying = function (options) {
+    options = options || {};
+    if (!options.keepPanel) {
+      this.hidePanel();
+    }
+    this.currentChoices = null;
+    this.pendingUpgrade = false;
+    if (!options.keepChest) {
+      this.pendingChest = null;
+    }
+    this.state = "playing";
+    this.paused = false;
+    this.accumulator = 0;
+    this.resume();
+  };
+
   VoidBloom.prototype.loop = function (now) {
     if (!this.running) {
       return;
     }
-    var delta = Math.min(0.05, (now - this.lastFrame) / 1000 || 0);
-    this.lastFrame = now;
-    if (!this.paused && this.state === "playing") {
-      this.accumulator += delta;
-      while (this.accumulator >= this.fixedStep) {
-        this.update(this.fixedStep);
-        this.accumulator -= this.fixedStep;
+    this.raf = 0;
+    try {
+      var delta = Math.min(0.05, (now - this.lastFrame) / 1000 || 0);
+      this.lastFrame = now;
+      if (!this.paused && this.state === "playing") {
+        this.accumulator += delta;
+        while (this.accumulator >= this.fixedStep) {
+          this.update(this.fixedStep);
+          this.accumulator -= this.fixedStep;
+        }
       }
+      this.draw();
+    } catch (error) {
+      console.error("[VoidBloom] animation loop recovered", error);
+      this.running = false;
+      this.paused = true;
+      this.showPause();
+      return;
     }
-    this.draw();
     if (this.running) {
       this.raf = requestAnimationFrame(this.boundLoop);
     }
@@ -1275,39 +1317,45 @@
     return [
       {
         id: "gambler",
-        name: "赌徒星盘",
+        name: "天机赌命人",
         color: "#f7d46b",
-        text: "高稀有卡概率提升；普通卡略弱。适合赌传说和宝箱连开。"
+        text: "开局更多刷新和天机骰，高稀有更常见，但敌潮升温更快。",
+        route: "专属路线：命运头奖 · 宝箱/高稀有/改命签"
       },
       {
         id: "bloodMoon",
         name: "血月誓约",
         color: "#ff335f",
-        text: "生命上限下降，伤害与低血触发更强。适合极限反杀。"
+        text: "生命上限明显下降，开局带血色收割和相位斩波，低血爆发更猛。",
+        route: "专属路线：血月终章 · 血莲/低血/赤月清屏"
       },
       {
         id: "swarm",
-        name: "工蜂协议",
+        name: "天工傀儡师",
         color: "#7df9ff",
-        text: "召唤、卫星、回响更常出现；本体火力略降。适合自动炮台流。"
+        text: "开局带机关灵鸢和镜花水月倾向，本体伤害略低，但自动火力成型快。",
+        route: "专属路线：万象机傀 · 机关/镜像/自动炮台"
       },
       {
         id: "riftMiner",
-        name: "裂隙矿区",
+        name: "归墟阵主",
         color: "#b26cff",
-        text: "力场、地雷、裂隙更常出现；移速略降。适合边跑边布阵。"
+        text: "开局带乾坤印和遁甲雷印，移速略低，靠符阵和归墟聚怪滚雪球。",
+        route: "专属路线：九幽王庭 · 聚怪/符阵/墨裂"
       },
       {
         id: "prismFocus",
-        name: "棱镜专注",
+        name: "太白剑君",
         color: "#ffd166",
-        text: "暴击率和暴击伤害提升；非暴击略低。适合爆数字流。"
+        text: "开局带太白剑芒，暴击更高，爆发更帅，但稳定伤害略低。",
+        route: "专属路线：天门开 · 白金剑光/暴击/处刑"
       },
       {
         id: "lightRunner",
-        name: "逐光者",
+        name: "逐光剑修",
         color: "#ffffff",
-        text: "冲刺冷却更短，冲刺后短暂增伤。适合操作流。"
+        text: "开局带月影斩，冲刺更频繁，越会走位越像白虹闪光。",
+        route: "专属路线：剑开天河 · 冲刺/月影/白虹"
       }
     ];
   };
@@ -1337,7 +1385,8 @@
       button.innerHTML = [
         "<em>命运</em>",
         "<strong>" + trait.name + "</strong>",
-        "<span>" + trait.text + "</span>"
+        "<span>" + trait.text + "</span>",
+        trait.route ? '<small class="void-bloom-evo-hint is-trait">' + trait.route + "</small>" : ""
       ].join("");
       button.addEventListener("click", function () {
         self.applyRunTrait(trait);
@@ -1365,42 +1414,56 @@
       this.stats.hp = this.stats.maxHp;
       this.stats.damageMult *= 1.18;
       this.stats.critChance += 0.04;
+      this.weaponLevels.phaseSlash = Math.max(this.weaponLevels.phaseSlash || 0, 2);
+      this.stats.scarletLevel += 1;
+      this.stats.bloodHarvestLevel += 1;
     }
     if (trait.id === "swarm") {
       this.stats.damageMult *= 0.93;
       this.stats.echoChance += 0.04;
       this.stats.rerolls += 1;
+      this.weaponLevels.satellite = Math.max(this.weaponLevels.satellite || 0, 2);
+      this.stats.mirrorPrismLevel += 1;
     }
     if (trait.id === "riftMiner") {
       this.stats.speed *= 0.94;
       this.stats.fusionLevel += 1;
       this.stats.banishes += 1;
+      this.weaponLevels.gravity = Math.max(this.weaponLevels.gravity || 0, 2);
+      this.weaponLevels.warpMine = Math.max(this.weaponLevels.warpMine || 0, 1);
     }
     if (trait.id === "prismFocus") {
       this.stats.critChance += 0.08;
       this.stats.critDamage += 0.2;
       this.stats.damageMult *= 0.96;
+      this.weaponLevels.laser = Math.max(this.weaponLevels.laser || 0, 2);
+      this.stats.executionLevel += 1;
     }
     if (trait.id === "lightRunner") {
       this.stats.dashCooldown *= 0.82;
       this.stats.speed += 10;
       this.stats.kineticLevel += 1;
+      this.weaponLevels.phaseSlash = Math.max(this.weaponLevels.phaseSlash || 0, 2);
+      this.stats.dashDamage += 24;
     }
     if (trait.id === "gambler") {
-      this.stats.rerolls += 2;
-      this.stats.cursedDiceLevel += 1;
+      this.stats.rerolls += 3;
+      this.stats.cursedDiceLevel += 2;
+      this.stats.treasureLevel += 1;
+      if (this.director) this.director.heat += 0.28;
     }
   };
 
   VoidBloom.prototype.showStart = function () {
     var self = this;
+    var theme = CONFIG.themes || {};
     this.state = "start";
     this.paused = true;
     this.panel.innerHTML = "";
     var card = createElement("div", "void-bloom-card");
     card.innerHTML = [
-      "<h3>虚空绽放：幸存者</h3>",
-      "<p>移动、闪避、自动开火、升级三选一，活得越久越强。</p>",
+      "<h3>" + (theme.title || "虚空绽放：幸存者") + "</h3>",
+      "<p>" + (theme.startText || "移动、闪避、自动开火、升级三选一，活得越久越强。") + "</p>",
       '<div class="void-bloom-actions"></div>'
     ].join("");
     var actions = card.querySelector(".void-bloom-actions");
@@ -1426,8 +1489,10 @@
     var actions = card.querySelector(".void-bloom-actions");
     var resume = createElement("button", "void-bloom-button", "继续");
     var restart = createElement("button", "void-bloom-button void-bloom-secondary", "重新开始");
+    var codex = createElement("button", "void-bloom-button void-bloom-secondary", "本局天书");
     resume.type = "button";
     restart.type = "button";
+    codex.type = "button";
     resume.addEventListener("click", function () {
       self.hidePanel();
       self.state = "playing";
@@ -1435,8 +1500,56 @@
       self.resume();
     });
     restart.addEventListener("click", function () { self.startRun(); });
+    codex.addEventListener("click", function () { self.showCodexPanel(); });
     actions.appendChild(resume);
+    actions.appendChild(codex);
     actions.appendChild(restart);
+    this.panel.appendChild(card);
+    this.panel.classList.add("is-visible");
+  };
+
+  VoidBloom.prototype.getAscensionCodexHtml = function () {
+    var ids = Object.keys(this.ascensionLevels || {})
+      .filter(function (id) { return this.ascensionLevels[id] > 0; }, this)
+      .sort(function (a, b) { return this.ascensionLevels[b] - this.ascensionLevels[a]; }.bind(this));
+    if (!ids.length) {
+      return '<p class="void-bloom-codex-empty">尚未参悟天书。优先把主武器升到 4/7/10/13，或把被动、触发卡升到 2/4/6/8。</p>';
+    }
+    var rows = ids.slice(0, 12).map(function (id) {
+      var route = this.ascensionRoutes[id] || this.getAscensionRoute(id) || {};
+      var family = route.routeFamily && CONFIG.routeFamilies ? CONFIG.routeFamilies[route.routeFamily] : null;
+      var color = route.color || (family && family.color) || "#fff3a3";
+      var familyLabel = family ? family.label : "天书";
+      return '<li style="--route-color:' + color + '"><strong>' + this.getUpgradeName(id) + '</strong><span>' + (route.route || route.name || id) + ' · ' + familyLabel + ' · ' + this.ascensionLevels[id] + '/4</span></li>';
+    }, this);
+    return '<ul class="void-bloom-codex">' + rows.join("") + "</ul>";
+  };
+
+  VoidBloom.prototype.showCodexPanel = function () {
+    var self = this;
+    this.state = "paused";
+    this.paused = true;
+    this.panel.innerHTML = "";
+    var card = createElement("div", "void-bloom-card");
+    card.innerHTML = [
+      "<h3>本局天书</h3>",
+      this.getAscensionCodexHtml(),
+      '<div class="void-bloom-actions"></div>'
+    ].join("");
+    var actions = card.querySelector(".void-bloom-actions");
+    var back = createElement("button", "void-bloom-button", "返回");
+    var resume = createElement("button", "void-bloom-button void-bloom-secondary", "继续");
+    back.type = "button";
+    resume.type = "button";
+    back.addEventListener("click", function () { self.showPause(); });
+    resume.addEventListener("click", function () {
+      self.hidePanel();
+      self.state = "playing";
+      self.paused = false;
+      self.resume();
+    });
+    actions.appendChild(back);
+    actions.appendChild(resume);
     this.panel.appendChild(card);
     this.panel.classList.add("is-visible");
   };
@@ -1736,20 +1849,24 @@
     this.addBurst(this.player.x, this.player.y, "#ffffff", 18, 4);
     this.spawnEmberTrail(startX, startY, this.player.x, this.player.y);
     if (this.stats.dashDamage > 0) {
+      var dashAsc = this.getAscensionTier("dashDamage");
+      var dashRadius = 92 + dashAsc * 12;
       for (var i = 0; i < this.enemies.length; i += 1) {
         var e = this.enemies[i];
-        if (e.active && distSq(e.x, e.y, this.player.x, this.player.y) < 92 * 92) {
-          this.damageEnemy(e, this.stats.dashDamage, "#ffffff");
+        if (e.active && distSq(e.x, e.y, this.player.x, this.player.y) < dashRadius * dashRadius) {
+          this.damageEnemy(e, this.stats.dashDamage * (1 + dashAsc * 0.05), dashAsc >= 2 ? "#ffd166" : "#ffffff", false, { source: dashAsc >= 2 ? "雷遁斩" : "冲刺" });
         }
       }
+      if (dashAsc >= 3) this.addParticle(startX, startY, this.player.x, this.player.y, "#ffd166", 0.26, 5, "bolt");
     }
     if (this.stats.shortCircuitLevel > 0) {
-      var jumps = 3 + Math.floor(this.stats.shortCircuitLevel / 2);
+      var shortAsc = this.getAscensionTier("shortCircuitDash");
+      var jumps = 3 + Math.floor(this.stats.shortCircuitLevel / 2) + shortAsc;
       var source = { x: this.player.x, y: this.player.y };
       var hit = [];
-      var target = this.findNearestEnemyFrom(source.x, source.y, hit, 250 + this.stats.shortCircuitLevel * 18);
+      var target = this.findNearestEnemyFrom(source.x, source.y, hit, 250 + this.stats.shortCircuitLevel * 18 + shortAsc * 24);
       for (var arc = 0; arc < jumps && target; arc += 1) {
-        this.damageEnemy(target, (35 + this.stats.shortCircuitLevel * 9) * this.damageMultiplier(), "#66f0ff", false, { source: "短路" });
+        this.damageEnemy(target, (35 + this.stats.shortCircuitLevel * 9) * this.damageMultiplier() * (1 + shortAsc * 0.035), "#66f0ff", false, { source: shortAsc >= 2 ? "雷遁" : "短路" });
         this.addParticle(source.x, source.y, target.x, target.y, "#66f0ff", 0.17, 3, "bolt");
         hit.push(target);
         source = target;
@@ -1757,18 +1874,20 @@
       }
       this.playSfx("shield", 0.7);
     }
-    if (this.evolutions.shadowCrescent) {
-      var radius = this.areaValue(170 + (this.weaponLevels.phaseSlash || 0) * 9);
+    var slashAsc = this.getAscensionTier("phaseSlash");
+    if (this.evolutions.shadowCrescent || slashAsc >= 2) {
+      var radius = this.areaValue((170 + (this.weaponLevels.phaseSlash || 0) * 9) * this.getAscensionAreaFactor("phaseSlash"));
       var hits = 0;
       for (var c = 0; c < this.enemies.length; c += 1) {
         var enemy = this.enemies[c];
         if (!enemy.active) continue;
         if (distSq(enemy.x, enemy.y, this.player.x, this.player.y) < Math.pow(radius + enemy.radius, 2)) {
           hits += 1;
-          this.damageEnemy(enemy, (54 + (this.weaponLevels.phaseSlash || 0) * 8) * this.damageMultiplier(), "#ffffff", false, { source: "月牙" });
+          this.damageEnemy(enemy, (54 + (this.weaponLevels.phaseSlash || 0) * 8) * this.damageMultiplier() * this.getAscensionDamageFactor("phaseSlash"), "#ffffff", false, { source: slashAsc >= 2 ? "白虹" : "月牙" });
         }
       }
       this.fields.push({ type: "nova", x: this.player.x, y: this.player.y, radius: radius, damage: 0, life: 0.36, maxLife: 0.36, color: "#ffffff", altColor: "#66f0ff", tick: 0 });
+      if (slashAsc >= 4) this.fields.push({ type: "sigil", x: this.player.x, y: this.player.y, radius: radius * 0.86, life: 0.42, maxLife: 0.42, color: "#f8f3df", family: "sword", tier: slashAsc, seed: this.random() * 1000 });
       if (hits >= 8) {
         this.stats.dashTimer *= 0.65;
         this.addDamageText(this.player.x, this.player.y - 44, "冷却返还", "#ffffff", { priority: 3, size: 15 });
@@ -1781,8 +1900,9 @@
     var level = this.stats.emberTrailLevel || 0;
     var length = Math.hypot(x2 - x1, y2 - y1);
     if (!level || length < 12) return;
-    var life = 1.45 + level * 0.18;
-    var width = 14 + level * 2.6;
+    var emberAsc = this.getAscensionTier("emberTrail");
+    var life = 1.45 + level * 0.18 + emberAsc * 0.1;
+    var width = 14 + level * 2.6 + emberAsc * 2;
     this.fields.push({
       type: "trail",
       x1: x1,
@@ -1790,13 +1910,35 @@
       x2: x2,
       y2: y2,
       width: width,
-      damage: (26 + level * 6) * this.damageMultiplier(),
+      damage: (26 + level * 6) * this.damageMultiplier() * (1 + emberAsc * 0.04),
       life: life,
       maxLife: life,
       color: "#ff7a38",
       seed: this.random() * 1000
     });
     this.addParticle(x1, y1, x2, y2, "#ff7a38", 0.36, Math.max(4, width * 0.42), "ember");
+    if (emberAsc >= 4) {
+      var dx = x2 - x1;
+      var dy = y2 - y1;
+      var len = Math.hypot(dx, dy) || 1;
+      var nx = -dy / len;
+      var ny = dx / len;
+      for (var side = -1; side <= 1; side += 2) {
+        this.fields.push({
+          type: "trail",
+          x1: x1 + nx * side * 28,
+          y1: y1 + ny * side * 28,
+          x2: x2 + nx * side * 28,
+          y2: y2 + ny * side * 28,
+          width: width * 0.58,
+          damage: (18 + level * 4) * this.damageMultiplier(),
+          life: life * 0.72,
+          maxLife: life * 0.72,
+          color: "#ffd166",
+          seed: this.random() * 1000
+        });
+      }
+    }
   };
 
   VoidBloom.prototype.getCrisisTheme = function (chapterIndex) {
@@ -1924,7 +2066,7 @@
       pressure * (mobile ? 12 : 24);
     if (this.tide && this.tide.active) target += mobile ? 24 : 42;
     if (this.chapter && this.chapter.bossAlive) target += mobile ? 28 : 54;
-    target *= clamp(1 + (diff.heat || 0) * 0.1 + (diff.liveHeat || 0) * 0.18, 0.82, 1.72) * (diff.recoveryMode ? 0.82 : 1);
+    target *= clamp(1 + (diff.heat || 0) * 0.1 + (diff.liveHeat || 0) * 0.18 + ((this.director && this.director.chapterAdjustment) || 0) * 0.24, 0.82, 1.72) * (diff.recoveryMode ? 0.82 : 1);
     return Math.floor(Math.min(this.enemyCap * 0.94, target * warmup));
   };
 
@@ -1938,10 +2080,17 @@
 
   VoidBloom.prototype.getHeatText = function () {
     var heat = this.director ? ((this.director.heat || 0) + Math.max(0, this.director.liveHeat || 0)) : 0;
-    if (heat <= 0.25) return "";
-    var level = clamp(Math.ceil(heat), 1, 5);
-    var tier = this.director ? (this.director.powerTier || 0) : 0;
-    return "热度 " + ["", "I", "II", "III", "IV", "V"][level] + (tier >= 2 ? " ↑" : "");
+    var adjustment = this.director ? (this.director.chapterAdjustment || 0) : 0;
+    var parts = [];
+    if (heat > 0.25) {
+      var level = clamp(Math.ceil(heat), 1, 5);
+      var tier = this.director ? (this.director.powerTier || 0) : 0;
+      parts.push("热度 " + ["", "I", "II", "III", "IV", "V"][level] + (tier >= 2 ? " ↑" : ""));
+    }
+    if (Math.abs(adjustment) >= 0.06) {
+      parts.push("天机" + (this.director.chapterAdjustmentLabel || (adjustment > 0 ? "升压" : "护持")));
+    }
+    return parts.join(" · ");
   };
 
   VoidBloom.prototype.settleChapterDirector = function (cleared) {
@@ -1971,6 +2120,20 @@
     var cap = 0.8 + cleared * 0.65;
     var previous = director.heat || 0;
     director.heat = clamp(previous + delta, -1.5, cap);
+    var targetAdjustment = score >= 90 ? 0.35 :
+      score >= 82 ? 0.24 :
+        score >= 72 ? 0.12 :
+          score < 35 ? -0.32 :
+            score < 45 ? -0.22 :
+              score < 58 ? -0.1 : 0;
+    if (insuranceUsedThisChapter || (metrics.minHpRatio || 1) < 0.25 || damageRatio > 1.05) {
+      targetAdjustment = Math.min(targetAdjustment, -0.12);
+    }
+    director.chapterAdjustment = clamp(lerp(director.chapterAdjustment || 0, targetAdjustment, 0.72), -0.35, 0.35);
+    director.chapterAdjustmentLabel = director.chapterAdjustment > 0.18 ? "升压" :
+      director.chapterAdjustment < -0.18 ? "护持" :
+        Math.abs(director.chapterAdjustment) < 0.06 ? "平衡" :
+          director.chapterAdjustment > 0 ? "微升" : "微降";
     director.lastPerformance = score;
     director.recoveryTimer = 0;
     director.recoveryMode = false;
@@ -1982,6 +2145,7 @@
       score: score,
       delta: delta,
       heat: director.heat,
+      adjustment: director.chapterAdjustment,
       elapsed: elapsed,
       bossTime: bossTime
     });
@@ -1991,7 +2155,9 @@
       score: score,
       rank: this.getChapterRank(score),
       delta: delta,
-      heat: director.heat
+      heat: director.heat,
+      adjustment: director.chapterAdjustment,
+      adjustmentLabel: director.chapterAdjustmentLabel
     };
   };
 
@@ -2015,6 +2181,7 @@
     this.score += 350 + cleared * 120;
     this.applyHealing(Math.min(24, 10 + cleared * 2.2), "chapterClear", enemy.x, enemy.y - 34);
     this.addDamageText(enemy.x, enemy.y - 66, "评价" + result.rank + " · 热度" + (result.delta >= 0 ? "+" : "") + result.delta.toFixed(1), "#fff3a3", { priority: 4, size: 18, stroke: "#312300" });
+    this.addDamageText(enemy.x, enemy.y - 116, "天机" + result.adjustmentLabel + " " + (result.adjustment >= 0 ? "+" : "") + Math.round(result.adjustment * 100) + "%", result.adjustment > 0 ? "#ffd166" : result.adjustment < 0 ? "#78f7d2" : "#ffffff", { priority: 4, size: 16, stroke: "#10203a" });
     this.addDamageText(enemy.x, enemy.y - 92, "晋级第" + this.chapter.index + "章", "#ffffff", { priority: 4, size: 22, stroke: "#312300" });
     this.addBurst(enemy.x, enemy.y, "#fff3a3", 88, 7.5);
     this.shake(7);
@@ -2453,7 +2620,7 @@
   };
 
   VoidBloom.prototype.areaMultiplier = function () {
-    return 1 + (this.stats.fusionLevel || 0) * 0.075;
+    return Math.min(1.85, 1 + (this.stats.fusionLevel || 0) * 0.075 + (this.stats.ascensionAreaBonus || 0));
   };
 
   VoidBloom.prototype.areaValue = function (value) {
@@ -2584,10 +2751,12 @@
     var aim = this.getAutoAttackAngle();
     if (!aim) return;
     var angle = aim.angle;
-    var shots = this.evolutions.quantumBuckshot ? 5 : level >= 7 ? 3 : level >= 4 ? 2 : 1;
+    var ascTier = this.getAscensionTier("pulse");
+    var evolved = !!this.evolutions.quantumBuckshot;
+    var shots = Math.min(7, (evolved ? 5 : level >= 7 ? 3 : level >= 4 ? 2 : 1) + Math.floor((ascTier + 1) / 3));
     var spread = this.evolutions.quantumBuckshot ? 0.13 : 0.16;
     for (var i = 0; i < shots; i += 1) {
-      var roll = this.rollDamageMeta((13 + level * 4) * (this.evolutions.quantumBuckshot ? 0.78 : 1));
+      var roll = this.rollDamageMeta((13 + level * 4) * (this.evolutions.quantumBuckshot ? 0.78 : 1) * this.getAscensionDamageFactor("pulse"));
       this.spawnProjectile(angle + (i - (shots - 1) / 2) * spread, 520, roll.amount, 5, "#45d7ff", 1 + Math.floor(level / 4), "pulse", this.withWeaponMeta(roll, "脉冲"));
       if (this.evolutions.quantumBuckshot && roll.crit && this.projectiles.length < this.projectileCap - 3) {
         for (var q = 0; q < 3; q += 1) {
@@ -2595,7 +2764,36 @@
         }
       }
     }
-    this.cooldowns.pulse = Math.max(0.16, (0.54 - level * 0.022) * this.stats.cooldownMult);
+    if (evolved) {
+      this.stats.pulseBeat = (this.stats.pulseBeat || 0) + 1;
+      if (this.stats.pulseBeat % Math.max(3, 5 - Math.floor(ascTier / 2)) === 0) {
+        var beatRadius = this.areaValue((132 + level * 9) * this.getAscensionAreaFactor("pulse"));
+        this.damageArea(this.player.x, this.player.y, beatRadius, (34 + level * 6) * this.damageMultiplier(), "#45d7ff", 34, false, {
+          source: "宇宙心跳",
+          area: true
+        });
+        this.fields.push({
+          type: "nova",
+          x: this.player.x,
+          y: this.player.y,
+          radius: beatRadius,
+          damage: 0,
+          life: 0.34,
+          maxLife: 0.34,
+          color: "#45d7ff",
+          altColor: "#b8f4ff",
+          tick: 0
+        });
+        this.playSfx("crit", 0.95);
+      }
+    }
+    if (ascTier >= 4) {
+      for (var s = 0; s < 6; s += 1) {
+        var sa = angle + s * Math.PI * 2 / 6;
+        this.addParticle(this.player.x, this.player.y, this.player.x + Math.cos(sa) * 180, this.player.y + Math.sin(sa) * 180, "#f8f3df", 0.22, 3, "sword");
+      }
+    }
+    this.cooldowns.pulse = Math.max(0.16, (0.54 - level * 0.022) * this.stats.cooldownMult * this.getAscensionCooldownFactor("pulse"));
   };
 
   VoidBloom.prototype.fireSplitter = function () {
@@ -2604,27 +2802,36 @@
     var aim = this.getAutoAttackAngle();
     if (!aim) return;
     var angle = aim.angle;
-    var roll = this.rollDamageMeta(18 + level * 5);
-    this.spawnProjectile(angle, 430, roll.amount, 7, "#ff5aa5", 1, "splitter", this.withWeaponMeta(roll, "裂变"));
-    this.cooldowns.splitter = Math.max(0.42, (1.25 - level * 0.045) * this.stats.cooldownMult);
+    var ascTier = this.getAscensionTier("splitter");
+    var roll = this.rollDamageMeta((18 + level * 5) * this.getAscensionDamageFactor("splitter"));
+    var volley = ascTier >= 3 ? 2 : 1;
+    for (var v = 0; v < volley; v += 1) {
+      this.spawnProjectile(angle + (v - (volley - 1) / 2) * 0.16, 430, roll.amount * (volley > 1 ? 0.82 : 1), 7, ascTier >= 2 ? "#ff7ad8" : "#ff5aa5", 1, "splitter", this.withWeaponMeta(roll, ascTier >= 2 ? "莲华" : "裂变"));
+    }
+    if (ascTier >= 4) {
+      this.fields.push({ type: "sigil", x: this.player.x, y: this.player.y, radius: this.areaValue(120 + level * 6), life: 0.32, maxLife: 0.32, color: "#ff7ad8", family: "lotus", tier: ascTier, seed: this.random() * 1000 });
+    }
+    this.cooldowns.splitter = Math.max(0.42, (1.25 - level * 0.045) * this.stats.cooldownMult * this.getAscensionCooldownFactor("splitter"));
   };
 
   VoidBloom.prototype.fireLightning = function () {
     var level = this.weaponLevels.lightning || 0;
     if (!level || this.cooldowns.lightning > 0 || !this.enemies.length) return;
-    var strikes = 1 + Math.floor(level / 3);
+    var ascTier = this.getAscensionTier("lightning");
+    var strikes = Math.min(8, 1 + Math.floor(level / 3) + Math.floor((ascTier + 1) / 2));
     for (var i = 0; i < strikes; i += 1) {
       var target = this.enemies[Math.floor(this.random() * this.enemies.length)];
       if (target && target.active) {
-        var roll = this.rollDamageMeta(30 + level * 7);
-        this.damageArea(target.x, target.y, 58 + level * 5, roll.amount, "#ffd166", null, false, { crit: roll.crit, source: "雷击" });
+        var roll = this.rollDamageMeta((30 + level * 7) * this.getAscensionDamageFactor("lightning"));
+        var radius = (58 + level * 5) * this.getAscensionAreaFactor("lightning");
+        this.damageArea(target.x, target.y, radius, roll.amount, "#ffd166", null, false, { crit: roll.crit, source: ascTier >= 2 ? "天雷" : "雷击" });
         this.addParticle(target.x, target.y - 90, target.x, target.y, "#ffd166", 0.22, 4, "bolt");
-        if (this.evolutions.stormExecution) {
+        if (this.evolutions.stormExecution || ascTier >= 2) {
           this.fields.push({
             type: "storm",
             x: target.x,
             y: target.y,
-            radius: this.areaValue(72 + level * 4),
+            radius: this.areaValue((72 + level * 4) * this.getAscensionAreaFactor("lightning")),
             damage: (22 + level * 4) * this.damageMultiplier(),
             life: 1.6,
             maxLife: 1.6,
@@ -2634,7 +2841,10 @@
         }
       }
     }
-    this.cooldowns.lightning = Math.max(0.95, (3.2 - level * 0.13) * this.stats.cooldownMult);
+    if (ascTier >= 4) {
+      this.addMysticBurst(this.player.x, this.player.y, "#ffd166", "thunder", 2, "九霄劫云");
+    }
+    this.cooldowns.lightning = Math.max(0.95, (3.2 - level * 0.13) * this.stats.cooldownMult * this.getAscensionCooldownFactor("lightning"));
   };
 
   VoidBloom.prototype.fireGravity = function () {
@@ -2642,23 +2852,28 @@
     if (!level || this.cooldowns.gravity > 0) return;
     var aim = this.getAutoAttackPoint();
     if (!aim) return;
+    var ascTier = this.getAscensionTier("gravity");
     var evolved = !!this.evolutions.singularityBloom;
-    var radius = this.areaValue((78 + level * 8) * (evolved ? 1.45 : 1));
+    var radius = this.areaValue((78 + level * 8) * (evolved ? 1.45 : 1) * this.getAscensionAreaFactor("gravity"));
     var life = (3.0 + level * 0.15) * (evolved ? 1.18 : 1);
     this.fields.push({
       type: "gravity",
       x: aim.x,
       y: aim.y,
       radius: radius,
-      damage: this.rollDamage((7 + level * 2) * (evolved ? 1.18 : 1)),
-      collapseDamage: evolved ? this.rollDamage(95 + level * 12) : 0,
+      damage: this.rollDamage((7 + level * 2) * (evolved ? 1.18 : 1) * this.getAscensionDamageFactor("gravity")),
+      collapseDamage: evolved || ascTier >= 2 ? this.rollDamage((86 + level * 10) * (ascTier >= 4 ? 1.12 : 1)) : 0,
+      pull: (evolved ? 96 : 44) + ascTier * 13,
+      gemPull: evolved || ascTier >= 3,
       life: life,
       maxLife: life,
       color: "#9b7cff",
+      ascTier: ascTier,
       tick: 0
     });
+    if (ascTier >= 4) this.addMysticBurst(aim.x, aim.y, "#b26cff", "void", 2, "山河社稷");
     this.playSfx("gravity", 0.75);
-    this.cooldowns.gravity = Math.max(2.2, (7.2 - level * 0.28) * this.stats.cooldownMult);
+    this.cooldowns.gravity = Math.max(2.2, (7.2 - level * 0.28) * this.stats.cooldownMult * this.getAscensionCooldownFactor("gravity"));
   };
 
   VoidBloom.prototype.fireLaser = function () {
@@ -2668,10 +2883,13 @@
     if (!aim) return;
     var angle = aim.angle;
     var range = Math.max(this.width, this.height) * 1.3;
-    var width = 16 + level * 2;
-    var roll = this.rollDamageMeta(52 + level * 13);
-    var damage = roll.amount;
-    var angles = level >= 6 ? [angle - 0.16, angle + 0.16] : [angle];
+    var ascTier = this.getAscensionTier("laser");
+    var evolved = !!this.evolutions.prismJudgement;
+    var width = (16 + level * 2) * (evolved ? 0.92 : 1);
+    var roll = this.rollDamageMeta((52 + level * 13) * this.getAscensionDamageFactor("laser"));
+    var damage = roll.amount * (evolved ? 0.82 : 1);
+    var angles = evolved || ascTier >= 2 ? [angle - 0.24, angle, angle + 0.24] : level >= 6 ? [angle - 0.16, angle + 0.16] : [angle];
+    if (ascTier >= 4) angles = [angle - 0.36, angle - 0.18, angle, angle + 0.18, angle + 0.36];
     for (var a = 0; a < angles.length; a += 1) {
       var beamAngle = angles[a];
       for (var i = 0; i < this.enemies.length; i += 1) {
@@ -2686,10 +2904,14 @@
         }
       }
       this.addParticle(this.player.x, this.player.y, this.player.x + Math.cos(beamAngle) * range, this.player.y + Math.sin(beamAngle) * range, "#ffffff", 0.18, width, "laser");
+      if (evolved || ascTier >= 2) {
+        this.addParticle(this.player.x, this.player.y, this.player.x + Math.cos(beamAngle) * range * 0.72, this.player.y + Math.sin(beamAngle) * range * 0.72, a === 1 ? "#fff3a3" : "#45d7ff", 0.24, Math.max(3, width * 0.32), "bolt");
+      }
     }
+    if (ascTier >= 4) this.fields.push({ type: "sigil", x: this.player.x + Math.cos(angle) * 120, y: this.player.y + Math.sin(angle) * 120, radius: this.areaValue(150 + level * 8), life: 0.42, maxLife: 0.42, color: "#f8f3df", family: "sword", tier: ascTier, seed: this.random() * 1000 });
     this.playSfx("laser", 0.9);
-    this.cooldowns.laser = Math.max(2.6, (6.8 - level * 0.22) * this.stats.cooldownMult);
-    this.shake(2.4);
+    this.cooldowns.laser = Math.max(evolved ? 2.25 : 2.6, (6.8 - level * 0.22) * this.stats.cooldownMult * this.getAscensionCooldownFactor("laser"));
+    this.shake(evolved ? 4 : 2.4);
   };
 
   VoidBloom.prototype.fireArcSpear = function () {
@@ -2697,9 +2919,10 @@
     if (!level || this.cooldowns.arcSpear > 0) return;
     var target = this.findNearestEnemy();
     if (!target) return;
-    var roll = this.rollDamageMeta(18 + level * 5);
+    var ascTier = this.getAscensionTier("arcSpear");
+    var roll = this.rollDamageMeta((18 + level * 5) * this.getAscensionDamageFactor("arcSpear"));
     var damage = roll.amount;
-    var jumps = Math.min(7, 2 + Math.floor(level / 2));
+    var jumps = Math.min(10, 2 + Math.floor(level / 2) + ascTier);
     var previous = { x: this.player.x, y: this.player.y };
     var hit = [];
     for (var i = 0; i < jumps && target; i += 1) {
@@ -2710,7 +2933,25 @@
       previous = target;
       target = this.findNearestEnemyFrom(previous.x, previous.y, hit, 260 + level * 16);
     }
-    this.cooldowns.arcSpear = Math.max(0.48, (1.25 - level * 0.045) * this.stats.cooldownMult);
+    if ((this.evolutions.arcHydra || ascTier >= 2) && hit.length) {
+      var branchStarts = hit.slice(0, Math.min(3, hit.length));
+      for (var b = 0; b < branchStarts.length; b += 1) {
+        var source = branchStarts[b];
+        var branchTarget = this.findNearestEnemyFrom(source.x, source.y, hit, 340 + level * 14);
+        for (var fork = 0; fork < 2 && branchTarget; fork += 1) {
+          this.damageEnemy(branchTarget, damage * (0.46 - fork * 0.08), "#66f0ff", false, { crit: false, source: "雷蛇" });
+          this.addParticle(source.x, source.y, branchTarget.x, branchTarget.y, fork ? "#8de7ff" : "#ffffff", 0.18, fork ? 3 : 4, "bolt");
+          hit.push(branchTarget);
+          source = branchTarget;
+          branchTarget = this.findNearestEnemyFrom(source.x, source.y, hit, 270);
+        }
+      }
+      this.playSfx("crit", 0.8);
+    }
+    if (ascTier >= 4 && hit.length) {
+      this.addMysticBurst(hit[hit.length - 1].x, hit[hit.length - 1].y, "#ffd166", "thunder", 2, "雷龙归海");
+    }
+    this.cooldowns.arcSpear = Math.max(0.48, (1.25 - level * 0.045) * this.stats.cooldownMult * this.getAscensionCooldownFactor("arcSpear"));
   };
 
   VoidBloom.prototype.fireVoidRift = function () {
@@ -2718,30 +2959,35 @@
     if (!level || this.cooldowns.voidRift > 0) return;
     var aim = this.getAutoAttackAngle({ fallback: "facing" });
     var face = { x: Math.cos(aim.angle), y: Math.sin(aim.angle), angle: aim.angle };
-    var length = 190 + level * 16;
-    var width = 28 + level * 2.5;
+    var ascTier = this.getAscensionTier("voidRift");
+    var length = (190 + level * 16) * this.getAscensionAreaFactor("voidRift");
+    var width = (28 + level * 2.5) * (1 + ascTier * 0.04);
     var start = 28;
-    var x1 = this.player.x + face.x * start;
-    var y1 = this.player.y + face.y * start;
-    var x2 = this.player.x + face.x * length;
-    var y2 = this.player.y + face.y * length;
     var life = 2.0 + level * 0.12;
-    this.fields.push({
-      type: "rift",
-      x1: x1,
-      y1: y1,
-      x2: x2,
-      y2: y2,
-      width: width,
-      damage: (18 + level * 5) * this.damageMultiplier(),
-      life: life,
-      maxLife: life,
-      color: "#b26cff",
-      tick: 0
-    });
-    this.addParticle(x1, y1, x2, y2, "#b26cff", 0.34, width, "rift");
+    var lanes = ascTier >= 4 ? [-1, -0.45, 0, 0.45, 1] : ascTier >= 2 ? [-0.55, 0, 0.55] : [0];
+    for (var r = 0; r < lanes.length; r += 1) {
+      var offset = lanes[r] * (42 + level * 2);
+      var x1 = this.player.x + face.x * start + -face.y * offset;
+      var y1 = this.player.y + face.y * start + face.x * offset;
+      var x2 = this.player.x + face.x * length + -face.y * offset;
+      var y2 = this.player.y + face.y * length + face.x * offset;
+      this.fields.push({
+        type: "rift",
+        x1: x1,
+        y1: y1,
+        x2: x2,
+        y2: y2,
+        width: width * (lanes.length > 1 ? 0.78 : 1),
+        damage: (18 + level * 5) * this.damageMultiplier() * this.getAscensionDamageFactor("voidRift") * (lanes.length > 1 ? 0.72 : 1),
+        life: life,
+        maxLife: life,
+        color: "#b26cff",
+        tick: 0
+      });
+      this.addParticle(x1, y1, x2, y2, "#b26cff", 0.34, width, "rift");
+    }
     this.playSfx("rift", 0.8);
-    this.cooldowns.voidRift = Math.max(2.6, (5.3 - level * 0.18) * this.stats.cooldownMult);
+    this.cooldowns.voidRift = Math.max(2.6, (5.3 - level * 0.18) * this.stats.cooldownMult * this.getAscensionCooldownFactor("voidRift"));
   };
 
   VoidBloom.prototype.updateSatellite = function () {
@@ -2750,8 +2996,9 @@
       this.satellites.length = 0;
       return;
     }
-    var count = this.evolutions.swarmProtocol ? Math.min(8, 4 + Math.ceil(level / 2)) : Math.min(6, 1 + Math.ceil(level / 2));
-    var radius = 82 + level * 4 + (this.evolutions.swarmProtocol ? 18 : 0);
+    var ascTier = this.getAscensionTier("satellite");
+    var count = this.evolutions.swarmProtocol || ascTier >= 2 ? Math.min(10, 4 + Math.ceil(level / 2) + Math.floor(ascTier / 2)) : Math.min(6, 1 + Math.ceil(level / 2));
+    var radius = 82 + level * 4 + (this.evolutions.swarmProtocol ? 18 : 0) + ascTier * 7;
     this.satellites.length = 0;
     for (var i = 0; i < count; i += 1) {
       var angle = -this.time * (1.8 + level * 0.05) + i * Math.PI * 2 / count;
@@ -2762,14 +3009,14 @@
         var target = this.findNearestEnemyFrom(sx, sy, null, 340 + level * 18);
         if (target) {
           var shotAngle = Math.atan2(target.y - sy, target.x - sx);
-          var mirror = this.stats.mirrorPrismLevel > 0 && this.random() < Math.min(0.42, 0.08 + this.stats.mirrorPrismLevel * 0.045);
+          var mirror = (this.stats.mirrorPrismLevel > 0 || ascTier >= 3) && this.random() < Math.min(0.48, 0.08 + this.stats.mirrorPrismLevel * 0.045 + ascTier * 0.025);
           this.projectiles.push({
             active: true,
             x: sx,
             y: sy,
             vx: Math.cos(shotAngle) * 500,
             vy: Math.sin(shotAngle) * 500,
-            damage: this.rollDamage((9 + level * 3) * (this.evolutions.swarmProtocol ? 1.12 : 1)),
+            damage: this.rollDamage((9 + level * 3) * (this.evolutions.swarmProtocol ? 1.12 : 1) * this.getAscensionDamageFactor("satellite")),
             radius: 4,
             color: "#7df9ff",
             pierce: 1,
@@ -2777,14 +3024,14 @@
             meta: null,
             life: 0.9
           });
-          if (mirror || this.evolutions.swarmProtocol) {
+          if (mirror || this.evolutions.swarmProtocol || ascTier >= 2) {
             this.projectiles.push({
               active: true,
               x: sx,
               y: sy,
               vx: Math.cos(shotAngle + (mirror ? 0.22 : -0.18)) * 470,
               vy: Math.sin(shotAngle + (mirror ? 0.22 : -0.18)) * 470,
-              damage: this.rollDamage(6 + level * 2.1),
+              damage: this.rollDamage((6 + level * 2.1) * (1 + ascTier * 0.025)),
               radius: 3,
               color: mirror ? "#d8f5ff" : "#7df9ff",
               pierce: 1,
@@ -2797,7 +3044,8 @@
       }
     }
     if (this.cooldowns.satellite <= 0) {
-      this.cooldowns.satellite = Math.max(0.18, (0.78 - level * 0.035) * this.stats.cooldownMult);
+      if (ascTier >= 4) this.fields.push({ type: "sigil", x: this.player.x, y: this.player.y, radius: this.areaValue(120 + level * 4), life: 0.3, maxLife: 0.3, color: "#7df9ff", family: "machine", tier: ascTier, seed: this.random() * 1000 });
+      this.cooldowns.satellite = Math.max(0.18, (0.78 - level * 0.035) * this.stats.cooldownMult * this.getAscensionCooldownFactor("satellite"));
     }
   };
 
@@ -2806,9 +3054,10 @@
     if (!level || this.cooldowns.phaseSlash > 0) return;
     var aim = this.getAutoAttackAngle({ fallback: "facing" });
     var face = { x: Math.cos(aim.angle), y: Math.sin(aim.angle), angle: aim.angle };
-    var radius = 118 + level * 12;
-    var angleWidth = Math.PI * (0.34 + Math.min(0.18, level * 0.012));
-    var damage = this.rollDamage(30 + level * 8);
+    var ascTier = this.getAscensionTier("phaseSlash");
+    var radius = (118 + level * 12) * this.getAscensionAreaFactor("phaseSlash");
+    var angleWidth = Math.PI * (0.34 + Math.min(0.18, level * 0.012) + ascTier * 0.018);
+    var damage = this.rollDamage((30 + level * 8) * this.getAscensionDamageFactor("phaseSlash"));
     for (var i = 0; i < this.enemies.length; i += 1) {
       var e = this.enemies[i];
       if (!e.active) continue;
@@ -2833,7 +3082,10 @@
       color: "#d8f5ff",
       tick: 0
     });
-    this.cooldowns.phaseSlash = Math.max(0.9, (2.25 - level * 0.07) * this.stats.cooldownMult);
+    if (ascTier >= 4) {
+      this.fields.push({ type: "slash", x: this.player.x, y: this.player.y, angle: face.angle + Math.PI, angleWidth: angleWidth * 0.72, radius: radius * 0.82, life: 0.2, maxLife: 0.2, color: "#f8f3df", tick: 0 });
+    }
+    this.cooldowns.phaseSlash = Math.max(0.9, (2.25 - level * 0.07) * this.stats.cooldownMult * this.getAscensionCooldownFactor("phaseSlash"));
     this.shake(1.6);
   };
 
@@ -2841,7 +3093,9 @@
     var level = this.weaponLevels.meteorRain || 0;
     if (!level || this.cooldowns.meteorRain > 0) return;
     var aim = this.getAutoAttackPoint();
-    var count = Math.min(9, 3 + Math.floor(level / 2));
+    var ascTier = this.getAscensionTier("meteorRain");
+    var evolved = !!this.evolutions.cataclysmEpoch;
+    var count = Math.min(evolved || ascTier >= 2 ? 14 : 9, 3 + Math.floor(level / 2) + (evolved ? 2 : 0) + Math.floor(ascTier / 2));
     for (var i = 0; i < count; i += 1) {
       var target = this.enemies.length
         ? this.enemies[Math.floor(this.random() * this.enemies.length)]
@@ -2861,24 +3115,27 @@
         type: "meteor",
         x: wrapValue(x, this.world.width),
         y: wrapValue(y, this.world.height),
-        radius: this.areaValue(64 + level * 5),
-        damage: this.rollDamage(38 + level * 10),
+        radius: this.areaValue((64 + level * 5) * (evolved ? 1.12 : 1) * this.getAscensionAreaFactor("meteorRain")),
+        damage: this.rollDamage((38 + level * 10) * (evolved ? 0.92 : 1) * this.getAscensionDamageFactor("meteorRain")),
         delay: delay,
-        life: delay + 0.72,
-        maxLife: delay + 0.72,
-        color: "#ffb347",
+        life: delay + (evolved ? 0.82 : 0.72),
+        maxLife: delay + (evolved ? 0.82 : 0.72),
+        color: evolved && i % 3 === 1 ? "#ffd166" : "#ffb347",
+        cataclysm: evolved || ascTier >= 2,
         tick: 0
       });
     }
+    if (ascTier >= 4) this.addMysticBurst(this.player.x, this.player.y, "#ffcf6b", "thunder", 2, "星河倒悬");
     this.playSfx("meteor", 0.95);
-    this.cooldowns.meteorRain = Math.max(2.8, (6.2 - level * 0.18) * this.stats.cooldownMult);
+    this.cooldowns.meteorRain = Math.max(evolved ? 2.45 : 2.8, (6.2 - level * 0.18) * this.stats.cooldownMult * this.getAscensionCooldownFactor("meteorRain"));
   };
 
   VoidBloom.prototype.fireWarpMine = function () {
     var level = this.weaponLevels.warpMine || 0;
     if (!level || this.cooldowns.warpMine > 0) return;
     var face = this.getFacingVector();
-    var spread = level >= 6 ? 2 : 1;
+    var ascTier = this.getAscensionTier("warpMine");
+    var spread = Math.min(4, (level >= 6 ? 2 : 1) + Math.floor((ascTier + 1) / 2));
     for (var i = 0; i < spread; i += 1) {
       var side = i === 0 ? 0 : (i % 2 ? 1 : -1);
       var x = wrapValue(this.player.x - face.x * (52 + i * 18) + -face.y * side * 34, this.world.width);
@@ -2887,29 +3144,31 @@
         type: "mine",
         x: x,
         y: y,
-        radius: this.areaValue(54 + level * 4),
+        radius: this.areaValue((54 + level * 4) * this.getAscensionAreaFactor("warpMine")),
         triggerRadius: this.areaValue(38 + level * 3),
-        damage: this.rollDamage(44 + level * 9),
+        damage: this.rollDamage((44 + level * 9) * this.getAscensionDamageFactor("warpMine") * (spread > 2 ? 0.86 : 1)),
         life: 7.5,
         maxLife: 7.5,
         color: "#f472ff",
         tick: 0
       });
     }
-    this.cooldowns.warpMine = Math.max(0.72, (2.35 - level * 0.08) * this.stats.cooldownMult);
+    this.cooldowns.warpMine = Math.max(0.72, (2.35 - level * 0.08) * this.stats.cooldownMult * this.getAscensionCooldownFactor("warpMine"));
   };
 
   VoidBloom.prototype.fireFrostfireNova = function () {
     var level = this.weaponLevels.frostfireNova || 0;
     if (!level || this.cooldowns.frostfireNova > 0) return;
-    var radius = this.areaValue(132 + level * 13);
-    var roll = this.rollDamageMeta(34 + level * 8);
+    var ascTier = this.getAscensionTier("frostfireNova");
+    var evolved = !!this.evolutions.frostfireSingularity;
+    var radius = this.areaValue((132 + level * 13) * (evolved ? 1.18 : 1) * this.getAscensionAreaFactor("frostfireNova"));
+    var roll = this.rollDamageMeta((34 + level * 8) * (evolved ? 1.08 : 1) * this.getAscensionDamageFactor("frostfireNova"));
     var damage = roll.amount;
     for (var i = 0; i < this.enemies.length; i += 1) {
       var e = this.enemies[i];
       if (!e.active) continue;
       if (distSq(e.x, e.y, this.player.x, this.player.y) < Math.pow(radius + e.radius, 2)) {
-        e.freeze = Math.max(e.freeze, 0.75 + level * 0.08);
+        e.freeze = Math.max(e.freeze, (evolved ? 1.0 : 0.75) + level * 0.08 + ascTier * 0.05);
         this.damageEnemy(e, damage, i % 2 ? "#ff7a38" : "#8de7ff", false, { crit: roll.crit, source: "新星" });
       }
     }
@@ -2925,10 +3184,25 @@
       altColor: "#ff7a38",
       tick: 0
     });
+    if (evolved || ascTier >= 2) {
+      this.fields.push({
+        type: "burn",
+        x: this.player.x,
+        y: this.player.y,
+        radius: radius * 0.74,
+        damage: (22 + level * 5) * this.damageMultiplier(),
+        life: 1.35,
+        maxLife: 1.35,
+        color: "#ff7a38",
+        tick: 0
+      });
+      this.damageArea(this.player.x, this.player.y, radius * 0.52, damage * 0.42, "#ffffff", 30, false, { source: "霜火核心", area: true });
+    }
     this.addBurst(this.player.x, this.player.y, "#8de7ff", 38, 4.8);
     this.addBurst(this.player.x, this.player.y, "#ff7a38", 24, 4.2);
-    this.cooldowns.frostfireNova = Math.max(2.4, (5.8 - level * 0.18) * this.stats.cooldownMult);
-    this.shake(3);
+    if (ascTier >= 4) this.addMysticBurst(this.player.x, this.player.y, "#8de7ff", "lotus", 2, "太极寂灭");
+    this.cooldowns.frostfireNova = Math.max(evolved ? 2.05 : 2.4, (5.8 - level * 0.18) * this.stats.cooldownMult * this.getAscensionCooldownFactor("frostfireNova"));
+    this.shake(evolved ? 4.5 : 3);
   };
 
   VoidBloom.prototype.fireBlackHoleBloom = function () {
@@ -2936,51 +3210,82 @@
     if (!level || this.cooldowns.blackHoleBloom > 0) return;
     var target = this.findNearestEnemy();
     if (!target) return;
-    var life = 2.8 + level * 0.13;
+    var ascTier = this.getAscensionTier("blackHoleBloom");
+    var evolved = !!this.evolutions.eventHorizon;
+    var life = (2.8 + level * 0.13) * (evolved ? 1.18 : 1);
     this.fields.push({
       type: "blackhole",
       x: target.x,
       y: target.y,
-      radius: this.areaValue(92 + level * 9),
-      damage: (18 + level * 5) * this.damageMultiplier(),
-      collapseDamage: (82 + level * 13) * this.damageMultiplier(),
-      pull: 98 + level * 8,
+      radius: this.areaValue((92 + level * 9) * (evolved ? 1.36 : 1) * this.getAscensionAreaFactor("blackHoleBloom")),
+      damage: (18 + level * 5) * this.damageMultiplier() * (evolved ? 1.08 : 1) * this.getAscensionDamageFactor("blackHoleBloom"),
+      collapseDamage: (82 + level * 13) * this.damageMultiplier() * (evolved ? 1.42 : 1) * (1 + ascTier * 0.04),
+      pull: (98 + level * 8) * (evolved ? 1.45 : 1) + ascTier * 15,
+      eventHorizon: evolved || ascTier >= 2,
       life: life,
       maxLife: life,
-      color: "#7c3cff",
+      color: evolved || ascTier >= 2 ? "#b26cff" : "#7c3cff",
       tick: 0,
       seed: this.random() * 1000
     });
-    this.addDamageText(target.x, target.y - 30, "黑洞花", "#b26cff", { priority: 2, size: 14 });
-    this.playSfx("shield", 0.65);
-    this.cooldowns.blackHoleBloom = Math.max(3.6, (6.8 - level * 0.18) * this.stats.cooldownMult);
+    this.addDamageText(target.x, target.y - 30, evolved ? "事件视界" : "黑洞花", "#b26cff", { priority: 2, size: evolved ? 17 : 14 });
+    this.playSfx(evolved ? "gravity" : "shield", evolved ? 1.1 : 0.65);
+    if (ascTier >= 4) this.addMysticBurst(target.x, target.y, "#b26cff", "void", 2, "归墟帝莲");
+    this.cooldowns.blackHoleBloom = Math.max(evolved ? 3.1 : 3.6, (6.8 - level * 0.18) * this.stats.cooldownMult * this.getAscensionCooldownFactor("blackHoleBloom"));
   };
 
   VoidBloom.prototype.updateAura = function (dt) {
     var level = this.weaponLevels.aura || 0;
     if (!level) return;
-    var radius = 66 + level * 8;
-    var damage = (18 + level * 5) * dt * this.damageMultiplier();
+    var ascTier = this.getAscensionTier("aura");
+    var evolved = !!this.evolutions.greenSunHalo;
+    var radius = (66 + level * 8) * (evolved ? 1.18 : 1) * this.getAscensionAreaFactor("aura");
+    var damage = (18 + level * 5) * dt * this.damageMultiplier() * (evolved ? 1.12 : 1) * this.getAscensionDamageFactor("aura");
     for (var i = 0; i < this.enemies.length; i += 1) {
       var e = this.enemies[i];
       if (e.active && distSq(e.x, e.y, this.player.x, this.player.y) < Math.pow(radius + e.radius, 2)) {
-        this.damageEnemy(e, damage, "#78f7d2", true);
+        this.damageEnemy(e, damage, evolved ? "#c8ffe7" : "#78f7d2", true);
       }
+    }
+    if ((evolved || ascTier >= 2) && this.cooldowns.aura <= 0) {
+      var haloRadius = this.areaValue((150 + level * 13) * this.getAscensionAreaFactor("aura"));
+      this.damageArea(this.player.x, this.player.y, haloRadius, (42 + level * 8) * this.damageMultiplier(), "#78f7d2", 42, false, {
+        source: "苍翠日冕",
+        area: true
+      });
+      this.fields.push({
+        type: "nova",
+        x: this.player.x,
+        y: this.player.y,
+        radius: haloRadius,
+        damage: 0,
+        life: 0.5,
+        maxLife: 0.5,
+        color: "#78f7d2",
+        altColor: "#fff3a3",
+        tick: 0
+      });
+      if (ascTier >= 4) this.fields.push({ type: "sigil", x: this.player.x, y: this.player.y, radius: haloRadius * 0.82, life: 0.56, maxLife: 0.56, color: "#78f7d2", family: "lotus", tier: ascTier, seed: this.random() * 1000 });
+      this.applyHealing(2.2 + level * 0.18, "halo", this.player.x, this.player.y - 36);
+      this.cooldowns.aura = Math.max(2.2, (4.6 - level * 0.12) * this.stats.cooldownMult * this.getAscensionCooldownFactor("aura"));
+      this.playSfx("shield", 0.75);
     }
   };
 
   VoidBloom.prototype.updateOrbit = function (dt) {
     var level = this.weaponLevels.orbit || 0;
     if (!level) return;
-    var count = Math.min(6, 2 + Math.floor(level / 2));
-    var radius = 46 + level * 5;
-    var damage = (22 + level * 6) * this.damageMultiplier();
+    var ascTier = this.getAscensionTier("orbit");
+    var evolved = !!this.evolutions.bladeGalaxy;
+    var count = Math.min(evolved || ascTier >= 2 ? 10 : 6, 2 + Math.floor(level / 2) + (evolved ? 1 : 0) + Math.floor(ascTier / 2));
+    var radius = (46 + level * 5 + (evolved ? 10 : 0)) * this.getAscensionAreaFactor("orbit");
+    var damage = (22 + level * 6) * this.damageMultiplier() * (evolved ? 1.08 : 1) * this.getAscensionDamageFactor("orbit");
     this.orbs.length = 0;
     for (var i = 0; i < count; i += 1) {
       var angle = this.time * (2.4 + level * 0.08) + i * Math.PI * 2 / count;
       var ox = this.player.x + Math.cos(angle) * radius;
       var oy = this.player.y + Math.sin(angle) * radius;
-      this.orbs.push({ x: ox, y: oy, radius: 8, color: "#22e6b7" });
+      this.orbs.push({ x: ox, y: oy, radius: evolved ? 9 : 8, color: evolved && i % 2 ? "#d8f5ff" : "#22e6b7" });
       for (var j = 0; j < this.enemies.length; j += 1) {
         var e = this.enemies[j];
         if (e.active && e.touchTimer <= 0 && distSq(e.x, e.y, ox, oy) < Math.pow(e.radius + 10, 2)) {
@@ -2989,19 +3294,19 @@
         }
       }
     }
-    if (level >= 8) {
-      var outerCount = Math.min(5, Math.floor(level / 4));
-      var outerRadius = radius + 34;
+    if (level >= 8 || evolved || ascTier >= 3) {
+      var outerCount = Math.min(evolved || ascTier >= 3 ? 8 : 5, Math.floor(level / 4) + (evolved ? 3 : 0) + Math.floor(ascTier / 2));
+      var outerRadius = radius + (evolved ? 50 : 34);
       for (var o = 0; o < outerCount; o += 1) {
         var outerAngle = -this.time * (2.9 + level * 0.06) + o * Math.PI * 2 / outerCount;
         var px = this.player.x + Math.cos(outerAngle) * outerRadius;
         var py = this.player.y + Math.sin(outerAngle) * outerRadius;
-        this.orbs.push({ x: px, y: py, radius: 5, color: "#d8f5ff" });
+        this.orbs.push({ x: px, y: py, radius: evolved ? 6 : 5, color: evolved ? "#fff3a3" : "#d8f5ff" });
         for (var k = 0; k < this.enemies.length; k += 1) {
           var target = this.enemies[k];
           if (target.active && target.touchTimer <= 0 && distSq(target.x, target.y, px, py) < Math.pow(target.radius + 8, 2)) {
             target.touchTimer = 0.18;
-            this.damageEnemy(target, damage * 0.45, "#d8f5ff");
+            this.damageEnemy(target, damage * (evolved ? 0.58 : 0.45), evolved ? "#fff3a3" : "#d8f5ff");
           }
         }
       }
@@ -3010,17 +3315,19 @@
 
   VoidBloom.prototype.updateTriggers = function (dt) {
     if (this.stats.frostLevel > 0) {
+      var frostAsc = this.getAscensionTier("frostPulse");
       this.frostTimer -= dt;
       if (this.frostTimer <= 0) {
-        var radius = 110 + this.stats.frostLevel * 18;
+        var radius = 110 + this.stats.frostLevel * 18 + frostAsc * 18;
         for (var i = 0; i < this.enemies.length; i += 1) {
           var e = this.enemies[i];
           if (e.active && distSq(e.x, e.y, this.player.x, this.player.y) < radius * radius) {
-            e.freeze = Math.max(e.freeze, 1.1 + this.stats.frostLevel * 0.12);
+            e.freeze = Math.max(e.freeze, 1.1 + this.stats.frostLevel * 0.12 + frostAsc * 0.08);
           }
         }
         this.addBurst(this.player.x, this.player.y, "#8de7ff", 32, 4);
-        this.frostTimer = Math.max(5.5, 12 - this.stats.frostLevel * 0.65);
+        if (frostAsc >= 3) this.fields.push({ type: "sigil", x: this.player.x, y: this.player.y, radius: this.areaValue(radius), life: 0.42, maxLife: 0.42, color: "#8de7ff", family: "lotus", tier: frostAsc, seed: this.random() * 1000 });
+        this.frostTimer = Math.max(4.8, 12 - this.stats.frostLevel * 0.65 - frostAsc * 0.25);
       }
     }
   };
@@ -3105,6 +3412,10 @@
         this.fields.splice(i, 1);
         continue;
       }
+      if (f.type === "sigil") {
+        // Pure visual field; rendered in drawFields().
+        continue;
+      }
       if (f.type === "meteor") {
         f.delay -= dt;
         if (f.delay <= 0 && !f.exploded) {
@@ -3112,6 +3423,24 @@
           this.damageArea(f.x, f.y, f.radius, f.damage, f.color, 22, false, {
             source: "陨星"
           });
+          if (f.cataclysm) {
+            this.damageArea(f.x, f.y, f.radius * 1.18, f.damage * 0.46, "#ffd166", 26, false, {
+              source: "天灾雷火",
+              area: true
+            });
+            this.fields.push({
+              type: "storm",
+              x: f.x,
+              y: f.y,
+              radius: f.radius * 0.92,
+              damage: f.damage * 0.34,
+              life: 1.35,
+              maxLife: 1.35,
+              color: "#ffd166",
+              tick: 0
+            });
+            this.addParticle(f.x, f.y - f.radius * 1.6, f.x, f.y, "#ffd166", 0.2, 5, "bolt");
+          }
           if ((this.weaponLevels.meteorRain || 0) >= 8) {
             this.fields.push({
               type: "burn",
@@ -3167,14 +3496,29 @@
       if (f.type === "nova") {
         continue;
       }
+      if (f.type === "sigil") {
+        continue;
+      }
       if (f.type === "gravity" && f.tick <= 0 && (this.weaponLevels.gravity || 0) >= 7) {
         this.damageArea(f.x, f.y, f.radius * 0.72, (24 + (this.weaponLevels.gravity || 0) * 5) * this.damageMultiplier(), f.color, 18, true, {
           source: "力场"
         });
         f.tick = 0.8;
       }
+      if (f.type === "gravity" && f.gemPull) {
+        for (var gp = 0; gp < this.gems.length; gp += 1) {
+          var gem = this.gems[gp];
+          var gdx = this.shortestDelta(gem.x, f.x, this.world.width);
+          var gdy = this.shortestDelta(gem.y, f.y, this.world.height);
+          var gd = Math.hypot(gdx, gdy) || 1;
+          if (gd < f.radius * 1.35) {
+            gem.x = wrapValue(gem.x + gdx / gd * 260 * dt, this.world.width);
+            gem.y = wrapValue(gem.y + gdy / gd * 260 * dt, this.world.height);
+          }
+        }
+      }
       if (f.type === "blackhole" && f.tick <= 0) {
-        f.radius = Math.min(f.radius + 2.4, this.areaValue(160 + (this.weaponLevels.blackHoleBloom || 0) * 8));
+        f.radius = Math.min(f.radius + (f.eventHorizon ? 3.6 : 2.4), this.areaValue((160 + (this.weaponLevels.blackHoleBloom || 0) * 8) * (f.eventHorizon ? 1.22 : 1)));
         this.damageArea(f.x, f.y, f.radius * 0.62, f.damage * 0.52, f.color, 26, true, { source: "黑洞", area: true });
         f.tick = 0.42;
       }
@@ -3203,7 +3547,7 @@
         var dy = f.y - e.y;
         var d = Math.hypot(dx, dy) || 1;
         if (d < f.radius) {
-          var pull = f.type === "burn" || f.type === "storm" ? 0 : f.type === "blackhole" ? (f.pull || 110) : 44;
+          var pull = f.type === "burn" || f.type === "storm" ? 0 : f.type === "blackhole" ? (f.pull || 110) : (f.pull || 44);
           e.x += dx / d * pull * dt;
           e.y += dy / d * pull * dt;
           this.damageEnemy(e, f.damage * dt, f.color, true, {
@@ -3447,7 +3791,8 @@
 
   VoidBloom.prototype.splitProjectile = function (projectile) {
     var level = this.weaponLevels.splitter || 1;
-    var count = Math.min(10, 3 + Math.floor(level / 2));
+    var ascTier = this.getAscensionTier("splitter");
+    var count = Math.min(12, 3 + Math.floor(level / 2) + Math.floor(ascTier / 2));
     for (var i = 0; i < count; i += 1) {
       if (this.projectiles.length >= this.projectileCap) break;
       var angle = i * Math.PI * 2 / count + this.time;
@@ -3457,9 +3802,9 @@
         y: projectile.y,
         vx: Math.cos(angle) * 330,
         vy: Math.sin(angle) * 330,
-        damage: projectile.damage * 0.48,
+        damage: projectile.damage * (ascTier >= 4 ? 0.42 : 0.48),
         radius: 4,
-        color: "#ff9ad0",
+        color: ascTier >= 2 ? "#ff7ad8" : "#ff9ad0",
         pierce: 1,
         type: "split",
         meta: projectile.meta || null,
@@ -3561,24 +3906,26 @@
       }
     }
     if (this.stats.bloodHarvestLevel > 0) {
-      this.stats.harvestStacks += enemy.type === "boss" ? 12 : enemy.type === "elite" ? 6 : 1;
+      this.stats.harvestStacks += (enemy.type === "boss" ? 12 : enemy.type === "elite" ? 6 : 1) + Math.floor(this.getAscensionTier("bloodHarvest") / 2);
     }
     if (this.stats.stormCrownLevel > 0) {
-      this.stats.stormKills += enemy.type === "boss" ? 18 : enemy.type === "elite" ? 8 : 1;
-      var stormNeed = Math.max(18, 42 - this.stats.stormCrownLevel * 4);
+      var stormAsc = this.getAscensionTier("stormCrown");
+      this.stats.stormKills += (enemy.type === "boss" ? 18 : enemy.type === "elite" ? 8 : 1) + Math.floor(stormAsc / 2);
+      var stormNeed = Math.max(15, 42 - this.stats.stormCrownLevel * 4 - stormAsc * 2);
       if (this.stats.stormKills >= stormNeed) {
         this.stats.stormKills = 0;
-        var jumps = 8 + this.stats.stormCrownLevel * 3;
+        var jumps = 8 + this.stats.stormCrownLevel * 3 + stormAsc * 2;
         var origin = { x: enemy.x, y: enemy.y };
         var hit = [];
         var target = this.findNearestEnemyFrom(origin.x, origin.y, hit, 520);
         for (var st = 0; st < jumps && target; st += 1) {
-          this.damageEnemy(target, (34 + this.stats.stormCrownLevel * 8) * this.damageMultiplier(), "#ffd166", false, { source: "雷暴" });
+          this.damageEnemy(target, (34 + this.stats.stormCrownLevel * 8) * this.damageMultiplier() * (1 + stormAsc * 0.03), "#ffd166", false, { source: stormAsc >= 2 ? "雷帝冠" : "雷暴" });
           this.addParticle(origin.x, origin.y, target.x, target.y, "#ffd166", 0.18, 4, "bolt");
           hit.push(target);
           origin = target;
           target = this.findNearestEnemyFrom(origin.x, origin.y, hit, 360);
         }
+        if (stormAsc >= 3) this.fields.push({ type: "sigil", x: enemy.x, y: enemy.y, radius: this.areaValue(130 + stormAsc * 16), life: 0.38, maxLife: 0.38, color: "#ffd166", family: "thunder", tier: stormAsc, seed: this.random() * 1000 });
         this.addDamageText(enemy.x, enemy.y - 30, "雷暴王冠", "#ffd166", { priority: 3, size: 16 });
         this.playSfx("crit", 1.1);
       }
@@ -3612,16 +3959,20 @@
       this.shake(3);
     }
     if (this.stats.chainChance > 0 && this.chainBudget > 0 && this.random() < this.stats.chainChance) {
+      var chainAsc = this.getAscensionTier("chainExplosion");
       this.chainBudget -= 1;
-      this.damageArea(enemy.x, enemy.y, 58 + this.stats.chainChance * 70, 34 * this.damageMultiplier(), "#ff9f55", 12, true, { area: true, source: "爆破" });
+      this.damageArea(enemy.x, enemy.y, 58 + this.stats.chainChance * 70 + chainAsc * 8, 34 * this.damageMultiplier() * (1 + chainAsc * 0.035), "#ff9f55", 12 + chainAsc, true, { area: true, source: chainAsc >= 2 ? "爆裂符" : "爆破" });
+      if (chainAsc >= 3) this.fields.push({ type: "sigil", x: enemy.x, y: enemy.y, radius: this.areaValue(80 + chainAsc * 10), life: 0.28, maxLife: 0.28, color: "#ff9f55", family: "talisman", tier: chainAsc, seed: this.random() * 1000 });
     }
     if (this.stats.sparkEvery > 0 && this.sparkIcd <= 0) {
       this.sparkCounter += 1;
       if (this.sparkCounter >= this.stats.sparkEvery) {
+        var sparkAsc = this.getAscensionTier("sparkBurst");
         this.sparkCounter = 0;
-        this.sparkIcd = 5;
-        this.damageArea(this.player.x, this.player.y, Math.max(this.width, this.height), 70 * this.damageMultiplier(), "#ffd166", 24, true, { area: true, source: "火花" });
+        this.sparkIcd = Math.max(3.8, 5 - sparkAsc * 0.25);
+        this.damageArea(this.player.x, this.player.y, Math.max(this.width, this.height), 70 * this.damageMultiplier() * (1 + sparkAsc * 0.035), "#ffd166", 24 + sparkAsc * 2, true, { area: true, source: sparkAsc >= 2 ? "满天星火" : "火花" });
         this.addBurst(this.player.x, this.player.y, "#ffd166", 50, 5);
+        if (sparkAsc >= 3) this.addMysticBurst(this.player.x, this.player.y, "#ffd166", "thunder", 2, "满天星火");
         this.playSfx("crit", 1.4);
         this.shake(4);
       }
@@ -3729,6 +4080,74 @@
     }
   };
 
+  VoidBloom.prototype.addMysticBurst = function (x, y, color, family, tier, label) {
+    tier = tier || 1;
+    family = family || "sword";
+    var radius = this.areaValue(120 + tier * 34);
+    this.fields.push({
+      type: "sigil",
+      x: x,
+      y: y,
+      radius: radius,
+      life: 0.78 + tier * 0.08,
+      maxLife: 0.78 + tier * 0.08,
+      color: color,
+      family: family,
+      tier: tier,
+      label: label || "",
+      seed: this.random() * 1000
+    });
+    this.fields.push({
+      type: "nova",
+      x: x,
+      y: y,
+      radius: radius * 0.72,
+      damage: 0,
+      life: 0.48,
+      maxLife: 0.48,
+      color: color,
+      altColor: family === "blood" ? "#ff8aa0" : family === "void" ? "#d8b4ff" : "#fff3a3",
+      tick: 0
+    });
+    var count = reduceMotion ? 12 : 28 + tier * 14;
+    for (var i = 0; i < count; i += 1) {
+      var angle = i * Math.PI * 2 / count + this.random() * 0.18;
+      var distance = radius * (0.18 + this.random() * 0.58);
+      this.particles.push({
+        x: x + Math.cos(angle) * distance * 0.2,
+        y: y + Math.sin(angle) * distance * 0.2,
+        tx: x + Math.cos(angle) * distance,
+        ty: y + Math.sin(angle) * distance,
+        vx: Math.cos(angle) * (80 + tier * 32),
+        vy: Math.sin(angle) * (80 + tier * 32),
+        color: color,
+        life: 0.42 + this.random() * 0.22,
+        maxLife: 0.64,
+        size: 2 + this.random() * (family === "sword" ? 3.8 : 2.4),
+        type: family === "sword" ? "sword" : family === "thunder" ? "bolt" : family === "void" ? "rift" : family === "lotus" ? "petal" : "rune"
+      });
+    }
+  };
+
+  VoidBloom.prototype.getAscensionDamageFactor = function (id) {
+    return 1 + Math.min(0.22, this.getAscensionTier(id) * 0.045);
+  };
+
+  VoidBloom.prototype.getAscensionAreaFactor = function (id) {
+    return 1 + Math.min(0.26, this.getAscensionTier(id) * 0.055);
+  };
+
+  VoidBloom.prototype.getAscensionCooldownFactor = function (id) {
+    return 1 - Math.min(0.16, this.getAscensionTier(id) * 0.03);
+  };
+
+  VoidBloom.prototype.getAscensionColor = function (id, fallback) {
+    var route = this.getAscensionRoute(id);
+    if (route && route.color) return route.color;
+    var family = route && route.routeFamily && CONFIG.routeFamilies ? CONFIG.routeFamilies[route.routeFamily] : null;
+    return (family && family.color) || fallback || "#fff3a3";
+  };
+
   VoidBloom.prototype.addDamageText = function (x, y, text, color, options) {
     options = options || {};
     this.damageTexts.push({
@@ -3765,43 +4184,48 @@
     this.paused = true;
     this.pendingChest = chest;
     this.stopLoop();
+    try {
     var count = chest && chest.tier === "boss" ? 4 : 3;
     var choices = this.buildUpgradeChoices(count, { source: "chest", forceRare: true, includeEvolution: true });
     this.panel.innerHTML = "";
     var card = createElement("div", "void-bloom-card void-bloom-chest-card");
+    var theme = CONFIG.themes || {};
     card.innerHTML = [
       "<h3>" + (chest && chest.tier === "boss" ? "首领宝箱" : "虚空宝箱") + "</h3>",
-      "<p>选择一份奖励。宝箱更偏向成型流派，也更容易触发组合进化。</p>"
+      "<p>" + (theme.chestText || "选择一份奖励。宝箱更偏向成型流派，也更容易触发组合进化。") + "</p>"
     ].join("");
     var list = createElement("div", "void-bloom-upgrades" + (choices.length === 4 ? " has-four" : ""));
     choices.forEach(function (choice, index) {
       var button = createElement("button", "void-bloom-upgrade");
       button.type = "button";
       button.setAttribute("data-shortcut", String(index + 1));
-      button.setAttribute("data-rarity", choice.evolution ? "legendary" : choice.rarity.id);
+      button.setAttribute("data-rarity", choice.ascension ? "legendary" : choice.rarity.id);
       button.innerHTML = [
-        "<em>" + (choice.evolution ? "进化" : choice.rarity.label + " · " + self.typeLabel(choice.data.type)) + "</em>",
-        "<strong>" + (choice.evolution ? choice.name : choice.data.name) + "</strong>",
-        "<span>" + choice.text + "</span>"
+        "<em>" + (choice.ascension ? (choice.kind || "进阶") + " · 天书" : choice.rarity.label + " · " + self.typeLabel(choice.data.type)) + "</em>",
+        "<strong>" + (choice.ascension ? choice.name : choice.data.name) + "</strong>",
+        "<span>" + choice.text + "</span>",
+        choice.hint ? '<small class="void-bloom-evo-hint' + (choice.hintReady ? " is-ready" : "") + '">' + choice.hint + "</small>" : ""
       ].join("");
       button.addEventListener("click", function () {
-        if (choice.evolution) {
-          self.applyEvolution(choice);
-        } else {
-          self.applyUpgrade(choice);
-        }
-        if (chest && chest.tier === "boss") {
-          var bonus = self.buildUpgradeChoices(1, { forceRare: true })[0];
-          if (bonus) {
-            self.applyUpgrade(bonus);
-            self.addDamageText(self.player.x, self.player.y - 64, "首领连升：" + bonus.data.name, bonus.data.color || "#fff3a3", { priority: 3, size: 15 });
+        try {
+          if (choice.ascension || choice.evolution) {
+            self.applyAscension(choice);
+          } else {
+            self.applyUpgrade(choice);
           }
+          if (chest && chest.tier === "boss") {
+            var bonus = self.buildUpgradeChoices(1, { forceRare: true })[0];
+            if (bonus) {
+              self.applyUpgrade(bonus);
+              self.addDamageText(self.player.x, self.player.y - 64, "首领连升：" + bonus.data.name, bonus.data.color || "#fff3a3", { priority: 3, size: 15 });
+            }
+          }
+        } catch (error) {
+          console.error("[VoidBloom] chest choice recovered", error);
+          self.addDamageText(self.player.x, self.player.y - 56, "宝箱回稳", "#fff3a3", { priority: 3, size: 16, stroke: "#10203a" });
+        } finally {
+          self.resumePlaying();
         }
-        self.hidePanel();
-        self.pendingChest = null;
-        self.state = "playing";
-        self.paused = false;
-        self.resume();
       });
       list.appendChild(button);
     });
@@ -3811,6 +4235,11 @@
     this.addBurst(this.player.x, this.player.y, chest && chest.color ? chest.color : "#ffd166", 54, 4.8);
     this.playSfx("upgrade", 1);
     this.draw();
+    } catch (error) {
+      console.error("[VoidBloom] chest offer recovered", error);
+      this.addDamageText(this.player.x, this.player.y - 56, "宝箱回稳", "#fff3a3", { priority: 3, size: 16, stroke: "#10203a" });
+      this.resumePlaying();
+    }
   };
 
   VoidBloom.prototype.showUpgrade = function () {
@@ -3822,28 +4251,42 @@
       this.stats.rerolls += 1;
     }
     this.currentChoices = this.buildUpgradeChoices(this.level % 5 === 0 ? 4 : 3, { includeEvolution: true });
-    this.renderUpgradeOffer();
+    try {
+      this.renderUpgradeOffer();
+    } catch (error) {
+      console.error("[VoidBloom] upgrade offer recovered", error);
+      this.currentChoices = this.buildUpgradeChoices(this.level % 5 === 0 ? 4 : 3, { includeEvolution: false, ignoreBanish: true });
+      try {
+        this.renderUpgradeOffer();
+      } catch (fallbackError) {
+        console.error("[VoidBloom] upgrade fallback recovered", fallbackError);
+        this.addDamageText(this.player.x, this.player.y - 56, "天书回稳", "#fff3a3", { priority: 3, size: 16, stroke: "#10203a" });
+        this.resumePlaying();
+      }
+    }
   };
 
   VoidBloom.prototype.renderUpgradeOffer = function () {
     var self = this;
     var choices = this.currentChoices || [];
+    var theme = CONFIG.themes || {};
     this.panel.innerHTML = "";
     var card = createElement("div", "void-bloom-card");
     card.innerHTML = [
       "<h3>等级 " + this.level + "</h3>",
-      "<p>选择一个升级。刷新和放逐会改变这一局的构筑方向。</p>"
+      "<p>" + (theme.upgradeText || "选择一个升级。刷新和放逐会改变这一局的构筑方向。") + "</p>"
     ].join("");
     var list = createElement("div", "void-bloom-upgrades" + (choices.length === 4 ? " has-four" : ""));
     choices.forEach(function (choice, index) {
       var button = createElement("button", "void-bloom-upgrade");
       button.type = "button";
       button.setAttribute("data-shortcut", String(index + 1));
-      button.setAttribute("data-rarity", choice.evolution ? "legendary" : choice.rarity.id);
+      button.setAttribute("data-rarity", choice.ascension ? "legendary" : choice.rarity.id);
       button.innerHTML = [
-        "<em>" + (choice.evolution ? "进化 · 质变" : choice.rarity.label + " · " + self.typeLabel(choice.data.type) + " · 等级 " + choice.currentLevel + " → " + choice.nextLevel) + "</em>",
-        "<strong>" + (choice.evolution ? choice.name : choice.data.name) + "</strong>",
-        "<span>" + choice.text + "</span>"
+        "<em>" + (choice.ascension ? (choice.kind || "进阶") + " · 天书" : choice.rarity.label + " · " + self.typeLabel(choice.data.type) + " · 等级 " + choice.currentLevel + " → " + choice.nextLevel) + "</em>",
+        "<strong>" + (choice.ascension ? choice.name : choice.data.name) + "</strong>",
+        "<span>" + choice.text + "</span>",
+        choice.hint ? '<small class="void-bloom-evo-hint' + (choice.hintReady ? " is-ready" : "") + '">' + choice.hint + "</small>" : ""
       ].join("");
       button.addEventListener("click", function () {
         self.acceptUpgradeChoice(choice);
@@ -3886,17 +4329,18 @@
   };
 
   VoidBloom.prototype.acceptUpgradeChoice = function (choice) {
-    if (choice.evolution) {
-      this.applyEvolution(choice);
-    } else {
-      this.applyUpgrade(choice);
+    try {
+      if (choice.ascension || choice.evolution) {
+        this.applyAscension(choice);
+      } else {
+        this.applyUpgrade(choice);
+      }
+    } catch (error) {
+      console.error("[VoidBloom] upgrade choice recovered", error);
+      this.addDamageText(this.player.x, this.player.y - 56, "升级回稳", "#fff3a3", { priority: 3, size: 16, stroke: "#10203a" });
+    } finally {
+      this.resumePlaying();
     }
-    this.currentChoices = null;
-    this.hidePanel();
-    this.pendingUpgrade = false;
-    this.state = "playing";
-    this.paused = false;
-    this.resume();
   };
 
   VoidBloom.prototype.canOfferUpgrade = function (item) {
@@ -3913,8 +4357,8 @@
     var used = Object.create(null);
     var upgrades = this.getWeightedUpgradePool(CONFIG.upgrades || []);
     var self = this;
-    var evolutionChoices = options.includeEvolution ? this.buildEvolutionChoices() : [];
-    if (evolutionChoices.length && (options.source === "chest" || this.random() < 0.32)) {
+    var evolutionChoices = options.includeEvolution ? this.buildEvolutionChoices(options) : [];
+    if (evolutionChoices.length && (options.source === "chest" || this.level % 5 === 0 || this.random() < 0.52)) {
       var evo = evolutionChoices[Math.floor(this.random() * evolutionChoices.length)];
       choices.push(evo);
       used[evo.id] = true;
@@ -3937,6 +4381,7 @@
       var rarity = self.rollUpgradeRarity(options);
       var currentLevel = self.currentUpgradeLevel(data.id, data.type);
       var nextLevel = currentLevel + (data.type === "weapon" ? Math.max(1, Math.round(rarity.power)) : 1);
+      var evolutionHint = self.describeEvolutionProgress(data, currentLevel, nextLevel);
       used[data.id] = true;
       choices.push({
         id: data.id,
@@ -3945,7 +4390,9 @@
         power: rarity.power,
         currentLevel: currentLevel,
         nextLevel: nextLevel,
-        text: self.describeUpgrade(data, rarity.power, currentLevel, nextLevel)
+        text: self.describeUpgrade(data, rarity.power, currentLevel, nextLevel),
+        hint: evolutionHint.text,
+        hintReady: evolutionHint.ready
       });
     }
 
@@ -3961,6 +4408,7 @@
       var rarity = this.rollUpgradeRarity(options);
       var currentLevel = this.currentUpgradeLevel(data.id, data.type);
       var nextLevel = currentLevel + (data.type === "weapon" ? Math.max(1, Math.round(rarity.power)) : 1);
+      var evolutionHint = this.describeEvolutionProgress(data, currentLevel, nextLevel);
       used[data.id] = true;
       choices.push({
         id: data.id,
@@ -3969,7 +4417,9 @@
         power: rarity.power,
         currentLevel: currentLevel,
         nextLevel: nextLevel,
-        text: this.describeUpgrade(data, rarity.power, currentLevel, nextLevel)
+        text: this.describeUpgrade(data, rarity.power, currentLevel, nextLevel),
+        hint: evolutionHint.text,
+        hintReady: evolutionHint.ready
       });
     }
     if (!choices.length && !options.ignoreBanish && (CONFIG.upgrades || []).length) {
@@ -4035,41 +4485,293 @@
     return rarity;
   };
 
-  VoidBloom.prototype.buildEvolutionChoices = function () {
-    var self = this;
-    return (CONFIG.evolutions || [])
-      .filter(function (evolution) { return self.canApplyEvolution(evolution); })
-      .map(function (evolution) {
-        return {
-          id: evolution.id,
-          evolution: true,
-          name: evolution.name,
-          color: evolution.color,
-          data: { type: "evolution", name: evolution.name, color: evolution.color },
-          text: evolution.text,
-          source: evolution
-        };
-      });
+  VoidBloom.prototype.getUpgradeType = function (id) {
+    var upgrades = CONFIG.upgrades || [];
+    for (var i = 0; i < upgrades.length; i += 1) {
+      if (upgrades[i].id === id) return upgrades[i].type;
+    }
+    return this.weaponLevels[id] != null ? "weapon" : "passive";
   };
 
-  VoidBloom.prototype.canApplyEvolution = function (evolution) {
-    if (!evolution || this.evolutions[evolution.id]) return false;
-    if ((this.weaponLevels[evolution.weapon] || 0) < (evolution.weaponLevel || 8)) return false;
-    var requires = evolution.requires || [];
+  VoidBloom.prototype.normalizeLegacyEvolution = function (evolution) {
+    if (!evolution) return null;
+    var item = evolution.weapon || evolution.item || evolution.trait;
+    return Object.assign({}, evolution, {
+      ascension: true,
+      legacy: true,
+      item: item,
+      type: evolution.weapon ? "weapon" : evolution.trait ? "trait" : "passive",
+      route: evolution.kind || "旧脉",
+      routeFamily: evolution.trait ? "treasure" : "void",
+      itemLevel: evolution.weaponLevel || evolution.itemLevel,
+      requiresWeapons: evolution.weapons || evolution.requiresWeapons,
+      requiresAscension: evolution.requiresEvolution || evolution.requiresAscension,
+      requiresTrait: evolution.trait || evolution.requiresTrait,
+      requiresChapter: evolution.tier >= 3 ? 3 : evolution.requiresChapter
+    });
+  };
+
+  VoidBloom.prototype.getAscensionPool = function () {
+    var pool = (CONFIG.ascensions || []).slice();
+    var legacy = CONFIG.evolutions || [];
+    for (var i = 0; i < legacy.length; i += 1) {
+      var normalized = this.normalizeLegacyEvolution(legacy[i]);
+      if (normalized) pool.push(normalized);
+    }
+    return pool;
+  };
+
+  VoidBloom.prototype.getAscensionTier = function (id) {
+    return this.ascensionLevels && this.ascensionLevels[id] ? this.ascensionLevels[id] : 0;
+  };
+
+  VoidBloom.prototype.getAscensionRoute = function (id) {
+    if (this.ascensionRoutes && this.ascensionRoutes[id]) return this.ascensionRoutes[id];
+    var pool = CONFIG.ascensions || [];
+    for (var i = 0; i < pool.length; i += 1) {
+      if (pool[i].item === id || pool[i].weapon === id) return pool[i];
+    }
+    return null;
+  };
+
+  VoidBloom.prototype.getRouteFamilyForItem = function (id) {
+    var route = this.getAscensionRoute(id);
+    return route ? route.routeFamily : null;
+  };
+
+  VoidBloom.prototype.getFamilyAscensionCount = function (family, minTier) {
+    if (!family) return 0;
+    minTier = minTier || 1;
+    var count = 0;
+    var seen = Object.create(null);
+    var pool = CONFIG.ascensions || [];
+    for (var i = 0; i < pool.length; i += 1) {
+      var source = pool[i];
+      var item = source.item || source.weapon;
+      if (!item || seen[item] || source.routeFamily !== family) continue;
+      if (this.getAscensionTier(item) >= minTier) {
+        seen[item] = true;
+        count += 1;
+      }
+    }
+    return count;
+  };
+
+  VoidBloom.prototype.canApplyAscension = function (source, options) {
+    options = options || {};
+    if (!source || !source.id) return false;
+    if (this.ascensions[source.id] || this.evolutions[source.id]) return false;
+    var item = source.item || source.weapon;
+    var type = source.type || (source.weapon ? "weapon" : this.getUpgradeType(item));
+    if (source.weapon || type === "weapon") {
+      if ((this.weaponLevels[source.weapon || item] || 0) < (source.weaponLevel || source.itemLevel || 0)) return false;
+    } else if (item && source.itemLevel) {
+      if (this.currentUpgradeLevel(item, type) < source.itemLevel) return false;
+    }
+    var requires = source.requires || [];
     for (var i = 0; i < requires.length; i += 1) {
-      if ((this.upgrades[requires[i].id] || 0) < (requires[i].level || 1)) return false;
+      if (this.currentUpgradeLevel(requires[i].id, this.getUpgradeType(requires[i].id)) < (requires[i].level || 1)) return false;
+    }
+    var weaponReqs = source.requiresWeapons || source.weapons || [];
+    for (var w = 0; w < weaponReqs.length; w += 1) {
+      if ((this.weaponLevels[weaponReqs[w].id] || 0) < (weaponReqs[w].level || 1)) return false;
+    }
+    var ascReqs = source.requiresAscension || source.requiresEvolution || [];
+    for (var a = 0; a < ascReqs.length; a += 1) {
+      if (!this.ascensions[ascReqs[a]] && !this.evolutions[ascReqs[a]]) return false;
+    }
+    var traitReq = source.requiresTrait || source.trait;
+    if (traitReq && (!this.runTrait || this.runTrait.id !== traitReq)) return false;
+    if (source.requiresFamily) {
+      if (this.getFamilyAscensionCount(source.requiresFamily.family, source.requiresFamily.minTier || 1) < (source.requiresFamily.count || 1)) return false;
+    }
+    if (source.requiresChapter && (!this.chapter || this.chapter.index < source.requiresChapter)) {
+      var bossChest = options.source === "chest" && this.pendingChest && this.pendingChest.tier === "boss";
+      if (!bossChest) return false;
     }
     return true;
   };
 
+  VoidBloom.prototype.buildEvolutionChoices = function (options) {
+    options = options || {};
+    var self = this;
+    return this.getAscensionPool()
+      .filter(function (source) { return self.canApplyAscension(source, options); })
+      .map(function (source) {
+        return {
+          id: source.id,
+          ascension: true,
+          evolution: true,
+          name: source.name,
+          kind: source.kind || "进阶",
+          route: source.route,
+          routeFamily: source.routeFamily,
+          tier: source.tier || 1,
+          color: source.color,
+          data: { type: "ascension", name: source.name, color: source.color },
+          text: source.text,
+          hint: "天书条件已满，选择后立刻" + (source.kind || "进阶") + "。",
+          hintReady: true,
+          source: source
+        };
+      });
+  };
+
+  VoidBloom.prototype.describeEvolutionProgress = function (data, currentLevel, nextLevel) {
+    if (!data) return { text: "", ready: false };
+    var candidates = [];
+    var pool = this.getAscensionPool();
+    for (var i = 0; i < pool.length; i += 1) {
+      var source = pool[i];
+      if (!source || this.ascensions[source.id] || this.evolutions[source.id]) continue;
+      var item = source.item || source.weapon;
+      var relevant = data.id === item;
+      var parts = [];
+      var missing = 0;
+      var type = source.type || (source.weapon ? "weapon" : this.getUpgradeType(item));
+      if (item && source.itemLevel) {
+        var current = (source.weapon || type === "weapon") ? (this.weaponLevels[item] || 0) : this.currentUpgradeLevel(item, type);
+        var after = data.id === item ? nextLevel : current;
+        parts.push(this.getUpgradeName(item) + " " + Math.min(after, source.itemLevel) + "/" + source.itemLevel);
+        missing += Math.max(0, source.itemLevel - after);
+      }
+      var requires = source.requires || [];
+      for (var r = 0; r < requires.length; r += 1) {
+        if (data.id === requires[r].id) relevant = true;
+        var reqCurrent = this.currentUpgradeLevel(requires[r].id, this.getUpgradeType(requires[r].id));
+        var reqAfter = data.id === requires[r].id ? nextLevel : reqCurrent;
+        var reqNeed = requires[r].level || 1;
+        parts.push(this.getUpgradeName(requires[r].id) + " " + Math.min(reqAfter, reqNeed) + "/" + reqNeed);
+        missing += Math.max(0, reqNeed - reqAfter);
+      }
+      var weaponReqs = source.requiresWeapons || source.weapons || [];
+      for (var w = 0; w < weaponReqs.length; w += 1) {
+        if (data.id === weaponReqs[w].id) relevant = true;
+        var weaponAfter = data.id === weaponReqs[w].id ? nextLevel : (this.weaponLevels[weaponReqs[w].id] || 0);
+        var weaponNeed = weaponReqs[w].level || 1;
+        parts.push(this.getUpgradeName(weaponReqs[w].id) + " " + Math.min(weaponAfter, weaponNeed) + "/" + weaponNeed);
+        missing += Math.max(0, weaponNeed - weaponAfter);
+      }
+      if (source.requiresFamily) {
+        var family = source.requiresFamily.family;
+        if (this.getRouteFamilyForItem(data.id) === family) relevant = true;
+        var count = this.getFamilyAscensionCount(family, source.requiresFamily.minTier || 1);
+        parts.push(((CONFIG.routeFamilies && CONFIG.routeFamilies[family] && CONFIG.routeFamilies[family].label) || family) + "路线 " + Math.min(count, source.requiresFamily.count || 1) + "/" + (source.requiresFamily.count || 1));
+        missing += Math.max(0, (source.requiresFamily.count || 1) - count);
+      }
+      if (source.requiresChapter) {
+        var chapterOk = this.chapter && this.chapter.index >= source.requiresChapter;
+        parts.push(chapterOk ? "章节已达成" : "第" + source.requiresChapter + "章/首领宝箱");
+        if (!chapterOk) missing += 1;
+      }
+      if (!relevant) continue;
+      candidates.push({
+        name: source.name,
+        missing: missing,
+        ready: missing <= 0,
+        tier: source.tier || 1,
+        text: (missing <= 0 ? "本次解锁：" : "天书：") + (source.route ? source.route + " · " : "") + (source.kind || "进阶") + "「" + source.name + "」" + (missing <= 0 ? "" : " · " + parts.join(" · "))
+      });
+    }
+    if (!candidates.length) return { text: "", ready: false };
+    candidates.sort(function (a, b) {
+      if (a.ready !== b.ready) return a.ready ? -1 : 1;
+      if (a.missing !== b.missing) return a.missing - b.missing;
+      return a.tier - b.tier;
+    });
+    return { text: candidates[0].text, ready: candidates[0].ready };
+  };
+
+  VoidBloom.prototype.canApplyEvolution = function (source) {
+    return this.canApplyAscension(this.normalizeLegacyEvolution(source) || source);
+  };
+
+  VoidBloom.prototype.unlockLegacyMilestone = function (weapon, tier) {
+    if (!weapon || tier < 2) return;
+    var legacy = {
+      pulse: ["quantumBuckshot", "stellarHeartbeat"],
+      orbit: ["bladeGalaxy", "galaxyGrinder"],
+      lightning: ["stormExecution", "heavenlyMatrix"],
+      splitter: ["splitterNebula", "fractalBlossom"],
+      gravity: ["singularityBloom", "omegaCollapse"],
+      aura: ["greenSunHalo", "livingStar"],
+      laser: ["prismJudgement", "daybreakVerdict"],
+      arcSpear: ["arcHydra", "thunderNeural"],
+      voidRift: ["riftCrown", "abyssLoom"],
+      satellite: ["swarmProtocol", "orbitalFleet"],
+      phaseSlash: ["shadowCrescent", "lunarTempest"],
+      meteorRain: ["cataclysmEpoch", "starfallDoom"],
+      warpMine: ["chainMinefield", "detonationGarden"],
+      frostfireNova: ["frostfireSingularity", "frostfireCourt"],
+      blackHoleBloom: ["eventHorizon", "voidFlowerKing"]
+    };
+    var ids = legacy[weapon] || [];
+    if (ids[0]) this.evolutions[ids[0]] = true;
+    if (tier >= 3 && ids[1]) this.evolutions[ids[1]] = true;
+  };
+
+  VoidBloom.prototype.applyAscensionBonus = function (source) {
+    var tier = source.tier || 1;
+    var family = source.routeFamily || "sword";
+    if (source.type === "weapon") {
+      this.stats.ascensionAreaBonus = Math.min(0.25, (this.stats.ascensionAreaBonus || 0) + 0.006 * tier);
+      this.stats.ascensionProcBonus = Math.min(0.22, (this.stats.ascensionProcBonus || 0) + 0.004 * tier);
+      return;
+    }
+    if (family === "sword") {
+      this.stats.speed += 1.5 * tier;
+      this.stats.critChance = Math.min(0.72, this.stats.critChance + 0.005 * tier);
+    } else if (family === "thunder") {
+      this.stats.chainChance = Math.min(0.36, this.stats.chainChance + 0.004 * tier);
+      this.stats.ascensionProcBonus = Math.min(0.22, (this.stats.ascensionProcBonus || 0) + 0.006 * tier);
+    } else if (family === "lotus") {
+      this.stats.regen = Math.min(4.4, this.stats.regen + 0.025 * tier);
+      this.stats.ascensionAreaBonus = Math.min(0.25, (this.stats.ascensionAreaBonus || 0) + 0.004 * tier);
+    } else if (family === "talisman") {
+      this.stats.ascensionAreaBonus = Math.min(0.25, (this.stats.ascensionAreaBonus || 0) + 0.004 * tier);
+      this.stats.chainChance = Math.min(0.36, this.stats.chainChance + 0.003 * tier);
+    } else if (family === "void") {
+      this.stats.ascensionAreaBonus = Math.min(0.25, (this.stats.ascensionAreaBonus || 0) + 0.005 * tier);
+      this.stats.echoChance = Math.min(0.38, this.stats.echoChance + 0.003 * tier);
+    } else if (family === "machine") {
+      this.stats.cooldownMult = Math.max(0.46, this.stats.cooldownMult * (1 - 0.004 * tier));
+      this.stats.echoChance = Math.min(0.38, this.stats.echoChance + 0.003 * tier);
+    } else if (family === "blood") {
+      this.stats.damageMult = Math.min(4.2, this.stats.damageMult + 0.008 * tier);
+    } else if (family === "treasure") {
+      this.stats.pickupRadius += 2.5 * tier;
+    } else if (family === "guard") {
+      this.stats.armor = Math.min(0.45, this.stats.armor + 0.003 * tier);
+      this.stats.shieldMax = Math.min(96, (this.stats.shieldMax || 0) + 2 * tier);
+      this.stats.shield = Math.min(this.stats.shieldMax, (this.stats.shield || 0) + 2 * tier);
+    }
+  };
+
   VoidBloom.prototype.applyEvolution = function (choice) {
-    if (!choice || !choice.id || this.evolutions[choice.id]) return;
-    this.evolutions[choice.id] = true;
-    this.score += 450 + this.level * 30;
-    this.addDamageText(this.player.x, this.player.y - 58, "进化：" + choice.name, choice.color || "#fff3a3", { priority: 4, size: 20, stroke: "#10203a" });
-    this.addBurst(this.player.x, this.player.y, choice.color || "#fff3a3", 92, 6);
-    this.playSfx("upgrade", 1.6);
-    this.shake(6);
+    this.applyAscension(choice);
+  };
+
+  VoidBloom.prototype.applyAscension = function (choice) {
+    var source = choice && (choice.source || choice);
+    if (!source || !source.id || this.ascensions[source.id] || this.evolutions[source.id]) return;
+    var item = source.item || source.weapon;
+    this.ascensions[source.id] = true;
+    if (source.legacy) this.evolutions[source.id] = true;
+    if (item) {
+      this.ascensionLevels[item] = Math.max(this.ascensionLevels[item] || 0, source.tier || 1);
+      this.ascensionRoutes[item] = source;
+      if (source.type === "weapon" || source.weapon) this.unlockLegacyMilestone(item, source.tier || 1);
+    }
+    this.applyAscensionBonus(source);
+    this.score += 420 + (source.tier || 1) * 120 + this.level * 24;
+    this.addDamageText(this.player.x, this.player.y - 58, (source.kind || "进阶") + "：" + source.name, source.color || "#fff3a3", { priority: 4, size: 20, stroke: "#10203a" });
+    this.damageArea(this.player.x, this.player.y, this.areaValue(205 + (source.tier || 1) * 18), (58 + this.level * 4 + (source.tier || 1) * 10) * this.damageMultiplier(), source.color || "#fff3a3", 58, false, {
+      source: "天书冲击",
+      area: true
+    });
+    this.addMysticBurst(this.player.x, this.player.y, source.color || "#fff3a3", source.routeFamily || "sword", source.tier || 1, source.name);
+    this.playSfx("upgrade", 1.35 + Math.min(0.45, (source.tier || 1) * 0.08));
+    this.shake(6 + (source.tier || 1));
     this.updateHud(true);
   };
 
@@ -4153,7 +4855,7 @@
       this.weaponLevels[id] = (this.weaponLevels[id] || 0) + Math.max(1, Math.round(power));
     }
     if (id === "speed") this.stats.speed += 20 * power;
-    if (id === "cooldown") this.stats.cooldownMult = Math.max(0.48, this.stats.cooldownMult * Math.max(0.78, 1 - 0.055 * power));
+    if (id === "cooldown") this.stats.cooldownMult = Math.max(0.46, this.stats.cooldownMult * Math.max(0.78, 1 - 0.055 * power));
     if (id === "magnet") this.stats.pickupRadius += 28 * power;
     if (id === "crit") {
       this.stats.critChance = Math.min(0.72, this.stats.critChance + 0.045 * power / (1 + level * 0.08));
@@ -4220,9 +4922,9 @@
     if (id === "shortCircuitDash") this.stats.shortCircuitLevel += Math.max(1, Math.round(power));
     if (id === "executionSight") this.stats.executionLevel += Math.max(1, Math.round(power));
     if (id === "voidInsurance") this.stats.voidInsuranceLevel += Math.max(1, Math.round(power));
-    var unlocked = this.buildEvolutionChoices();
+    var unlocked = this.buildEvolutionChoices({});
     if (unlocked.length && this.random() < 0.72) {
-      this.addDamageText(this.player.x, this.player.y - 66, "进化可用：" + unlocked[0].name, unlocked[0].color || "#fff3a3", { priority: 3, size: 15 });
+      this.addDamageText(this.player.x, this.player.y - 66, "天书可用：" + unlocked[0].name, unlocked[0].color || "#fff3a3", { priority: 3, size: 15 });
     }
     if (level % 3 === 0 && choice.data.type !== "passive") {
       this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + 10);
@@ -4903,6 +5605,57 @@
         ctx.restore();
         continue;
       }
+      if (f.type === "sigil") {
+        var turn = this.time * (f.family === "sword" ? 1.4 : f.family === "thunder" ? 2.1 : 0.85) + (f.seed || 0);
+        ctx.globalAlpha = 0.18 + ratio * 0.48;
+        ctx.strokeStyle = f.color;
+        ctx.shadowBlur = 24 + (f.tier || 1) * 5;
+        ctx.shadowColor = f.color;
+        ctx.lineWidth = 2 + Math.min(3, f.tier || 1);
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.radius * (1.02 - ratio * 0.18), 0, Math.PI * 2);
+        ctx.stroke();
+        var sides = f.family === "talisman" ? 8 : f.family === "lotus" ? 12 : f.family === "void" ? 9 : 6;
+        ctx.save();
+        ctx.translate(f.x, f.y);
+        ctx.rotate(turn);
+        ctx.beginPath();
+        for (var sg = 0; sg < sides; sg += 1) {
+          var sa = sg * Math.PI * 2 / sides;
+          var sr = f.radius * (sg % 2 && f.family === "lotus" ? 0.54 : 0.72);
+          ctx.lineTo(Math.cos(sa) * sr, Math.sin(sa) * sr);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        if (f.family === "sword") {
+          for (var sw = 0; sw < 4; sw += 1) {
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(Math.cos(sw * Math.PI / 2) * f.radius * 0.96, Math.sin(sw * Math.PI / 2) * f.radius * 0.96);
+            ctx.stroke();
+          }
+        } else if (f.family === "thunder") {
+          for (var th = 0; th < 5; th += 1) {
+            var tx = Math.cos(th * Math.PI * 2 / 5) * f.radius * 0.78;
+            var ty = Math.sin(th * Math.PI * 2 / 5) * f.radius * 0.78;
+            ctx.beginPath();
+            ctx.moveTo(tx * 0.45, ty * 0.45);
+            ctx.lineTo(tx * 0.7, ty * 0.2);
+            ctx.lineTo(tx, ty);
+            ctx.stroke();
+          }
+        } else if (f.family === "void") {
+          ctx.globalAlpha *= 0.7;
+          for (var vr = 0; vr < 3; vr += 1) {
+            ctx.beginPath();
+            ctx.arc(0, 0, f.radius * (0.26 + vr * 0.18), turn + vr, turn + vr + Math.PI * 1.35);
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+        ctx.restore();
+        continue;
+      }
       if (f.type === "meteor") {
         var warn = f.exploded ? 1 - ratio : clamp(1 - f.delay / Math.max(0.01, f.maxLife), 0, 1);
         ctx.globalAlpha = f.exploded ? 0.2 + ratio * 0.35 : 0.18 + warn * 0.5;
@@ -5007,19 +5760,27 @@
       if (f.type === "blackhole") {
         var swirl = this.time * 3 + (f.seed || 0);
         ctx.globalAlpha = 0.18 + ratio * 0.36;
-        ctx.fillStyle = "rgba(124,60,255,0.18)";
+        ctx.fillStyle = f.eventHorizon ? "rgba(178,108,255,0.22)" : "rgba(124,60,255,0.18)";
         ctx.strokeStyle = f.color;
-        ctx.shadowBlur = 32;
+        ctx.shadowBlur = f.eventHorizon ? 44 : 32;
         ctx.shadowColor = f.color;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = f.eventHorizon ? 4 : 3;
         ctx.beginPath();
         ctx.arc(f.x, f.y, f.radius * (1.04 - ratio * 0.1), 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-        for (var bh = 0; bh < 4; bh += 1) {
+        for (var bh = 0; bh < (f.eventHorizon ? 6 : 4); bh += 1) {
           ctx.globalAlpha = 0.26 + ratio * 0.24;
           ctx.beginPath();
           ctx.arc(f.x, f.y, f.radius * (0.25 + bh * 0.17), swirl + bh, swirl + bh + Math.PI * 1.35);
+          ctx.stroke();
+        }
+        if (f.eventHorizon) {
+          ctx.globalAlpha = 0.82;
+          ctx.strokeStyle = "#fff3a3";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.radius * (0.88 + Math.sin(this.time * 8) * 0.03), 0, Math.PI * 2);
           ctx.stroke();
         }
         ctx.globalAlpha = 0.92;
@@ -5065,15 +5826,40 @@
       var alpha = clamp(p.life / (p.maxLife || 1), 0, 1);
       ctx.save();
       ctx.globalAlpha = alpha;
-      if (p.type === "laser" || p.type === "bolt") {
+      if (p.type === "laser" || p.type === "bolt" || p.type === "sword" || p.type === "rift") {
         ctx.strokeStyle = p.color;
-        ctx.lineWidth = p.size || 3;
-        ctx.shadowBlur = 16;
+        ctx.lineWidth = p.type === "sword" ? (p.size || 3) * 1.35 : p.size || 3;
+        ctx.shadowBlur = p.type === "rift" ? 24 : 16;
         ctx.shadowColor = p.color;
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
         ctx.lineTo(p.tx, p.ty);
         ctx.stroke();
+        if (p.type === "sword") {
+          ctx.lineWidth = 1.2;
+          ctx.strokeStyle = "#ffffff";
+          ctx.stroke();
+        }
+      } else if (p.type === "rune" || p.type === "petal") {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(this.time * 3 + i);
+        ctx.fillStyle = p.color;
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = p.color;
+        ctx.beginPath();
+        if (p.type === "petal") {
+          ctx.ellipse(0, 0, (p.size || 2) * 1.8, p.size || 2, 0, 0, Math.PI * 2);
+        } else {
+          var r = p.size || 2;
+          for (var rn = 0; rn < 4; rn += 1) {
+            var ra = rn * Math.PI / 2;
+            ctx.lineTo(Math.cos(ra) * r, Math.sin(ra) * r);
+          }
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
       } else if (p.type === "ring") {
         ctx.strokeStyle = p.color;
         ctx.lineWidth = 3;
