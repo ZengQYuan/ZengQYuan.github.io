@@ -10,6 +10,7 @@
   <!-- Font Awesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="assets/game/survivor.css?v=20260707-vfx1">
+  <link rel="stylesheet" href="assets/game2/arsenal.css?v=20260707-game2">
   
   <style>
     :root {
@@ -1866,21 +1867,41 @@
 
       <section class="section" id="playground">
         <h2>小游戏</h2>
-        <div class="game-entry">
-          <div>
-            <h3>玄霄万象：幸存者</h3>
-            <p>一个国风玄幻肉鸽割草小游戏。</p>
-            <div class="game-entry-stats" aria-label="玄霄万象本地记录">
-              <span>最高分 <strong id="void-bloom-best-score">0</strong></span>
-              <span>最长时间 <strong id="void-bloom-best-time">0:00</strong></span>
-              <span>最高等级 <strong id="void-bloom-best-level">1</strong></span>
+        <div class="game-entry-grid">
+          <div class="game-entry">
+            <div>
+              <h3>玄霄万象：幸存者</h3>
+              <p>一个国风玄幻肉鸽割草小游戏。</p>
+              <div class="game-entry-stats" aria-label="玄霄万象本地记录">
+                <span>最高分 <strong id="void-bloom-best-score">0</strong></span>
+                <span>最长时间 <strong id="void-bloom-best-time">0:00</strong></span>
+                <span>最高等级 <strong id="void-bloom-best-level">1</strong></span>
+              </div>
+              <p class="void-bloom-error" id="void-bloom-entry-error" role="status"></p>
             </div>
-            <p class="void-bloom-error" id="void-bloom-entry-error" role="status"></p>
+            <button class="game-play-button" id="void-bloom-open" type="button">
+              <i class="fas fa-play"></i>
+              开始游戏
+            </button>
           </div>
-          <button class="game-play-button" id="void-bloom-open" type="button">
-            <i class="fas fa-play"></i>
-            开始游戏
-          </button>
+
+          <div class="game-entry game-entry-secondary">
+            <div>
+              <h3>六械工坊：异星浪潮</h3>
+              <p>波次、商店、6武器合成的街机科幻割草小游戏。</p>
+              <div class="game-entry-stats" aria-label="六械工坊本地记录">
+                <span>最高分 <strong id="arsenal-best-score">0</strong></span>
+                <span>最高波次 <strong id="arsenal-best-wave">0</strong></span>
+                <span>最长时间 <strong id="arsenal-best-time">0:00</strong></span>
+                <span>最佳角色 <strong id="arsenal-best-character">-</strong></span>
+              </div>
+              <p class="arsenal-error" id="arsenal-entry-error" role="status"></p>
+            </div>
+            <button class="game-play-button" id="arsenal-open" type="button">
+              <i class="fas fa-play"></i>
+              开始游戏
+            </button>
+          </div>
         </div>
       </section>
 
@@ -1917,11 +1938,26 @@
     </div>
   </div>
 
+  <div class="arsenal-modal" id="arsenal-modal" aria-hidden="true">
+    <div class="arsenal-shell" role="dialog" aria-modal="true" aria-labelledby="arsenal-heading">
+      <div class="arsenal-header">
+        <div class="arsenal-title">
+          <strong id="arsenal-heading">六械工坊：异星浪潮</strong>
+          <span>WASD/方向键移动 · 空格闪避 · 1/2/3/4 选卡 · P/Esc 暂停</span>
+        </div>
+        <button class="arsenal-close" id="arsenal-close" type="button" aria-label="关闭游戏">&times;</button>
+      </div>
+      <div class="arsenal-root" id="arsenal-root"></div>
+    </div>
+  </div>
+
   <footer>
     <p>Last updated: July 3, 2026. &copy; 2026 Qingyuan Zeng. All rights reserved.</p>
   </footer>
   <script src="assets/game/survivor-config.js?v=20260707-vfx1" defer></script>
   <script src="assets/game/survivor-game.js?v=20260707-vfx1" defer></script>
+  <script src="assets/game2/arsenal-config.js?v=20260707-game2" defer></script>
+  <script src="assets/game2/arsenal-game.js?v=20260707-game2" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/globe.gl" defer></script>
   <script src="assets/js/global-footprint.js?v=20260704-hover6" defer></script>
   <script>
@@ -2125,6 +2161,114 @@
         document.body.classList.add("void-bloom-open");
         if (!controller) {
           controller = window.VoidBloomSurvivor.mount(root, {
+            onBestChange: updateBest,
+            onClose: closeGame
+          });
+        }
+        if (controller && controller.activate) {
+          controller.activate();
+        }
+        if (controller && controller.resume) {
+          controller.resume();
+        }
+        if (root && typeof root.focus === "function") {
+          root.setAttribute("tabindex", "-1");
+          root.focus({ preventScroll: true });
+        }
+      }
+
+      updateBest();
+
+      if (openButton) {
+        openButton.addEventListener("click", openGame);
+      }
+      if (closeButton) {
+        closeButton.addEventListener("click", closeGame);
+      }
+      if (modal) {
+        modal.addEventListener("click", function (event) {
+          if (event.target === modal) {
+            closeGame();
+          }
+        });
+      }
+    });
+  </script>
+  <script>
+    window.addEventListener("DOMContentLoaded", function () {
+      var openButton = document.getElementById("arsenal-open");
+      var closeButton = document.getElementById("arsenal-close");
+      var modal = document.getElementById("arsenal-modal");
+      var root = document.getElementById("arsenal-root");
+      var entryError = document.getElementById("arsenal-entry-error");
+      var bestScore = document.getElementById("arsenal-best-score");
+      var bestWave = document.getElementById("arsenal-best-wave");
+      var bestTime = document.getElementById("arsenal-best-time");
+      var bestCharacter = document.getElementById("arsenal-best-character");
+      var controller = null;
+      var lastFocus = null;
+
+      function formatTime(seconds) {
+        seconds = Math.max(0, Math.floor(Number(seconds) || 0));
+        var minutes = Math.floor(seconds / 60);
+        var rest = String(seconds % 60).padStart(2, "0");
+        return minutes + ":" + rest;
+      }
+
+      function showError(message) {
+        if (!entryError) {
+          return;
+        }
+        entryError.textContent = message || "";
+        entryError.classList.toggle("is-visible", Boolean(message));
+      }
+
+      function updateBest() {
+        var best = window.ArsenalSurvivor && window.ArsenalSurvivor.readBest
+          ? window.ArsenalSurvivor.readBest()
+          : null;
+        if (bestScore) {
+          bestScore.textContent = String((best && best.bestScore) || 0);
+        }
+        if (bestWave) {
+          bestWave.textContent = String((best && best.bestWave) || 0);
+        }
+        if (bestTime) {
+          bestTime.textContent = formatTime((best && best.bestTime) || 0);
+        }
+        if (bestCharacter) {
+          bestCharacter.textContent = (best && best.bestCharacter) || "-";
+        }
+      }
+
+      function closeGame() {
+        if (!modal) {
+          return;
+        }
+        if (controller && controller.deactivate) {
+          controller.deactivate();
+        }
+        modal.classList.remove("is-open");
+        modal.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("arsenal-open");
+        updateBest();
+        if (lastFocus && typeof lastFocus.focus === "function") {
+          lastFocus.focus({ preventScroll: true });
+        }
+      }
+
+      function openGame() {
+        if (!window.ArsenalSurvivor || !window.ArsenalSurvivor.mount) {
+          showError("游戏脚本还在加载，请稍后再试。");
+          return;
+        }
+        showError("");
+        lastFocus = document.activeElement;
+        modal.classList.add("is-open");
+        modal.setAttribute("aria-hidden", "false");
+        document.body.classList.add("arsenal-open");
+        if (!controller) {
+          controller = window.ArsenalSurvivor.mount(root, {
             onBestChange: updateBest,
             onClose: closeGame
           });

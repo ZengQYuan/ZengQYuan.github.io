@@ -1,0 +1,406 @@
+:root {
+  --arsenal-cyan: #58c7ff;
+  --arsenal-orange: #ffb347;
+  --arsenal-ink: #122033;
+}
+
+.game-entry-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.game-entry-secondary {
+  background:
+    radial-gradient(circle at 86% 12%, rgba(255, 179, 71, 0.18), transparent 32%),
+    radial-gradient(circle at 14% 18%, rgba(88, 199, 255, 0.16), transparent 34%),
+    linear-gradient(135deg, #fbfcff 0%, #f3f7fb 100%);
+}
+
+.arsenal-error {
+  display: none;
+  margin-top: 8px;
+  color: #b84444;
+  font-weight: 700;
+}
+
+.arsenal-error.is-visible {
+  display: block;
+}
+
+.arsenal-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 125;
+  display: none;
+  place-items: center;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 54% 38%, rgba(88, 199, 255, 0.2), transparent 30%),
+    radial-gradient(circle at 78% 18%, rgba(255, 179, 71, 0.22), transparent 26%),
+    rgba(11, 20, 34, 0.76);
+  backdrop-filter: blur(14px) saturate(150%);
+}
+
+.arsenal-modal.is-open {
+  display: grid;
+}
+
+body.arsenal-open {
+  overflow: hidden;
+}
+
+.arsenal-shell {
+  position: relative;
+  width: min(1040px, 100%);
+  max-height: min(780px, calc(100dvh - 44px));
+  overflow: hidden;
+  border: 1px solid rgba(130, 210, 255, 0.28);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 17% 18%, rgba(88, 199, 255, 0.18), transparent 28%),
+    radial-gradient(circle at 82% 20%, rgba(255, 179, 71, 0.17), transparent 30%),
+    linear-gradient(135deg, #071729 0%, #0c2035 52%, #111825 100%);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.44);
+}
+
+.arsenal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(148, 201, 255, 0.14);
+  color: #dceaff;
+}
+
+.arsenal-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.arsenal-title strong {
+  color: #fff;
+  font-size: 1.02em;
+}
+
+.arsenal-title span {
+  color: #9fb5cc;
+  font-size: 0.88em;
+}
+
+.arsenal-close {
+  appearance: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #eaf6ff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  transition: transform var(--motion), background-color var(--motion), border-color var(--motion);
+}
+
+.arsenal-close:hover,
+.arsenal-close:focus {
+  border-color: rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.15);
+  transform: rotate(4deg) scale(1.04);
+}
+
+.arsenal-root {
+  position: relative;
+  width: 100%;
+  height: min(590px, calc(100dvh - 112px));
+  min-height: 430px;
+  color: #eaf6ff;
+  user-select: none;
+  overflow: hidden;
+}
+
+.arsenal-root canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background:
+    linear-gradient(135deg, #092033 0%, #0d2941 52%, #162134 100%);
+  touch-action: none;
+}
+
+.arsenal-hud {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 12px;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, 0.75fr) auto auto auto auto;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.arsenal-bar {
+  overflow: hidden;
+  height: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.arsenal-fill {
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  background: linear-gradient(90deg, #66f0b6, #58c7ff);
+}
+
+.arsenal-wave-fill {
+  background: linear-gradient(90deg, #ffb347, #ffd166);
+}
+
+.arsenal-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(4, 12, 25, 0.58);
+  color: #eaf6ff;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 9px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+}
+
+.arsenal-loadout {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 12px;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.arsenal-slot {
+  flex: 0 1 92px;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(5, 16, 28, 0.68);
+  color: #dceaff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 5px 7px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.arsenal-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: none;
+  place-items: center;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(88, 199, 255, 0.15), transparent 30%),
+    rgba(3, 12, 23, 0.62);
+  backdrop-filter: blur(8px);
+}
+
+.arsenal-overlay.is-visible {
+  display: grid;
+}
+
+.arsenal-panel {
+  width: min(890px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  border: 1px solid rgba(130, 210, 255, 0.28);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(88, 199, 255, 0.16), transparent 24%),
+    linear-gradient(145deg, rgba(8, 24, 40, 0.96), rgba(17, 27, 44, 0.97));
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.45);
+  padding: 18px;
+}
+
+.arsenal-panel h3 {
+  margin: 0 0 6px;
+  color: #fff;
+  font-size: 1.35em;
+}
+
+.arsenal-panel p {
+  margin: 0;
+  color: #a8bed5;
+}
+
+.arsenal-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.arsenal-card {
+  appearance: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 80% 10%, rgba(255, 255, 255, 0.08), transparent 34%),
+    rgba(255, 255, 255, 0.06);
+  color: #eaf6ff;
+  cursor: pointer;
+  font: inherit;
+  padding: 12px;
+  text-align: left;
+  transition: transform 180ms var(--ease), border-color 180ms var(--ease), background-color 180ms var(--ease);
+}
+
+.arsenal-card:hover,
+.arsenal-card:focus {
+  border-color: rgba(88, 199, 255, 0.55);
+  background-color: rgba(88, 199, 255, 0.12);
+  transform: translateY(-3px);
+}
+
+.arsenal-card.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.arsenal-card-key {
+  position: absolute;
+  right: 9px;
+  top: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-weight: 900;
+}
+
+.arsenal-card strong {
+  display: block;
+  margin-right: 28px;
+  color: #fff;
+  line-height: 1.25;
+}
+
+.arsenal-card em {
+  display: block;
+  margin: 6px 0;
+  color: #ffdf9a;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.arsenal-card span {
+  color: #adc2da;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.arsenal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.arsenal-button {
+  appearance: none;
+  border: 1px solid rgba(88, 199, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(88, 199, 255, 0.15);
+  color: #eaf6ff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  padding: 8px 14px;
+}
+
+.arsenal-button:hover,
+.arsenal-button:focus {
+  background: rgba(255, 179, 71, 0.2);
+  border-color: rgba(255, 179, 71, 0.4);
+}
+
+.arsenal-note {
+  margin-top: 10px;
+  color: #8fa8c1;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .game-entry-grid {
+    gap: 12px;
+  }
+
+  .arsenal-modal {
+    padding: 10px;
+  }
+
+  .arsenal-root {
+    min-height: 500px;
+    height: calc(100dvh - 92px);
+  }
+
+  .arsenal-title {
+    display: block;
+  }
+
+  .arsenal-title span {
+    display: block;
+    margin-top: 2px;
+  }
+
+  .arsenal-hud {
+    grid-template-columns: 1fr 1fr;
+    right: 10px;
+    left: 10px;
+    gap: 6px;
+  }
+
+  .arsenal-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .arsenal-card {
+    min-height: 112px;
+  }
+
+  .arsenal-loadout {
+    overflow: hidden;
+  }
+
+  .arsenal-slot {
+    flex-basis: 72px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arsenal-card,
+  .arsenal-close {
+    transition: none !important;
+  }
+}
