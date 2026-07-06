@@ -5,6 +5,28 @@
   var STORE_KEY = CONFIG.storageKey || "zqy-survivor:v1";
   var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var memoryBest = null;
+  var VFX_FAMILIES = {
+    sword: { color: "#f8f3df", alt: "#ffffff", dark: "#3a2b12", particle: "sword", mark: "剑", sides: 4 },
+    thunder: { color: "#ffd166", alt: "#66f0ff", dark: "#2f2400", particle: "bolt", mark: "雷", sides: 6 },
+    lotus: { color: "#78f7d2", alt: "#ff7ad8", dark: "#062d25", particle: "petal", mark: "莲", sides: 12 },
+    talisman: { color: "#ffb347", alt: "#fff3a3", dark: "#3a1d00", particle: "rune", mark: "符", sides: 8 },
+    void: { color: "#b26cff", alt: "#d8b4ff", dark: "#16051f", particle: "rift", mark: "墟", sides: 9 },
+    machine: { color: "#7df9ff", alt: "#ffffff", dark: "#042c35", particle: "rune", mark: "工", sides: 6 },
+    blood: { color: "#ff335f", alt: "#ff9aae", dark: "#3a0612", particle: "petal", mark: "血", sides: 10 },
+    treasure: { color: "#f7d46b", alt: "#fff7b3", dark: "#3a2a00", particle: "rune", mark: "签", sides: 8 },
+    guard: { color: "#a7b7ff", alt: "#fff3a3", dark: "#111e3c", particle: "rune", mark: "护", sides: 6 }
+  };
+  var COLOR_FAMILY_HINTS = [
+    ["ff335f", "blood"], ["ff4f6d", "blood"], ["ff5a6f", "blood"],
+    ["b26cff", "void"], ["9b7cff", "void"], ["7c3cff", "void"],
+    ["ffd166", "thunder"], ["ffcf6b", "thunder"], ["66f0ff", "thunder"], ["8de7ff", "thunder"],
+    ["78f7d2", "lotus"], ["ff5aa5", "lotus"], ["ff7ad8", "lotus"],
+    ["ff9f55", "talisman"], ["ffb347", "talisman"], ["ff7a38", "talisman"], ["f472ff", "talisman"],
+    ["7df9ff", "machine"], ["22e6b7", "machine"],
+    ["f7d46b", "treasure"], ["fff07a", "treasure"],
+    ["a7b7ff", "guard"], ["d8f5ff", "guard"],
+    ["ffffff", "sword"], ["f8f3df", "sword"]
+  ];
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -102,6 +124,26 @@
     return value;
   }
 
+  function normalizeHex(color) {
+    return String(color || "").replace("#", "").toLowerCase();
+  }
+
+  function inferFamilyFromColor(color, fallback) {
+    var hex = normalizeHex(color);
+    for (var i = 0; i < COLOR_FAMILY_HINTS.length; i += 1) {
+      if (hex.indexOf(COLOR_FAMILY_HINTS[i][0]) !== -1) {
+        return COLOR_FAMILY_HINTS[i][1];
+      }
+    }
+    return fallback || "sword";
+  }
+
+  function familyStyle(family, color) {
+    var key = family && VFX_FAMILIES[family] ? family : inferFamilyFromColor(color, "sword");
+    var base = VFX_FAMILIES[key] || VFX_FAMILIES.sword;
+    return Object.assign({ family: key }, base, { color: color || base.color });
+  }
+
   function VoidBloom(root, options) {
     this.root = root;
     this.options = options || {};
@@ -166,6 +208,7 @@
     this.chainBudgetTimer = 0;
     this.sparkIcd = 0;
     this.screenShake = 0;
+    this.screenWash = null;
     this.sceneTick = 0;
     this.audio = { ctx: null, unlocked: false, muted: false, last: Object.create(null) };
     this.world = { width: 3800, height: 2800 };
@@ -487,6 +530,7 @@
     this.frostTimer = 12;
     this.sparkCounter = 0;
     this.screenShake = 0;
+    this.screenWash = null;
     this.sceneTick = 0;
     this.paused = true;
     this.panel.classList.remove("is-visible");
@@ -1286,6 +1330,15 @@
       gravity: { f1: 180, f2: 70, gain: 0.052, dur: 0.22, type: "triangle" },
       rift: { f1: 260, f2: 86, gain: 0.052, dur: 0.24, type: "sawtooth" },
       meteor: { f1: 110, f2: 48, gain: 0.07, dur: 0.28, type: "sawtooth" },
+      sword: { f1: 740, f2: 1320, gain: 0.046, dur: 0.16, type: "triangle" },
+      thunder: { f1: 1320, f2: 220, gain: 0.055, dur: 0.2, type: "square" },
+      lotus: { f1: 520, f2: 980, gain: 0.045, dur: 0.2, type: "sine" },
+      talisman: { f1: 360, f2: 920, gain: 0.05, dur: 0.18, type: "triangle" },
+      void: { f1: 220, f2: 54, gain: 0.062, dur: 0.3, type: "sawtooth" },
+      machine: { f1: 980, f2: 620, gain: 0.04, dur: 0.14, type: "square" },
+      blood: { f1: 190, f2: 74, gain: 0.058, dur: 0.22, type: "sawtooth" },
+      treasure: { f1: 680, f2: 1440, gain: 0.042, dur: 0.16, type: "sine" },
+      guard: { f1: 470, f2: 760, gain: 0.05, dur: 0.2, type: "triangle" },
       gem: { f1: 760, f2: 1120, gain: 0.012, dur: 0.04, type: "sine" }
     };
     var data = presets[name] || presets.hit;
@@ -2521,6 +2574,7 @@
         continue;
       }
       e.hitFlash = Math.max(0, e.hitFlash - dt * 10);
+      e.impactGlow = Math.max(0, (e.impactGlow || 0) - dt * 3.6);
       e.touchTimer = Math.max(0, e.touchTimer - dt);
       e.freeze = Math.max(0, e.freeze - dt);
       if (e.freeze > 0) {
@@ -3334,15 +3388,20 @@
 
   VoidBloom.prototype.spawnProjectile = function (angle, speed, damage, radius, color, pierce, type, meta) {
     if (this.projectiles.length >= this.projectileCap) return;
+    var family = this.getProjectileFamily(type, meta, color);
     this.projectiles.push({
       active: true,
       x: this.player.x,
       y: this.player.y,
+      lastX: this.player.x,
+      lastY: this.player.y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       damage: damage,
       radius: radius,
       color: color,
+      family: family,
+      seed: this.random() * 1000,
       pierce: pierce || 1,
       type: type,
       meta: meta || null,
@@ -3350,9 +3409,28 @@
     });
   };
 
+  VoidBloom.prototype.getProjectileFamily = function (type, meta, color) {
+    if (meta && meta.family) return meta.family;
+    var map = {
+      pulse: "sword",
+      pulseShard: "sword",
+      splitter: "lotus",
+      split: "lotus",
+      meteor: "thunder",
+      satellite: "machine",
+      orbit: "sword",
+      arcSpear: "thunder",
+      laser: "sword",
+      rift: "void"
+    };
+    return map[type] || inferFamilyFromColor(color, "sword");
+  };
+
   VoidBloom.prototype.updateProjectiles = function (dt) {
     for (var i = this.projectiles.length - 1; i >= 0; i -= 1) {
       var p = this.projectiles[i];
+      p.lastX = p.x;
+      p.lastY = p.y;
       p.x = wrapValue(p.x + p.vx * dt, this.world.width);
       p.y = wrapValue(p.y + p.vy * dt, this.world.height);
       p.life -= dt;
@@ -3608,8 +3686,18 @@
         }
       }
     }
-    if (this.particles.length > (CONFIG.particleCap || 900)) {
-      this.particles.splice(0, this.particles.length - (CONFIG.particleCap || 900));
+    if (this.screenWash) {
+      this.screenWash.life -= dt;
+      if (this.screenWash.life <= 0) {
+        this.screenWash = null;
+      }
+    }
+    var cap = this.getParticleCap();
+    if (this.particles.length > cap) {
+      this.particles.sort(function (a, b) {
+        return (b.priority || 0) - (a.priority || 0);
+      });
+      this.particles.length = cap;
     }
   };
 
@@ -3836,6 +3924,20 @@
     }
     enemy.hp -= damage;
     enemy.hitFlash = 1;
+    if (!silent) {
+      var bigHit = meta.crit || enemy.type === "elite" || enemy.type === "boss" || damage > enemy.maxHp * 0.16 || meta.priority > 1;
+      if (bigHit) {
+        enemy.impactGlow = Math.max(enemy.impactGlow || 0, meta.crit ? 1.25 : 0.9);
+        enemy.impactColor = meta.crit ? "#ffd166" : color || enemy.color;
+        if (meta.crit || damage > enemy.maxHp * 0.22) {
+          this.addBurst(enemy.x, enemy.y, enemy.impactColor, meta.crit ? 18 : 10, meta.crit ? 2.5 : 1.8, {
+            family: inferFamilyFromColor(enemy.impactColor, "sword"),
+            tier: meta.crit ? 2 : 1,
+            priority: meta.crit ? 2 : 1
+          });
+        }
+      }
+    }
     if (!silent && this.stats.doomMarkLevel > 0 && enemy.active) {
       var threshold = enemy.type === "boss" ? 15 : enemy.type === "elite" ? 9 : 6;
       enemy.doom = (enemy.doom || 0) + 0.65 + damage / 70;
@@ -3878,18 +3980,18 @@
     meta = meta || {};
     var important = meta.crit || enemy.type === "elite" || enemy.type === "boss" || amount > enemy.maxHp * 0.12 || meta.priority > 1;
     if (!important && this.random() > 0.2) return;
-    var text = Math.max(1, Math.round(amount)).toString() + (meta.crit ? "!" : "");
-    var size = meta.crit ? 20 : enemy.type === "boss" ? 16 : enemy.type === "elite" ? 14 : meta.dot ? 11 : 12;
-    var priority = meta.crit ? 3 : enemy.type === "boss" || enemy.type === "elite" ? 2 : meta.dot ? 0 : 1;
+    var text = Math.max(1, Math.round(amount)).toString() + (meta.crit ? " 暴" : "");
+    var size = meta.crit ? 24 : enemy.type === "boss" ? 17 : enemy.type === "elite" ? 15 : meta.dot ? 11 : 12;
+    var priority = meta.crit ? 4 : enemy.type === "boss" || enemy.type === "elite" ? 2 : meta.dot ? 0 : 1;
     this.addDamageText(enemy.x + (this.random() - 0.5) * enemy.radius * 1.3, enemy.y - enemy.radius - 8 + (this.random() - 0.5) * 8, text, meta.crit ? "#ffd166" : color || "#eafaff", {
       kind: meta.crit ? "crit" : meta.dot ? "dot" : "damage",
       priority: priority,
       size: size,
       stroke: meta.crit ? "#3b2200" : null,
-      scale: meta.crit ? 1.28 : 1,
+      scale: meta.crit ? 1.55 : 1,
       vx: (this.random() - 0.5) * 22,
-      vy: meta.crit ? -42 : -26,
-      life: meta.crit ? 0.85 : 0.58
+      vy: meta.crit ? -52 : -26,
+      life: meta.crit ? 0.95 : 0.58
     });
   };
 
@@ -3990,7 +4092,18 @@
         if (maxHits && hits >= maxHits) break;
       }
     }
-    this.particles.push({ x: x, y: y, radius: radius, color: color, life: 0.25, maxLife: 0.25, type: "ring" });
+    this.pushParticle({
+      x: x,
+      y: y,
+      radius: radius,
+      color: color,
+      altColor: familyStyle(meta.family, color).alt,
+      family: meta.family || inferFamilyFromColor(color, "sword"),
+      life: 0.28,
+      maxLife: 0.28,
+      type: "ring",
+      priority: meta.priority || (radius > 160 ? 2 : 1)
+    });
   };
 
   VoidBloom.prototype.dropGem = function (x, y, value) {
@@ -4043,90 +4156,187 @@
     }
   };
 
-  VoidBloom.prototype.addParticle = function (x, y, tx, ty, color, life, size, type) {
-    this.particles.push({
+  VoidBloom.prototype.getParticleCap = function () {
+    var configured = CONFIG.particleCap || 1800;
+    var mobileCap = window.innerWidth < 760 ? Math.min(configured, 1250) : configured;
+    return reduceMotion ? Math.min(520, mobileCap) : mobileCap;
+  };
+
+  VoidBloom.prototype.pushParticle = function (particle) {
+    if (!particle) return;
+    var cap = this.getParticleCap();
+    particle.priority = particle.priority == null ? 0 : particle.priority;
+    if (this.particles.length >= cap) {
+      var dropIndex = -1;
+      var dropPriority = particle.priority;
+      for (var i = 0; i < this.particles.length; i += 1) {
+        var priority = this.particles[i].priority || 0;
+        if (priority <= dropPriority) {
+          dropIndex = i;
+          dropPriority = priority;
+          if (priority <= 0) break;
+        }
+      }
+      if (dropIndex < 0) return;
+      this.particles.splice(dropIndex, 1);
+    }
+    this.particles.push(particle);
+  };
+
+  VoidBloom.prototype.addParticle = function (x, y, tx, ty, color, life, size, type, meta) {
+    meta = meta || {};
+    var style = familyStyle(meta.family, color);
+    var dx = (tx == null ? x : tx) - x;
+    var dy = (ty == null ? y : ty) - y;
+    this.pushParticle(Object.assign({
       x: x,
       y: y,
-      tx: tx,
-      ty: ty,
-      vx: (tx - x) * 0.08,
-      vy: (ty - y) * 0.08,
-      color: color,
+      tx: tx == null ? x : tx,
+      ty: ty == null ? y : ty,
+      vx: dx * (meta.drift == null ? 0.08 : meta.drift),
+      vy: dy * (meta.drift == null ? 0.08 : meta.drift),
+      color: color || style.color,
+      altColor: meta.altColor || style.alt,
+      family: style.family,
       life: life || 0.35,
       maxLife: life || 0.35,
       size: size || 2,
-      type: type || "dot"
-    });
+      width: meta.width || size || 2,
+      spin: meta.spin == null ? (this.random() - 0.5) * 4 : meta.spin,
+      seed: this.random() * 1000,
+      type: type || style.particle || "dot",
+      blend: meta.blend || "lighter",
+      priority: meta.priority || 0
+    }, meta));
   };
 
-  VoidBloom.prototype.addBurst = function (x, y, color, count, speed) {
-    if (reduceMotion) {
-      count = Math.min(8, count);
-    }
-    for (var i = 0; i < count; i += 1) {
+  VoidBloom.prototype.addBurst = function (x, y, color, count, speed, meta) {
+    meta = meta || {};
+    var style = familyStyle(meta.family, color);
+    var tier = Math.max(1, meta.tier || 1);
+    var total = Math.floor(count * (reduceMotion ? 0.35 : 1.35 + tier * 0.08));
+    total = reduceMotion ? Math.min(14, total) : Math.min(160, Math.max(4, total));
+    for (var i = 0; i < total; i += 1) {
       var angle = this.random() * Math.PI * 2;
-      var velocity = (30 + this.random() * 80) * (speed || 3);
+      var velocity = (36 + this.random() * (100 + tier * 24)) * (speed || 3);
+      var particleType = meta.type || (i % 5 === 0 ? style.particle : i % 7 === 0 ? "rune" : "dot");
+      this.pushParticle({
+        x: x + Math.cos(angle) * this.random() * 10,
+        y: y + Math.sin(angle) * this.random() * 10,
+        tx: x + Math.cos(angle) * velocity * 0.16,
+        ty: y + Math.sin(angle) * velocity * 0.16,
+        vx: Math.cos(angle) * velocity,
+        vy: Math.sin(angle) * velocity,
+        color: color || style.color,
+        altColor: style.alt,
+        family: style.family,
+        life: 0.34 + this.random() * (0.38 + tier * 0.04),
+        maxLife: 0.78 + tier * 0.04,
+        size: 1.8 + this.random() * (4.5 + tier),
+        width: 2 + this.random() * (3 + tier),
+        spin: (this.random() - 0.5) * (5 + tier),
+        seed: this.random() * 1000,
+        type: particleType,
+        blend: "lighter",
+        priority: meta.priority || (tier >= 3 ? 2 : 1)
+      });
+    }
+    if (!reduceMotion && total >= 28) {
       this.particles.push({
         x: x,
         y: y,
-        vx: Math.cos(angle) * velocity,
-        vy: Math.sin(angle) * velocity,
-        color: color,
-        life: 0.28 + this.random() * 0.38,
-        maxLife: 0.66,
-        size: 1.5 + this.random() * 3,
-        type: "dot"
+        radius: 28 + Math.sqrt(total) * 9 + tier * 18,
+        color: color || style.color,
+        altColor: style.alt,
+        family: style.family,
+        life: 0.32 + tier * 0.04,
+        maxLife: 0.32 + tier * 0.04,
+        type: "ring",
+        priority: 2
       });
     }
   };
 
+  VoidBloom.prototype.addScreenWash = function (color, family, tier) {
+    if (reduceMotion) return;
+    var style = familyStyle(family, color);
+    var life = 0.22 + Math.min(0.2, (tier || 1) * 0.04);
+    this.screenWash = {
+      color: color || style.color,
+      altColor: style.alt,
+      family: style.family,
+      life: life,
+      maxLife: life,
+      tier: tier || 1
+    };
+  };
+
   VoidBloom.prototype.addMysticBurst = function (x, y, color, family, tier, label) {
-    tier = tier || 1;
-    family = family || "sword";
-    var radius = this.areaValue(120 + tier * 34);
+    tier = Math.max(1, tier || 1);
+    var style = familyStyle(family, color);
+    var radius = this.areaValue(145 + tier * 48);
+    var life = 0.86 + tier * 0.12;
     this.fields.push({
       type: "sigil",
       x: x,
       y: y,
       radius: radius,
-      life: 0.78 + tier * 0.08,
-      maxLife: 0.78 + tier * 0.08,
-      color: color,
-      family: family,
+      life: life,
+      maxLife: life,
+      color: color || style.color,
+      altColor: style.alt,
+      family: style.family,
       tier: tier,
       label: label || "",
+      seed: this.random() * 1000
+    });
+    this.fields.push({
+      type: "shockwave",
+      x: x,
+      y: y,
+      radius: radius * (1.12 + tier * 0.08),
+      life: 0.52 + tier * 0.07,
+      maxLife: 0.52 + tier * 0.07,
+      color: color || style.color,
+      altColor: style.alt,
+      family: style.family,
+      tier: tier,
       seed: this.random() * 1000
     });
     this.fields.push({
       type: "nova",
       x: x,
       y: y,
-      radius: radius * 0.72,
+      radius: radius * 0.9,
       damage: 0,
-      life: 0.48,
-      maxLife: 0.48,
-      color: color,
-      altColor: family === "blood" ? "#ff8aa0" : family === "void" ? "#d8b4ff" : "#fff3a3",
+      life: 0.58 + tier * 0.04,
+      maxLife: 0.58 + tier * 0.04,
+      color: color || style.color,
+      altColor: style.alt,
+      family: style.family,
+      tier: tier,
       tick: 0
     });
-    var count = reduceMotion ? 12 : 28 + tier * 14;
+    var count = reduceMotion ? 18 : 44 + tier * 28;
     for (var i = 0; i < count; i += 1) {
-      var angle = i * Math.PI * 2 / count + this.random() * 0.18;
-      var distance = radius * (0.18 + this.random() * 0.58);
-      this.particles.push({
-        x: x + Math.cos(angle) * distance * 0.2,
-        y: y + Math.sin(angle) * distance * 0.2,
-        tx: x + Math.cos(angle) * distance,
-        ty: y + Math.sin(angle) * distance,
-        vx: Math.cos(angle) * (80 + tier * 32),
-        vy: Math.sin(angle) * (80 + tier * 32),
-        color: color,
-        life: 0.42 + this.random() * 0.22,
-        maxLife: 0.64,
-        size: 2 + this.random() * (family === "sword" ? 3.8 : 2.4),
-        type: family === "sword" ? "sword" : family === "thunder" ? "bolt" : family === "void" ? "rift" : family === "lotus" ? "petal" : "rune"
-      });
+      var angle = i * Math.PI * 2 / count + this.random() * 0.24;
+      var distance = radius * (0.22 + this.random() * 0.78);
+      var type = i % 4 === 0 ? style.particle : i % 5 === 0 ? "rune" : "streak";
+      this.addParticle(
+        x + Math.cos(angle) * distance * 0.12,
+        y + Math.sin(angle) * distance * 0.12,
+        x + Math.cos(angle) * distance,
+        y + Math.sin(angle) * distance,
+        color || style.color,
+        0.5 + this.random() * 0.28,
+        3 + this.random() * (tier + 3),
+        type,
+        { family: style.family, altColor: style.alt, priority: 3, width: 4 + tier, spin: (this.random() - 0.5) * 8 }
+      );
     }
+    this.addScreenWash(color || style.color, style.family, tier);
+    this.shake(3 + tier * 2.1);
+    this.playSfx(style.family, 0.9 + tier * 0.24);
   };
 
   VoidBloom.prototype.getAscensionDamageFactor = function (id) {
@@ -5072,6 +5282,30 @@
     this.drawParticles(ctx);
     this.drawDamageTexts(ctx);
     ctx.restore();
+    this.drawScreenWash(ctx);
+  };
+
+  VoidBloom.prototype.drawScreenWash = function (ctx) {
+    if (!this.screenWash) return;
+    var f = this.screenWash;
+    var ratio = clamp(f.life / f.maxLife, 0, 1);
+    var pulse = Math.sin((1 - ratio) * Math.PI);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = (0.06 + (f.tier || 1) * 0.018) * ratio;
+    var grd = ctx.createRadialGradient(this.width * 0.5, this.height * 0.5, 20, this.width * 0.5, this.height * 0.5, Math.max(this.width, this.height) * 0.78);
+    grd.addColorStop(0, f.altColor || "#ffffff");
+    grd.addColorStop(0.42, f.color || "#fff3a3");
+    grd.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, this.width, this.height);
+    ctx.globalAlpha = 0.1 * ratio * pulse;
+    ctx.strokeStyle = f.altColor || "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(this.width * 0.5, this.height * 0.5, Math.max(this.width, this.height) * (0.2 + pulse * 0.48), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   };
 
   VoidBloom.prototype.drawBackground = function (ctx) {
@@ -5381,6 +5615,25 @@
         ctx.stroke();
         ctx.restore();
       }
+      if (e.impactGlow > 0 && this.isNearView(e.x, e.y, 80)) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = clamp(e.impactGlow, 0, 1) * 0.72;
+        ctx.strokeStyle = e.impactColor || "#fff3a3";
+        ctx.shadowBlur = e.type === "boss" ? 34 : 22;
+        ctx.shadowColor = e.impactColor || "#fff3a3";
+        ctx.lineWidth = e.type === "boss" ? 4 : 3;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius + 8 + Math.sin(this.time * 16) * 2, 0, Math.PI * 2);
+        ctx.stroke();
+        if (e.type === "boss" || e.type === "elite") {
+          ctx.globalAlpha *= 0.48;
+          ctx.beginPath();
+          ctx.arc(e.x, e.y, e.radius + 18 + Math.sin(this.time * 10) * 3, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
       if (e.type === "elite" || e.type === "boss" || e.type === "prismGuard" || e.type === "nestMother") {
         ctx.fillStyle = "rgba(255,255,255,0.15)";
         ctx.fillRect(e.x - e.radius, e.y - e.radius - 12, e.radius * 2, 4);
@@ -5400,13 +5653,67 @@
   VoidBloom.prototype.drawProjectiles = function (ctx) {
     for (var i = 0; i < this.projectiles.length; i += 1) {
       var p = this.projectiles[i];
+      var style = familyStyle(p.family, p.color);
+      var angle = Math.atan2(p.vy || 0, p.vx || 1);
+      var speed = Math.hypot(p.vx || 0, p.vy || 0);
+      var trail = clamp(speed / 34, 12, 34);
       ctx.save();
-      ctx.shadowBlur = 14;
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineCap = "round";
+      ctx.shadowBlur = 18;
       ctx.shadowColor = p.color;
-      ctx.fillStyle = p.color;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = Math.max(2, p.radius * 0.68);
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(p.x - Math.cos(angle) * trail, p.y - Math.sin(angle) * trail);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(angle);
+      ctx.fillStyle = p.color;
+      if (style.family === "sword") {
+        ctx.beginPath();
+        ctx.moveTo(p.radius * 2.4, 0);
+        ctx.lineTo(-p.radius * 0.75, -p.radius * 0.58);
+        ctx.lineTo(-p.radius * 0.25, 0);
+        ctx.lineTo(-p.radius * 0.75, p.radius * 0.58);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = style.alt;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      } else if (style.family === "thunder") {
+        ctx.strokeStyle = style.alt;
+        ctx.lineWidth = Math.max(2, p.radius * 0.54);
+        ctx.beginPath();
+        ctx.moveTo(-p.radius * 1.7, -p.radius * 0.25);
+        ctx.lineTo(-p.radius * 0.3, p.radius * 0.12);
+        ctx.lineTo(p.radius * 0.45, -p.radius * 0.62);
+        ctx.lineTo(p.radius * 1.9, 0);
+        ctx.stroke();
+      } else if (style.family === "lotus" || p.type === "splitter" || p.type === "split") {
+        ctx.beginPath();
+        for (var petal = 0; petal < 6; petal += 1) {
+          var pa = petal * Math.PI / 3;
+          ctx.ellipse(Math.cos(pa) * p.radius * 0.5, Math.sin(pa) * p.radius * 0.5, p.radius * 1.0, p.radius * 0.42, pa, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      } else if (style.family === "machine") {
+        ctx.rotate(this.time * 3 + p.seed);
+        ctx.strokeStyle = style.alt;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-p.radius, -p.radius, p.radius * 2, p.radius * 2);
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius * 0.62, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius * 1.15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = style.alt;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      }
       ctx.restore();
     }
   };
@@ -5605,53 +5912,118 @@
         ctx.restore();
         continue;
       }
-      if (f.type === "sigil") {
-        var turn = this.time * (f.family === "sword" ? 1.4 : f.family === "thunder" ? 2.1 : 0.85) + (f.seed || 0);
-        ctx.globalAlpha = 0.18 + ratio * 0.48;
+      if (f.type === "shockwave") {
+        var swStyle = familyStyle(f.family, f.color);
+        var swPulse = 1 - ratio;
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.22 + ratio * 0.56;
         ctx.strokeStyle = f.color;
-        ctx.shadowBlur = 24 + (f.tier || 1) * 5;
+        ctx.shadowBlur = 34 + (f.tier || 1) * 12;
         ctx.shadowColor = f.color;
-        ctx.lineWidth = 2 + Math.min(3, f.tier || 1);
+        ctx.lineWidth = 7 + (f.tier || 1) * 2;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.radius * (0.2 + swPulse * 0.84), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.18 + ratio * 0.32;
+        ctx.strokeStyle = swStyle.alt;
+        ctx.lineWidth = 2;
+        for (var sw = 0; sw < 3 + (f.tier || 1); sw += 1) {
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.radius * (0.18 + swPulse * 0.55 + sw * 0.08), swPulse * 4 + sw, swPulse * 4 + sw + Math.PI * 1.2);
+          ctx.stroke();
+        }
+        ctx.restore();
+        continue;
+      }
+      if (f.type === "sigil") {
+        var sigilStyle = familyStyle(f.family, f.color);
+        var sigilTier = f.tier || 1;
+        var turn = this.time * (sigilStyle.family === "sword" ? 1.8 : sigilStyle.family === "thunder" ? 2.7 : sigilStyle.family === "machine" ? 2.2 : 1.05) + (f.seed || 0);
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.22 + ratio * 0.64;
+        ctx.strokeStyle = f.color;
+        ctx.shadowBlur = 28 + sigilTier * 8;
+        ctx.shadowColor = f.color;
+        ctx.lineWidth = 2 + Math.min(5, sigilTier * 1.2);
         ctx.beginPath();
         ctx.arc(f.x, f.y, f.radius * (1.02 - ratio * 0.18), 0, Math.PI * 2);
         ctx.stroke();
-        var sides = f.family === "talisman" ? 8 : f.family === "lotus" ? 12 : f.family === "void" ? 9 : 6;
+        ctx.globalAlpha = 0.12 + ratio * 0.22;
+        ctx.fillStyle = f.color;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.radius * 0.78, 0, Math.PI * 2);
+        ctx.fill();
+        var sides = sigilStyle.sides || 6;
         ctx.save();
         ctx.translate(f.x, f.y);
         ctx.rotate(turn);
         ctx.beginPath();
         for (var sg = 0; sg < sides; sg += 1) {
           var sa = sg * Math.PI * 2 / sides;
-          var sr = f.radius * (sg % 2 && f.family === "lotus" ? 0.54 : 0.72);
+          var sr = f.radius * (sg % 2 && sigilStyle.family === "lotus" ? 0.46 : 0.73);
           ctx.lineTo(Math.cos(sa) * sr, Math.sin(sa) * sr);
         }
         ctx.closePath();
         ctx.stroke();
-        if (f.family === "sword") {
-          for (var sw = 0; sw < 4; sw += 1) {
+        ctx.rotate(-turn * 1.65);
+        ctx.strokeStyle = sigilStyle.alt;
+        ctx.lineWidth = 1.2 + sigilTier * 0.25;
+        for (var ring = 0; ring < Math.min(5, 2 + sigilTier); ring += 1) {
+          ctx.beginPath();
+          ctx.arc(0, 0, f.radius * (0.28 + ring * 0.14), ring + turn, ring + turn + Math.PI * 1.35);
+          ctx.stroke();
+        }
+        ctx.rotate(turn * 0.75);
+        if (sigilStyle.family === "sword") {
+          for (var sword = 0; sword < 4 + sigilTier; sword += 1) {
+            var swordAngle = sword * Math.PI * 2 / (4 + sigilTier);
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.lineTo(Math.cos(sw * Math.PI / 2) * f.radius * 0.96, Math.sin(sw * Math.PI / 2) * f.radius * 0.96);
+            ctx.lineTo(Math.cos(swordAngle) * f.radius * 0.98, Math.sin(swordAngle) * f.radius * 0.98);
             ctx.stroke();
           }
-        } else if (f.family === "thunder") {
-          for (var th = 0; th < 5; th += 1) {
-            var tx = Math.cos(th * Math.PI * 2 / 5) * f.radius * 0.78;
-            var ty = Math.sin(th * Math.PI * 2 / 5) * f.radius * 0.78;
+        } else if (sigilStyle.family === "thunder") {
+          for (var th = 0; th < 7; th += 1) {
+            var tx = Math.cos(th * Math.PI * 2 / 7) * f.radius * 0.82;
+            var ty = Math.sin(th * Math.PI * 2 / 7) * f.radius * 0.82;
             ctx.beginPath();
             ctx.moveTo(tx * 0.45, ty * 0.45);
-            ctx.lineTo(tx * 0.7, ty * 0.2);
+            ctx.lineTo(tx * 0.68, ty * 0.18);
             ctx.lineTo(tx, ty);
             ctx.stroke();
           }
-        } else if (f.family === "void") {
-          ctx.globalAlpha *= 0.7;
-          for (var vr = 0; vr < 3; vr += 1) {
+        } else if (sigilStyle.family === "lotus" || sigilStyle.family === "blood") {
+          ctx.fillStyle = f.color;
+          for (var lp = 0; lp < 10 + sigilTier * 3; lp += 1) {
+            var lpA = lp * Math.PI * 2 / (10 + sigilTier * 3);
+            ctx.save();
+            ctx.rotate(lpA);
+            ctx.globalAlpha = 0.22 + ratio * 0.3;
             ctx.beginPath();
-            ctx.arc(0, 0, f.radius * (0.26 + vr * 0.18), turn + vr, turn + vr + Math.PI * 1.35);
+            ctx.ellipse(f.radius * 0.48, 0, f.radius * 0.18, f.radius * 0.055, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        } else if (sigilStyle.family === "void") {
+          ctx.globalAlpha *= 0.7;
+          for (var vr = 0; vr < 5; vr += 1) {
+            ctx.beginPath();
+            ctx.arc(0, 0, f.radius * (0.2 + vr * 0.15), turn + vr * 0.75, turn + vr * 0.75 + Math.PI * 1.55);
             ctx.stroke();
           }
+        } else if (sigilStyle.family === "talisman" || sigilStyle.family === "treasure") {
+          for (var tal = 0; tal < 8; tal += 1) {
+            var talA = tal * Math.PI / 4;
+            var talR = f.radius * 0.72;
+            ctx.strokeRect(Math.cos(talA) * talR - 8, Math.sin(talA) * talR - 5, 16, 10);
+          }
         }
+        ctx.globalAlpha = 0.8 * ratio;
+        ctx.fillStyle = sigilStyle.alt;
+        ctx.font = "700 " + Math.max(18, Math.min(40, f.radius * 0.16)) + "px Georgia, serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(f.label ? f.label.slice(0, 2) : sigilStyle.mark, 0, 0);
         ctx.restore();
         ctx.restore();
         continue;
@@ -5681,10 +6053,11 @@
       }
       if (f.type === "mine") {
         var pulse = 0.72 + Math.sin(this.time * 8 + f.x) * 0.18;
-        ctx.globalAlpha = 0.38 + ratio * 0.26;
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.42 + ratio * 0.34;
         ctx.strokeStyle = f.color;
         ctx.fillStyle = "rgba(244,114,255,0.16)";
-        ctx.shadowBlur = 18;
+        ctx.shadowBlur = 24;
         ctx.shadowColor = f.color;
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -5692,41 +6065,59 @@
         ctx.fill();
         ctx.stroke();
         ctx.beginPath();
-        for (var ms = 0; ms < 6; ms += 1) {
-          var ma = ms * Math.PI / 3 + this.time;
-          var mr = ms % 2 ? 8 : 15;
+        for (var ms = 0; ms < 8; ms += 1) {
+          var ma = ms * Math.PI / 4 + this.time;
+          var mr = ms % 2 ? 10 : 18;
           ctx.lineTo(f.x + Math.cos(ma) * mr, f.y + Math.sin(ma) * mr);
         }
         ctx.closePath();
         ctx.stroke();
+        ctx.strokeStyle = "#fff3a3";
+        ctx.globalAlpha *= 0.65;
+        ctx.strokeRect(f.x - 11, f.y - 11, 22, 22);
         ctx.restore();
         continue;
       }
       if (f.type === "rift" || f.type === "trail") {
-        ctx.globalAlpha = 0.18 + ratio * 0.36;
+        var riftStyle = familyStyle(f.family || (f.type === "rift" ? "void" : "talisman"), f.color);
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.24 + ratio * 0.48;
         ctx.strokeStyle = f.color;
         ctx.lineWidth = (f.width || 18) * (f.type === "rift" ? 1.0 : 0.75);
         ctx.lineCap = "round";
-        ctx.shadowBlur = f.type === "rift" ? 24 : 16;
+        ctx.shadowBlur = f.type === "rift" ? 34 : 22;
         ctx.shadowColor = f.color;
         ctx.beginPath();
         ctx.moveTo(f.x1, f.y1);
         ctx.lineTo(f.x2, f.y2);
         ctx.stroke();
-        ctx.globalAlpha = 0.88;
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = f.type === "rift" ? "#f5e8ff" : "#ffd0a8";
+        ctx.globalAlpha = 0.94;
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = f.type === "rift" ? riftStyle.alt : "#ffd0a8";
         ctx.beginPath();
         ctx.moveTo(f.x1, f.y1);
         ctx.lineTo(f.x2, f.y2);
         ctx.stroke();
+        for (var crack = 0; crack < 4; crack += 1) {
+          var cr = (crack + 1) / 5;
+          var cx = lerp(f.x1, f.x2, cr);
+          var cy = lerp(f.y1, f.y2, cr);
+          var ca = Math.atan2(f.y2 - f.y1, f.x2 - f.x1) + (crack % 2 ? Math.PI / 2 : -Math.PI / 2);
+          var cl = (f.width || 18) * (0.7 + crack * 0.18);
+          ctx.globalAlpha = 0.28 + ratio * 0.26;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + Math.cos(ca) * cl, cy + Math.sin(ca) * cl);
+          ctx.stroke();
+        }
         ctx.restore();
         continue;
       }
       if (f.type === "slash") {
-        ctx.globalAlpha = 0.18 + ratio * 0.45;
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.24 + ratio * 0.55;
         ctx.fillStyle = f.color;
-        ctx.shadowBlur = 22;
+        ctx.shadowBlur = 28;
         ctx.shadowColor = f.color;
         ctx.beginPath();
         ctx.moveTo(f.x, f.y);
@@ -5734,45 +6125,86 @@
         ctx.closePath();
         ctx.fill();
         ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3;
         ctx.stroke();
+        ctx.globalAlpha = 0.72 * ratio;
+        for (var blade = 0; blade < 3; blade += 1) {
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.radius * (0.55 + blade * 0.18), f.angle - f.angleWidth * 0.75, f.angle + f.angleWidth * 0.75);
+          ctx.stroke();
+        }
         ctx.restore();
         continue;
       }
       if (f.type === "nova") {
-        ctx.globalAlpha = 0.24 + ratio * 0.46;
+        var novaStyle = familyStyle(f.family, f.color);
+        var expansion = 1 - ratio;
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.3 + ratio * 0.58;
         ctx.strokeStyle = f.color;
-        ctx.lineWidth = 5;
-        ctx.shadowBlur = 26;
+        ctx.lineWidth = 6 + Math.min(5, f.tier || 1);
+        ctx.shadowBlur = 34 + (f.tier || 1) * 5;
         ctx.shadowColor = f.color;
         ctx.beginPath();
-        ctx.arc(f.x, f.y, f.radius * (1.05 - ratio * 0.25), 0, Math.PI * 2);
+        ctx.arc(f.x, f.y, f.radius * (0.35 + expansion * 0.9), 0, Math.PI * 2);
         ctx.stroke();
-        ctx.strokeStyle = f.altColor || "#ff7a38";
+        ctx.strokeStyle = f.altColor || novaStyle.alt || "#ff7a38";
         ctx.lineWidth = 3;
-        ctx.shadowColor = f.altColor || "#ff7a38";
+        ctx.shadowColor = f.altColor || novaStyle.alt || "#ff7a38";
         ctx.beginPath();
-        ctx.arc(f.x, f.y, f.radius * (0.72 + (1 - ratio) * 0.22), 0, Math.PI * 2);
+        ctx.arc(f.x, f.y, f.radius * (0.18 + expansion * 0.58), 0, Math.PI * 2);
         ctx.stroke();
+        if (novaStyle.family === "lotus" || novaStyle.family === "blood") {
+          ctx.save();
+          ctx.translate(f.x, f.y);
+          ctx.rotate(this.time * 1.6 + (f.seed || 0));
+          ctx.fillStyle = f.color;
+          ctx.globalAlpha = 0.12 + ratio * 0.25;
+          for (var np = 0; np < 14; np += 1) {
+            ctx.rotate(Math.PI * 2 / 14);
+            ctx.beginPath();
+            ctx.ellipse(f.radius * (0.25 + expansion * 0.52), 0, f.radius * 0.16, f.radius * 0.045, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
         ctx.restore();
         continue;
       }
       if (f.type === "blackhole") {
         var swirl = this.time * 3 + (f.seed || 0);
-        ctx.globalAlpha = 0.18 + ratio * 0.36;
-        ctx.fillStyle = f.eventHorizon ? "rgba(178,108,255,0.22)" : "rgba(124,60,255,0.18)";
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.22 + ratio * 0.46;
+        ctx.fillStyle = f.eventHorizon ? "rgba(178,108,255,0.28)" : "rgba(124,60,255,0.2)";
         ctx.strokeStyle = f.color;
-        ctx.shadowBlur = f.eventHorizon ? 44 : 32;
+        ctx.shadowBlur = f.eventHorizon ? 58 : 38;
         ctx.shadowColor = f.color;
-        ctx.lineWidth = f.eventHorizon ? 4 : 3;
+        ctx.lineWidth = f.eventHorizon ? 5 : 3;
         ctx.beginPath();
         ctx.arc(f.x, f.y, f.radius * (1.04 - ratio * 0.1), 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-        for (var bh = 0; bh < (f.eventHorizon ? 6 : 4); bh += 1) {
-          ctx.globalAlpha = 0.26 + ratio * 0.24;
+        for (var bh = 0; bh < (f.eventHorizon ? 8 : 5); bh += 1) {
+          ctx.globalAlpha = 0.26 + ratio * 0.28;
           ctx.beginPath();
-          ctx.arc(f.x, f.y, f.radius * (0.25 + bh * 0.17), swirl + bh, swirl + bh + Math.PI * 1.35);
+          ctx.arc(f.x, f.y, f.radius * (0.18 + bh * 0.13), swirl + bh * 0.7, swirl + bh * 0.7 + Math.PI * 1.55);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 0.34 + ratio * 0.22;
+        ctx.strokeStyle = "#d8b4ff";
+        ctx.lineWidth = 2;
+        for (var ink = 0; ink < 9; ink += 1) {
+          var ia = swirl * 0.34 + ink * Math.PI * 2 / 9;
+          var ir1 = f.radius * 0.18;
+          var ir2 = f.radius * (0.78 + (ink % 3) * 0.09);
+          ctx.beginPath();
+          ctx.moveTo(f.x + Math.cos(ia) * ir1, f.y + Math.sin(ia) * ir1);
+          ctx.quadraticCurveTo(
+            f.x + Math.cos(ia + 0.45) * f.radius * 0.45,
+            f.y + Math.sin(ia - 0.35) * f.radius * 0.45,
+            f.x + Math.cos(ia + 0.16) * ir2,
+            f.y + Math.sin(ia + 0.16) * ir2
+          );
           ctx.stroke();
         }
         if (f.eventHorizon) {
@@ -5788,6 +6220,39 @@
         ctx.beginPath();
         ctx.arc(f.x, f.y, Math.max(10, f.radius * 0.12), 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
+        continue;
+      }
+      if (f.type === "storm") {
+        var stormPulse = 1 - ratio;
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.24 + ratio * 0.44;
+        ctx.strokeStyle = f.color || "#ffd166";
+        ctx.fillStyle = "rgba(255,209,102,0.1)";
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = f.color || "#ffd166";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.radius * (0.82 + stormPulse * 0.14), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = "#66f0ff";
+        ctx.lineWidth = 2;
+        for (var bolt = 0; bolt < 7; bolt += 1) {
+          var ba = bolt * Math.PI * 2 / 7 + this.time * 2.8 + (f.seed || 0);
+          ctx.beginPath();
+          ctx.moveTo(f.x + Math.cos(ba) * f.radius * 0.18, f.y + Math.sin(ba) * f.radius * 0.18);
+          ctx.lineTo(f.x + Math.cos(ba + 0.28) * f.radius * 0.56, f.y + Math.sin(ba - 0.22) * f.radius * 0.56);
+          ctx.lineTo(f.x + Math.cos(ba) * f.radius * 0.92, f.y + Math.sin(ba) * f.radius * 0.92);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 0.16 + ratio * 0.26;
+        ctx.strokeStyle = f.color || "#ffd166";
+        for (var net = 0; net < 3; net += 1) {
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.radius * (0.28 + net * 0.21), this.time + net, this.time + net + Math.PI * 1.5);
+          ctx.stroke();
+        }
         ctx.restore();
         continue;
       }
@@ -5824,47 +6289,79 @@
     for (var i = 0; i < this.particles.length; i += 1) {
       var p = this.particles[i];
       var alpha = clamp(p.life / (p.maxLife || 1), 0, 1);
+      var style = familyStyle(p.family, p.color);
       ctx.save();
       ctx.globalAlpha = alpha;
-      if (p.type === "laser" || p.type === "bolt" || p.type === "sword" || p.type === "rift") {
+      ctx.globalCompositeOperation = p.blend || "source-over";
+      if (p.type === "laser" || p.type === "bolt" || p.type === "sword" || p.type === "rift" || p.type === "streak") {
+        var lineWidth = p.width || p.size || 3;
         ctx.strokeStyle = p.color;
-        ctx.lineWidth = p.type === "sword" ? (p.size || 3) * 1.35 : p.size || 3;
-        ctx.shadowBlur = p.type === "rift" ? 24 : 16;
+        ctx.lineWidth = p.type === "sword" ? lineWidth * 1.45 : p.type === "laser" ? lineWidth : lineWidth;
+        ctx.lineCap = "round";
+        ctx.shadowBlur = p.type === "rift" ? 30 : p.type === "laser" ? 24 : 18;
         ctx.shadowColor = p.color;
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
         ctx.lineTo(p.tx, p.ty);
         ctx.stroke();
-        if (p.type === "sword") {
-          ctx.lineWidth = 1.2;
-          ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = Math.max(1.1, lineWidth * 0.28);
+        ctx.strokeStyle = p.altColor || style.alt || "#ffffff";
+        ctx.globalAlpha = alpha * (p.type === "rift" ? 0.92 : 0.82);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.tx, p.ty);
+        ctx.stroke();
+        if (p.type === "bolt") {
+          var angle = Math.atan2(p.ty - p.y, p.tx - p.x);
+          var length = Math.hypot(p.tx - p.x, p.ty - p.y);
+          ctx.lineWidth = Math.max(1, lineWidth * 0.22);
+          ctx.beginPath();
+          for (var b = 1; b < 4; b += 1) {
+            var bx = p.x + Math.cos(angle) * length * b / 4;
+            var by = p.y + Math.sin(angle) * length * b / 4;
+            var side = angle + (b % 2 ? Math.PI / 2 : -Math.PI / 2);
+            ctx.moveTo(bx, by);
+            ctx.lineTo(bx + Math.cos(side) * lineWidth * (2 + b), by + Math.sin(side) * lineWidth * (2 + b));
+          }
           ctx.stroke();
         }
       } else if (p.type === "rune" || p.type === "petal") {
         ctx.save();
         ctx.translate(p.x, p.y);
-        ctx.rotate(this.time * 3 + i);
+        ctx.rotate(this.time * (p.spin || 3) + (p.seed || i));
         ctx.fillStyle = p.color;
-        ctx.shadowBlur = 14;
+        ctx.shadowBlur = 16;
         ctx.shadowColor = p.color;
         ctx.beginPath();
         if (p.type === "petal") {
-          ctx.ellipse(0, 0, (p.size || 2) * 1.8, p.size || 2, 0, 0, Math.PI * 2);
+          ctx.ellipse(0, 0, (p.size || 2) * 2.2, p.size || 2, 0, 0, Math.PI * 2);
         } else {
           var r = p.size || 2;
-          for (var rn = 0; rn < 4; rn += 1) {
-            var ra = rn * Math.PI / 2;
+          var sides = style.family === "talisman" || style.family === "treasure" ? 4 : 6;
+          for (var rn = 0; rn < sides; rn += 1) {
+            var ra = rn * Math.PI * 2 / sides;
             ctx.lineTo(Math.cos(ra) * r, Math.sin(ra) * r);
           }
         }
         ctx.closePath();
         ctx.fill();
+        ctx.strokeStyle = p.altColor || style.alt;
+        ctx.lineWidth = 1;
+        ctx.stroke();
         ctx.restore();
       } else if (p.type === "ring") {
         ctx.strokeStyle = p.color;
-        ctx.lineWidth = 3;
+        ctx.shadowBlur = 26;
+        ctx.shadowColor = p.color;
+        ctx.lineWidth = 3 + (p.priority || 0);
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius * (1 - alpha * 0.35), 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, p.radius * (1.04 - alpha * 0.34), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = alpha * 0.48;
+        ctx.strokeStyle = p.altColor || style.alt;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius * (0.72 + (1 - alpha) * 0.2), 0, Math.PI * 2);
         ctx.stroke();
       } else if (p.type === "doom") {
         ctx.strokeStyle = p.color;
@@ -5879,6 +6376,8 @@
         ctx.stroke();
       } else {
         ctx.fillStyle = p.color;
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = p.color;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size || 2, 0, Math.PI * 2);
         ctx.fill();
@@ -5898,14 +6397,31 @@
       ctx.translate(p.x, p.y);
       ctx.scale(scale, scale);
       ctx.globalAlpha = alpha;
-      ctx.font = "700 " + (p.size || 12) + "px Trebuchet MS, Helvetica, sans-serif";
+      var isCrit = p.kind === "crit";
+      if (isCrit) {
+        ctx.rotate(Math.sin((p.maxLife - p.life) * 24) * 0.05);
+      }
+      ctx.font = (isCrit ? "900 " : "800 ") + (p.size || 12) + "px Trebuchet MS, Helvetica, sans-serif";
       if (p.stroke) {
-        ctx.lineWidth = 3;
+        ctx.lineWidth = isCrit ? 5 : 3;
         ctx.strokeStyle = p.stroke;
         ctx.strokeText(p.text, 0, 0);
       }
+      if (isCrit) {
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = p.color;
+      }
       ctx.fillStyle = p.color;
       ctx.fillText(p.text, 0, 0);
+      if (isCrit) {
+        ctx.globalAlpha *= 0.55;
+        ctx.strokeStyle = "#fff3a3";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(-12, -p.size * 0.44);
+        ctx.lineTo(12, -p.size * 0.44);
+        ctx.stroke();
+      }
       ctx.restore();
     }
     ctx.restore();
