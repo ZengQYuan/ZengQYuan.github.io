@@ -30,10 +30,6 @@
     return distSq(px, py, x, y);
   }
 
-  function angleDelta(a, b) {
-    return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
-  }
-
   function formatTime(seconds) {
     seconds = Math.max(0, Math.floor(seconds || 0));
     var minutes = Math.floor(seconds / 60);
@@ -150,7 +146,6 @@
 
     this.keys = Object.create(null);
     this.pointer = { active: false, id: null, originX: 0, originY: 0, x: 0, y: 0, vx: 0, vy: 0 };
-    this.mouse = { x: 0, y: 0 };
     this.dpr = 1;
     this.width = 900;
     this.height = 560;
@@ -189,12 +184,16 @@
 
   VoidBloom.prototype.addEvents = function () {
     var self = this;
+    this.onUserGesture = function () {
+      self.ensureAudio();
+    };
     this.onResize = function () {
       if (self.active) {
         self.resize();
       }
     };
     this.onKeyDown = function (event) {
+      self.ensureAudio();
       if (!self.active) {
         return;
       }
@@ -221,11 +220,6 @@
       }
       self.keys[event.key.toLowerCase()] = false;
     };
-    this.onMouseMove = function (event) {
-      var rect = self.canvas.getBoundingClientRect();
-      self.mouse.x = (event.clientX - rect.left) * self.width / Math.max(1, rect.width);
-      self.mouse.y = (event.clientY - rect.top) * self.height / Math.max(1, rect.height);
-    };
     this.onVisibility = function () {
       if (document.hidden && self.active) {
         self.pause();
@@ -240,7 +234,7 @@
     window.addEventListener("resize", this.onResize);
     window.addEventListener("keydown", this.onKeyDown, { passive: false });
     window.addEventListener("keyup", this.onKeyUp);
-    this.canvas.addEventListener("mousemove", this.onMouseMove);
+    this.root.addEventListener("pointerdown", this.onUserGesture, { passive: true });
     document.addEventListener("visibilitychange", this.onVisibility);
     window.addEventListener("blur", this.onBlur);
 
@@ -338,13 +332,17 @@
     this.upgrades = Object.create(null);
     this.weaponLevels = { pulse: 1 };
     this.evolutions = Object.create(null);
+    this.ascensions = Object.create(null);
+    this.ascensionLevels = Object.create(null);
+    this.ascensionRoutes = Object.create(null);
     this.banished = Object.create(null);
     this.currentChoices = null;
     this.lockedChoices = null;
     this.pendingChest = null;
+    this.enemySeq = 0;
     this.runTrait = null;
     this.traitChoices = null;
-    this.enemyCap = window.innerWidth < 760 ? 260 : (CONFIG.enemyCap || 420);
+    this.enemyCap = window.innerWidth < 760 ? 360 : (CONFIG.enemyCap || 420);
     this.projectileCap = window.innerWidth < 760 ? 520 : (CONFIG.projectileCap || 760);
     this.gemCap = window.innerWidth < 760 ? 240 : (CONFIG.gemCap || 360);
     this.pendingUpgrade = false;
@@ -416,7 +414,34 @@
       healBlockTimer: 0,
       hitTextTimer: 0,
       recentHitTimer: 0,
-      magnetTimer: 0
+      magnetTimer: 0,
+      pulseBeat: 0,
+      ascensionAreaBonus: 0,
+      ascensionCooldownBonus: 0,
+      ascensionProcBonus: 0,
+      ascensionGuardBonus: 0
+    };
+    this.director = {
+      heat: 0,
+      lastPerformance: 0,
+      recoveryTimer: 0,
+      recoveryMode: false,
+      recentDamage: 0,
+      recentHits: 0,
+      liveHeat: 0,
+      powerTier: 0,
+      pressureTimer: 0,
+      sampleTimer: 0,
+      evalTimer: 0,
+      chapterAdjustment: 0,
+      chapterAdjustmentLabel: "平衡",
+      samples: [],
+      history: []
+    };
+    this.chapter = this.createChapterState(1, 0);
+    this.recoveryWindow = {
+      startedAt: 0,
+      capped: 0
     };
     this.player = {
       x: this.world.width / 2,
@@ -443,8 +468,10 @@
     };
     this.tide = {
       active: false,
-      nextTime: 120,
+      nextTime: 68,
       index: 0,
+      theme: "healLock",
+      label: "禁疗危机",
       timer: 0,
       spawnTimer: 0,
       budget: 0,
@@ -456,7 +483,7 @@
     };
     this.spawnTimer = 0;
     this.eliteTimer = 62;
-    this.bossTimer = 180;
+    this.bossTimer = this.getChapterBossWindows(this.chapter.index).hard;
     this.frostTimer = 12;
     this.sparkCounter = 0;
     this.screenShake = 0;
@@ -473,33 +500,179 @@
     return Math.floor((xp.base || 22) + this.level * (xp.linear || 8) + Math.pow(this.level, 1.42) * (xp.curve || 3.1));
   };
 
+  VoidBloom.prototype.getChapterRules = function (chapterIndex) {
+    var chapterConfig = CONFIG.chapters || {};
+    var bases = chapterConfig.bases || [
+      { label: "碎光复苏", hp: 1, damage: 1, speed: 1, spawn: 1, eliteInterval: 62, affixes: 0, crisis: "healLock" }
+    ];
+    var index = Math.max(1, Math.floor(chapterIndex || (this.chapter && this.chapter.index) || 1));
+    var base = bases[Math.min(bases.length - 1, index - 1)] || bases[0];
+    var endlessLoop = Math.max(0, index - bases.length);
+    return Object.assign({}, base, {
+      index: index,
+      endlessLoop: endlessLoop,
+      duration: (chapterConfig.duration || (this.chapter && this.chapter.duration) || 180)
+    });
+  };
+
+  VoidBloom.prototype.getChapterGoal = function (chapterIndex) {
+    var bases = (CONFIG.chapters && CONFIG.chapters.bases) || [];
+    var index = Math.max(1, Math.floor(chapterIndex || 1));
+    var endlessLoop = Math.max(0, index - Math.max(1, bases.length || 1));
+    var heat = this.director ? Math.max(0, this.director.heat || 0) : 0;
+    return Math.round((70 + (index - 1) * 24 + endlessLoop * 28) * (1 + heat * 0.035));
+  };
+
+  VoidBloom.prototype.getChapterBossWindows = function (chapterIndex) {
+    var index = Math.max(1, Math.floor(chapterIndex || 1));
+    var heat = this.director ? (this.director.heat || 0) : 0;
+    var adjustment = this.director ? (this.director.chapterAdjustment || 0) : 0;
+    var adjustmentShift = clamp(-adjustment * 18, -7, 11);
+    return {
+      min: clamp(45 + index * 3.5 - Math.max(0, heat) * 3.4 + adjustmentShift, 36, 64),
+      soft: clamp(84 + index * 5.5 - Math.max(0, heat) * 4.6 + adjustmentShift * 1.4, 72, 126),
+      hard: clamp(122 + index * 7 - Math.max(0, heat) * 5.2 + adjustmentShift * 1.7, 108, 166)
+    };
+  };
+
+  VoidBloom.prototype.createChapterState = function (chapterIndex, startedAt) {
+    var rules = this.getChapterRules(chapterIndex);
+    return {
+      index: Math.max(1, Math.floor(chapterIndex || 1)),
+      startedAt: startedAt || 0,
+      duration: rules.duration || 180,
+      goal: this.getChapterGoal(chapterIndex),
+      progress: 0,
+      kills: 0,
+      eliteKills: 0,
+      bossSpawned: false,
+      bossAlive: false,
+      bossSpawnedAt: 0,
+      bossOvertime: 0,
+      pressure: 0,
+      pressureTimer: 0,
+      bossDelayUntil: 0,
+      bossDelayAnnounced: false,
+      goalReachedAt: 0,
+      bossSummonAt: 0,
+      metrics: {
+        damageDealt: 0,
+        damageTaken: 0,
+        hitsTaken: 0,
+        lowHpTime: 0,
+        enemySamples: 0,
+        enemyTotal: 0,
+        targetSamples: 0,
+        targetTotal: 0,
+        minHpRatio: 1,
+        insuranceUsedAtStart: this.stats ? !!this.stats.voidInsuranceUsed : false
+      }
+    };
+  };
+
+  VoidBloom.prototype.getChapterProgress = function () {
+    if (!this.chapter) return clamp((this.time % 180) / 180, 0, 1);
+    if (this.chapter.goal) {
+      return clamp((this.chapter.progress || 0) / Math.max(1, this.chapter.goal), 0, 1);
+    }
+    return clamp((this.time - this.chapter.startedAt) / Math.max(1, this.chapter.duration || 180), 0, 1);
+  };
+
   VoidBloom.prototype.getDifficultyState = function () {
-    var t = this.time || 0;
+    var rules = this.getChapterRules();
+    var chapter = rules.index || 1;
+    var progress = this.getChapterProgress();
+    var endless = (CONFIG.chapters && CONFIG.chapters.endless) || {};
     var greed = this.stats ? (this.stats.greedLevel || 0) : 0;
     var cursed = this.stats ? (this.stats.cursedDiceLevel || 0) : 0;
-    var late = Math.max(0, t - 240);
-    var deep = Math.max(0, t - 600);
+    var pressure = this.chapter ? (this.chapter.pressure || 0) : 0;
+    var endlessLoop = rules.endlessLoop || 0;
+    var heat = this.director ? (this.director.heat || 0) : 0;
+    var liveHeat = this.director ? (this.director.liveHeat || 0) : 0;
+    var adjustment = this.director ? (this.director.chapterAdjustment || 0) : 0;
+    var totalHeat = heat + liveHeat;
+    var recoveryMode = !!(this.director && this.director.recoveryTimer > 0);
+    var progressHp = 0.18 + Math.min(0.22, (chapter - 1) * 0.035);
+    var progressDamage = 0.065 + Math.min(0.13, (chapter - 1) * 0.018);
+    var progressSpawn = 0.18 + Math.min(0.2, (chapter - 1) * 0.025);
+    var heatHp = clamp(1 + totalHeat * 0.075, 0.88, 1.62);
+    var heatDamage = clamp(1 + heat * 0.035 + liveHeat * 0.018, 0.92, 1.18);
+    var heatSpeed = clamp(1 + totalHeat * 0.024, 0.96, 1.16);
+    var heatSpawn = clamp(1 + heat * 0.14 + liveHeat * 0.18, 0.78, 2.05);
+    var heatElite = clamp(1 - totalHeat * 0.06, 0.58, 1.25);
+    var recoverySpawn = recoveryMode ? 0.74 : 1;
+    var recoveryDamage = recoveryMode ? 0.9 : 1;
+    var recoverySpeed = recoveryMode ? 0.94 : 1;
+    var baseHp = (rules.hp + progress * progressHp) * (1 + endlessLoop * (endless.hp || 0.36)) * (1 + pressure * 0.075) + greed * 0.035;
+    var baseDamage = (rules.damage + progress * progressDamage) * (1 + endlessLoop * (endless.damage || 0.18)) * (1 + pressure * 0.065) + cursed * 0.025;
+    var baseSpeed = (rules.speed + progress * 0.06) * (1 + endlessLoop * (endless.speed || 0.055)) * (1 + Math.min(0.28, pressure * 0.022));
+    var baseSpawn = (rules.spawn + progress * progressSpawn) * (1 + Math.max(0, chapter - 1) * 0.1) * (1 + endlessLoop * (endless.spawn || 0.2)) * (1 + pressure * 0.11) + greed * 0.045;
     return {
-      hpMult: 1 + t / 135 + Math.pow(late / 185, 1.35) * 0.82 + greed * 0.035,
-      damageMult: 1 + Math.max(0, t - 90) / 280 + deep / 190 + cursed * 0.025,
-      speedMult: Math.min(2.05, 1 + t / 760 + Math.max(0, t - 360) / 1400),
-      spawnMult: 1 + Math.min(1.35, t / 440) + deep / 540 + greed * 0.045,
-      affixCount: t < 180 ? 0 : t < 420 ? 1 : t < 720 ? 2 : 3,
-      bossCycle: Math.max(1, Math.floor(t / 180) + 1)
+      chapter: chapter,
+      chapterLabel: rules.label || "虚空轮回",
+      chapterProgress: progress,
+      endlessLoop: endlessLoop,
+      bossPressure: pressure,
+      heat: heat,
+      liveHeat: liveHeat,
+      powerTier: this.director ? (this.director.powerTier || 0) : 0,
+      recoveryMode: recoveryMode,
+      hpMult: baseHp * heatHp * clamp(1 + adjustment * 0.28, 0.9, 1.1),
+      damageMult: baseDamage * heatDamage * recoveryDamage * clamp(1 + adjustment * 0.24, 0.9, 1.09),
+      speedMult: Math.min(2.34, baseSpeed * heatSpeed * recoverySpeed),
+      spawnMult: baseSpawn * heatSpawn * recoverySpawn * clamp(1 + adjustment * 0.34, 0.88, 1.12),
+      affixCount: Math.min(4, (rules.affixes || 0) + (progress > 0.72 ? 1 : 0) + endlessLoop * (endless.affixes || 1) + (pressure >= 3 ? 1 : 0) + (totalHeat > 1.6 ? 1 : 0)),
+      eliteInterval: clamp(((rules.eliteInterval || 48) - progress * 8 - endlessLoop * 4 - pressure * 1.5) * heatElite * (recoveryMode ? 1.22 : 1), 10, 74),
+      functionalMult: clamp(1 + heat * 0.18 + liveHeat * 0.32 + adjustment * 0.18, 0.72, 2.65) * (recoveryMode ? 0.68 : 1),
+      tideMult: clamp(1 + heat * 0.15 + liveHeat * 0.24, 0.8, 2.0) * (recoveryMode ? 0.72 : 1),
+      bossCooldownMult: clamp(1 - heat * 0.045 - liveHeat * 0.055, 0.66, 1.16) * (recoveryMode ? 1.18 : 1),
+      crisis: rules.crisis || "mixed",
+      bossCycle: chapter
     };
   };
 
   VoidBloom.prototype.recoveryMultiplier = function (source) {
-    var late = clamp(1 - Math.max(0, this.time - 360) / 900, 0.55, 1);
+    var chapter = this.chapter ? this.chapter.index : 1;
+    var pressure = this.chapter ? (this.chapter.pressure || 0) : 0;
+    var heat = this.director ? Math.max(0, this.director.heat || 0) : 0;
+    var late = clamp(1 - Math.max(0, chapter - 3) * 0.055 - Math.max(0, this.time - 720) / 1600, 0.56, 1);
+    var heatTax = 1 / (1 + heat * 0.055);
     var recent = source === "regen" && this.stats.recentHitTimer > 0 ? 0.35 : 1;
     var suppress = this.stats.healBlockTimer > 0 ? 0.45 : 1;
-    var tide = this.tide && this.tide.active ? 0.75 : 1;
-    return late * recent * suppress * tide;
+    var tide = this.tide && this.tide.active ? (this.tide.theme === "healLock" ? 0.54 : 0.76) : 1;
+    var boss = this.chapter && this.chapter.bossAlive ? 1 / (1 + pressure * 0.08) : 1;
+    return late * heatTax * recent * suppress * tide * boss;
+  };
+
+  VoidBloom.prototype.isCappedRecoverySource = function (source) {
+    return ["regen", "bloodDebt", "bloodDebtMajor", "scarlet", "scarletMajor", "harvest"].indexOf(source) !== -1;
+  };
+
+  VoidBloom.prototype.limitRecoveryByWindow = function (amount, source) {
+    if (!this.isCappedRecoverySource(source)) return amount;
+    this.recoveryWindow = this.recoveryWindow || { startedAt: this.time, capped: 0 };
+    if (this.time - this.recoveryWindow.startedAt > 8) {
+      this.recoveryWindow.startedAt = this.time;
+      this.recoveryWindow.capped = 0;
+    }
+    var chapter = this.chapter ? this.chapter.index : 1;
+    var heat = this.director ? Math.max(0, this.director.heat || 0) : 0;
+    var chapterTax = Math.min(0.1, Math.max(0, chapter - 1) * 0.018);
+    var heatTax = Math.min(0.08, heat * 0.018);
+    var cap = Math.max(8, this.stats.maxHp * (0.23 - chapterTax - heatTax) + 5 + this.level * 0.16);
+    if (this.chapter && this.chapter.bossAlive) cap *= 0.82;
+    if (this.tide && this.tide.active && this.tide.theme === "healLock") cap *= 0.62;
+    var room = Math.max(0, cap - this.recoveryWindow.capped);
+    var finalAmount = Math.min(amount, room);
+    this.recoveryWindow.capped += finalAmount;
+    return finalAmount;
   };
 
   VoidBloom.prototype.applyHealing = function (amount, source, x, y) {
     if (amount <= 0) return 0;
-    var finalAmount = amount * this.recoveryMultiplier(source || "heal");
+    source = source || "heal";
+    var finalAmount = this.limitRecoveryByWindow(amount * this.recoveryMultiplier(source), source);
+    if (finalAmount <= 0) return 0;
     var before = this.stats.hp;
     this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + finalAmount);
     var gained = this.stats.hp - before;
@@ -507,6 +680,269 @@
       this.addDamageText(x == null ? this.player.x : x, y == null ? this.player.y - 20 : y, "+" + Math.round(gained), "#78f7d2", { kind: "heal", priority: 2, size: 14 });
     }
     return gained;
+  };
+
+  VoidBloom.prototype.getActiveEnemyCount = function () {
+    var count = 0;
+    for (var i = 0; i < this.enemies.length; i += 1) {
+      if (this.enemies[i].active) count += 1;
+    }
+    return count;
+  };
+
+  VoidBloom.prototype.recordChapterMetrics = function (dt) {
+    if (!this.chapter || !this.chapter.metrics || this.state !== "playing") return;
+    var metrics = this.chapter.metrics;
+    var hpRatio = this.stats.hp / Math.max(1, this.stats.maxHp);
+    metrics.minHpRatio = Math.min(metrics.minHpRatio == null ? 1 : metrics.minHpRatio, hpRatio);
+    if (hpRatio < 0.34) {
+      metrics.lowHpTime += dt;
+    }
+    metrics.enemySamples += 1;
+    metrics.enemyTotal += this.getActiveEnemyCount();
+    var target = this.getEnemyPopulationTarget(this.getDifficultyState());
+    metrics.targetSamples += 1;
+    metrics.targetTotal += target;
+  };
+
+  VoidBloom.prototype.updateDirectorRecovery = function (dt) {
+    if (!this.director || !this.stats) return;
+    var director = this.director;
+    director.recentDamage = Math.max(0, (director.recentDamage || 0) - this.stats.maxHp * 0.12 * dt);
+    director.recentHits = Math.max(0, (director.recentHits || 0) - 0.9 * dt);
+    var hpRatio = this.stats.hp / Math.max(1, this.stats.maxHp);
+    var diff = this.getDifficultyState();
+    var activeCount = this.getActiveEnemyCount();
+    var targetCount = this.getEnemyPopulationTarget(diff);
+    var overwhelmed = targetCount > 0 && activeCount > targetCount * 1.34;
+    var danger = hpRatio < 0.28 ||
+      (hpRatio < 0.46 && director.recentDamage > this.stats.maxHp * 0.16) ||
+      director.recentHits >= 4.5 ||
+      overwhelmed;
+    if (danger) {
+      var room = hpRatio < 0.28 ? 7.2 : overwhelmed ? 5.2 : 4.4;
+      director.recoveryTimer = Math.max(director.recoveryTimer || 0, room);
+    }
+    director.recoveryTimer = Math.max(0, (director.recoveryTimer || 0) - dt);
+    director.recoveryMode = director.recoveryTimer > 0;
+  };
+
+  VoidBloom.prototype.getCurrentBoss = function () {
+    for (var i = 0; i < this.enemies.length; i += 1) {
+      var e = this.enemies[i];
+      if (e.active && e.type === "boss" && e.chapterBoss) return e;
+    }
+    return null;
+  };
+
+  VoidBloom.prototype.updateAdaptiveDirector = function (dt) {
+    if (!this.director || !this.chapter || this.state !== "playing") return;
+    var director = this.director;
+    director.sampleTimer = (director.sampleTimer || 0) - dt;
+    director.evalTimer = (director.evalTimer || 0) - dt;
+    director.pressureTimer = Math.max(0, (director.pressureTimer || 0) - dt);
+    if (director.sampleTimer <= 0) {
+      var diff = this.getDifficultyState();
+      var boss = this.getCurrentBoss();
+      director.samples = director.samples || [];
+      director.samples.push({
+        time: this.time,
+        kills: this.kills,
+        progress: this.chapter.progress || 0,
+        damageDealt: this.chapter.metrics ? (this.chapter.metrics.damageDealt || 0) : 0,
+        damageTaken: this.chapter.metrics ? (this.chapter.metrics.damageTaken || 0) : 0,
+        hpRatio: this.stats.hp / Math.max(1, this.stats.maxHp),
+        enemies: this.getActiveEnemyCount(),
+        target: this.getEnemyPopulationTarget(diff),
+        level: this.level,
+        bossHpRatio: boss ? boss.hp / Math.max(1, boss.maxHp) : null
+      });
+      while (director.samples.length && this.time - director.samples[0].time > 10) {
+        director.samples.shift();
+      }
+      director.sampleTimer = 1;
+    }
+    if (director.evalTimer > 0) return;
+    director.evalTimer = 3;
+    this.evaluateAdaptiveDirector();
+  };
+
+  VoidBloom.prototype.evaluateAdaptiveDirector = function () {
+    var director = this.director;
+    var samples = director && director.samples;
+    if (!samples || samples.length < 3) return;
+    var first = samples[0];
+    var last = samples[samples.length - 1];
+    var span = Math.max(1, last.time - first.time);
+    var goal = Math.max(1, this.chapter.goal || this.getChapterGoal(this.chapter.index));
+    var progressDelta = Math.max(0, last.progress - first.progress);
+    var killDelta = Math.max(0, last.kills - first.kills);
+    var damageDelta = Math.max(0, last.damageDealt - first.damageDealt);
+    var takenDelta = Math.max(0, last.damageTaken - first.damageTaken);
+    var enemyAvg = 0;
+    var targetAvg = 0;
+    var minHp = 1;
+    for (var i = 0; i < samples.length; i += 1) {
+      enemyAvg += samples[i].enemies || 0;
+      targetAvg += samples[i].target || 0;
+      minHp = Math.min(minHp, samples[i].hpRatio == null ? 1 : samples[i].hpRatio);
+    }
+    enemyAvg /= samples.length;
+    targetAvg = Math.max(1, targetAvg / samples.length);
+    var enemyRatio = enemyAvg / targetAvg;
+    var expectedProgress = goal * span / 78;
+    var progressPower = progressDelta / Math.max(1, expectedProgress);
+    var killPower = killDelta / Math.max(8, targetAvg * 0.12);
+    var expectedDamage = targetAvg * (18 + this.chapter.index * 5) * span / 8;
+    var damagePower = damageDelta / Math.max(1, expectedDamage);
+    var chapterCap = this.chapter.index === 1 ? 0.6 : this.chapter.index === 2 ? 1.2 : Math.min(3.4, 1.2 + (this.chapter.index - 2) * 0.55);
+    var tier = 0;
+    if (minHp < 0.3 || takenDelta > this.stats.maxHp * 0.4) {
+      tier = -2;
+    } else if (minHp < 0.46 || enemyRatio > 1.26 || takenDelta > this.stats.maxHp * 0.22) {
+      tier = -1;
+    } else {
+      var score = 0;
+      if (progressPower > 1.35) score += 1;
+      if (killPower > 1.25) score += 1;
+      if (damagePower > 1.3) score += 1;
+      if (enemyRatio < 0.62) score += 1;
+      if (last.hpRatio > 0.82 && takenDelta < this.stats.maxHp * 0.045 && span >= 7) score += 1;
+      tier = score >= 4 ? 2 : score >= 2 ? 1 : 0;
+    }
+    var boss = this.getCurrentBoss();
+    if (boss && this.time - (this.chapter.bossSpawnedAt || this.time) < 22 && boss.hp / Math.max(1, boss.maxHp) < 0.45) {
+      tier = Math.max(tier, 2);
+    }
+    var targetHeat = tier <= -2 ? -0.55 : tier === -1 ? -0.2 : tier === 1 ? 0.72 : tier >= 2 ? 1.45 : 0;
+    if (this.director.recoveryMode) targetHeat = Math.min(targetHeat, -0.25);
+    director.liveHeat = clamp(lerp(director.liveHeat || 0, targetHeat, tier > 0 ? 0.42 : 0.34), -0.65, chapterCap);
+    director.powerTier = tier;
+    director.pressureFocus = this.getAdaptivePressureFocus({
+      enemyRatio: enemyRatio,
+      takenDelta: takenDelta,
+      minHp: minHp,
+      progressPower: progressPower,
+      damagePower: damagePower
+    });
+    if (tier >= 2 && !this.director.recoveryMode && (director.pressureTimer || 0) <= 0) {
+      this.spawnAdaptivePressureWave(this.getDifficultyState());
+      director.pressureTimer = clamp(18 - tier * 2 - Math.max(0, director.liveHeat || 0), 12, 18);
+    }
+  };
+
+  VoidBloom.prototype.getAdaptivePressureFocus = function (state) {
+    if (state.minHp > 0.82 && state.takenDelta < this.stats.maxHp * 0.045) return "regen";
+    if (this.stats.shieldMax > 30 && state.takenDelta < this.stats.maxHp * 0.08) return "shield";
+    if (state.enemyRatio < 0.62 || state.progressPower > 1.45 || state.damagePower > 1.35) return "clear";
+    return "mixed";
+  };
+
+  VoidBloom.prototype.spawnAdaptivePressureWave = function (diff) {
+    diff = diff || this.getDifficultyState();
+    var focus = (this.director && this.director.pressureFocus) || "mixed";
+    var chapter = diff.chapter || 1;
+    var pools = {
+      regen: chapter === 1 && this.time < 60 ? ["leechMoth", "runner", "bomber"] : ["leechMoth", "suppressor", "runner"],
+      shield: chapter < 2 ? ["bomber", "runner"] : ["piercer", "riftHunter", "prismGuard"],
+      clear: chapter < 3 ? ["bomber", "drifter", "runner"] : ["prismGuard", "starMiner", "nestMother", "bomber"],
+      mixed: ["runner", "bomber", "piercer", "leechMoth", "prismGuard"]
+    };
+    var pool = pools[focus] || pools.mixed;
+    var count = Math.min(18, 6 + Math.floor(chapter * 1.2) + Math.max(0, this.director.powerTier || 0) * 3);
+    for (var i = 0; i < count; i += 1) {
+      var type = pool[i % pool.length];
+      this.spawnEnemy(type, diff, { pressure: true, hp: 0.92, damage: 0.95, speed: 1.1 });
+    }
+    var label = focus === "regen" ? "禁疗压力" : focus === "shield" ? "破盾压力" : focus === "clear" ? "清场反制" : "虚空增压";
+    this.addDamageText(this.player.x, this.player.y - 56, label, "#fff3a3", { priority: 3, size: 16, stroke: "#312300" });
+    this.playSfx("boss", 0.62);
+  };
+
+  VoidBloom.prototype.getChapterProgressValue = function (enemy) {
+    if (!enemy) return 0;
+    if (enemy.type === "boss") return 0;
+    if (enemy.type === "elite") return 14;
+    if (enemy.type === "nestMother") return 5;
+    if (enemy.type === "prismGuard") return 3;
+    if (enemy.type === "leechMoth" || enemy.type === "suppressor" || enemy.type === "starMiner" || enemy.type === "riftHunter") return 2.2;
+    if (enemy.type === "bomber" || enemy.type === "piercer") return 1.4;
+    return 1;
+  };
+
+  VoidBloom.prototype.addChapterProgress = function (amount, reason) {
+    if (!this.chapter || this.chapter.bossSpawned || amount <= 0) return;
+    var chapter = this.chapter;
+    var before = chapter.progress || 0;
+    chapter.progress = Math.max(0, before + amount);
+    if (before < chapter.goal && chapter.progress >= chapter.goal) {
+      chapter.goalReachedAt = this.time;
+      chapter.bossSummonAt = this.time + 1.5;
+      this.addDamageText(this.player.x, this.player.y - 58, "目标达成", "#fff3a3", { priority: 3, size: 18, stroke: "#312300" });
+      this.playSfx("upgrade", 0.7);
+    } else if (reason === "crisis") {
+      this.addDamageText(this.player.x, this.player.y - 52, "目标 +" + Math.round(amount), "#fff3a3", { priority: 2, size: 14 });
+    }
+  };
+
+  VoidBloom.prototype.canSpawnChapterBoss = function (diff) {
+    if (!this.chapter || this.chapter.bossSpawned) return false;
+    var chapter = this.chapter;
+    var elapsed = this.time - chapter.startedAt;
+    var windows = this.getChapterBossWindows(chapter.index);
+    var progress = chapter.progress || 0;
+    var goal = Math.max(1, chapter.goal || this.getChapterGoal(chapter.index));
+    if (progress >= goal && !chapter.goalReachedAt) {
+      chapter.goalReachedAt = this.time;
+      chapter.bossSummonAt = this.time + 1.5;
+    }
+    var timeAssist = clamp((elapsed - 70) / 2.5, 0, goal * 0.3);
+    var earlyMin = chapter.index === 1 ? 35 : chapter.index === 2 ? 42 : 45;
+    var quickGoalReady = chapter.goalReachedAt &&
+      this.time >= Math.min(chapter.startedAt + earlyMin, chapter.goalReachedAt + 8) &&
+      this.time >= (chapter.bossSummonAt || chapter.goalReachedAt + 1.5);
+    var ready = quickGoalReady ||
+      (elapsed >= windows.min && progress + timeAssist >= goal) ||
+      (elapsed >= windows.soft && progress + timeAssist >= goal * 0.72 && (chapter.eliteKills || 0) >= 1);
+    var forced = elapsed >= windows.hard;
+    if (!ready && !forced) return false;
+    var hpRatio = this.stats.hp / Math.max(1, this.stats.maxHp);
+    var target = this.getEnemyPopulationTarget(diff || this.getDifficultyState());
+    var active = this.getActiveEnemyCount();
+    var dangerDelay = !forced && (hpRatio < 0.3 || active > target * 1.25);
+    if (dangerDelay) {
+      if (!chapter.bossDelayUntil) {
+        chapter.bossDelayUntil = this.time + 8;
+        if (!chapter.bossDelayAnnounced) {
+          chapter.bossDelayAnnounced = true;
+          this.addDamageText(this.player.x, this.player.y - 56, "首领压制延迟", "#78f7d2", { priority: 3, size: 16 });
+        }
+      }
+      if (this.time < chapter.bossDelayUntil) return false;
+    }
+    return true;
+  };
+
+  VoidBloom.prototype.spawnChapterBoss = function (diff) {
+    if (!this.chapter || this.chapter.bossSpawned) return;
+    var chapter = this.chapter;
+    chapter.bossSpawned = true;
+    chapter.bossAlive = true;
+    chapter.bossSpawnedAt = this.time;
+    chapter.bossOvertime = 0;
+    chapter.pressure = 0;
+    chapter.pressureTimer = 9.5;
+    var goal = Math.max(1, chapter.goal || this.getChapterGoal(chapter.index));
+    var progressRatio = (chapter.progress || 0) / goal;
+    var bossHpMod = progressRatio < 0.72 ? 0.9 : progressRatio > 1.12 ? 1.08 : 1;
+    var boss = this.spawnEnemy("boss", diff, { chapterBoss: true, hp: bossHpMod });
+    if (boss) {
+      boss.chapterBoss = true;
+      boss.label = "第" + chapter.index + "章首领";
+    }
+    this.addDamageText(this.player.x, this.player.y - 64, "第" + chapter.index + "章首领降临", "#fff3a3", { priority: 4, size: 22, stroke: "#312300" });
+    this.playSfx("boss", 1.2);
+    this.shake(6);
   };
 
   VoidBloom.prototype.createMapDecor = function () {
@@ -672,12 +1108,12 @@
       this.draw();
       return;
     }
-    if (!this.running) {
+    this.paused = false;
+    if (!this.running || !this.raf) {
       this.running = true;
       this.lastFrame = performance.now();
       this.raf = requestAnimationFrame(this.boundLoop);
     }
-    this.paused = false;
   };
 
   VoidBloom.prototype.stopLoop = function () {
@@ -690,6 +1126,7 @@
   };
 
   VoidBloom.prototype.activate = function () {
+    this.ensureAudio();
     this.active = true;
     this.resize();
     this.draw();
@@ -725,6 +1162,10 @@
     if (this.state === "start") {
       return;
     }
+    if (["trait", "upgrade", "chest"].indexOf(this.state) !== -1 && !this.panel.classList.contains("is-visible")) {
+      this.resumePlaying();
+      return;
+    }
     if (this.state === "playing") {
       this.pause();
       return;
@@ -737,20 +1178,45 @@
     }
   };
 
+  VoidBloom.prototype.resumePlaying = function (options) {
+    options = options || {};
+    if (!options.keepPanel) {
+      this.hidePanel();
+    }
+    this.currentChoices = null;
+    this.pendingUpgrade = false;
+    if (!options.keepChest) {
+      this.pendingChest = null;
+    }
+    this.state = "playing";
+    this.paused = false;
+    this.accumulator = 0;
+    this.resume();
+  };
+
   VoidBloom.prototype.loop = function (now) {
     if (!this.running) {
       return;
     }
-    var delta = Math.min(0.05, (now - this.lastFrame) / 1000 || 0);
-    this.lastFrame = now;
-    if (!this.paused && this.state === "playing") {
-      this.accumulator += delta;
-      while (this.accumulator >= this.fixedStep) {
-        this.update(this.fixedStep);
-        this.accumulator -= this.fixedStep;
+    this.raf = 0;
+    try {
+      var delta = Math.min(0.05, (now - this.lastFrame) / 1000 || 0);
+      this.lastFrame = now;
+      if (!this.paused && this.state === "playing") {
+        this.accumulator += delta;
+        while (this.accumulator >= this.fixedStep) {
+          this.update(this.fixedStep);
+          this.accumulator -= this.fixedStep;
+        }
       }
+      this.draw();
+    } catch (error) {
+      console.error("[VoidBloom] animation loop recovered", error);
+      this.running = false;
+      this.paused = true;
+      this.showPause();
+      return;
     }
-    this.draw();
     if (this.running) {
       this.raf = requestAnimationFrame(this.boundLoop);
     }
@@ -764,6 +1230,7 @@
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("blur", this.onBlur);
+    this.root.removeEventListener("pointerdown", this.onUserGesture);
     document.removeEventListener("visibilitychange", this.onVisibility);
   };
 
@@ -772,15 +1239,25 @@
       return;
     }
     try {
+      var self = this;
       var AudioCtor = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtor) return;
       if (!this.audio.ctx) {
         this.audio.ctx = new AudioCtor();
       }
-      if (this.audio.ctx.state === "suspended") {
-        this.audio.ctx.resume();
+      if (this.audio.ctx.state === "suspended" || this.audio.ctx.state === "interrupted") {
+        var resumed = this.audio.ctx.resume();
+        this.audio.unlocked = true;
+        if (resumed && typeof resumed.then === "function") {
+          resumed.then(function () {
+            self.audio.unlocked = self.audio.ctx && self.audio.ctx.state !== "closed";
+          }).catch(function () {
+            self.audio.muted = true;
+          });
+        }
+      } else {
+        this.audio.unlocked = this.audio.ctx.state !== "closed";
       }
-      this.audio.unlocked = true;
     } catch (error) {
       this.audio.muted = true;
     }
@@ -789,7 +1266,11 @@
   VoidBloom.prototype.playSfx = function (name, intensity) {
     if (this.audio.muted || !this.audio.unlocked || !this.audio.ctx || reduceMotion) return;
     var now = this.audio.ctx.currentTime;
-    var limit = name === "hit" ? 0.045 : name === "gem" ? 0.07 : name === "crit" ? 0.08 : 0.12;
+    var limit = name === "hit" ? 0.045 :
+      name === "gem" ? 0.07 :
+        name === "crit" ? 0.08 :
+          name === "laser" || name === "rift" || name === "gravity" ? 0.28 :
+            name === "meteor" ? 0.42 : 0.12;
     if (this.audio.last[name] && now - this.audio.last[name] < limit) return;
     this.audio.last[name] = now;
     intensity = clamp(intensity || 1, 0.35, 2.4);
@@ -801,6 +1282,10 @@
       shield: { f1: 760, f2: 260, gain: 0.045, dur: 0.12, type: "triangle" },
       upgrade: { f1: 520, f2: 1040, gain: 0.055, dur: 0.18, type: "triangle" },
       boss: { f1: 120, f2: 55, gain: 0.075, dur: 0.32, type: "sawtooth" },
+      laser: { f1: 880, f2: 180, gain: 0.05, dur: 0.16, type: "sawtooth" },
+      gravity: { f1: 180, f2: 70, gain: 0.052, dur: 0.22, type: "triangle" },
+      rift: { f1: 260, f2: 86, gain: 0.052, dur: 0.24, type: "sawtooth" },
+      meteor: { f1: 110, f2: 48, gain: 0.07, dur: 0.28, type: "sawtooth" },
       gem: { f1: 760, f2: 1120, gain: 0.012, dur: 0.04, type: "sine" }
     };
     var data = presets[name] || presets.hit;
@@ -832,39 +1317,45 @@
     return [
       {
         id: "gambler",
-        name: "赌徒星盘",
+        name: "天机赌命人",
         color: "#f7d46b",
-        text: "高稀有卡概率提升；普通卡略弱。适合赌传说和宝箱连开。"
+        text: "开局更多刷新和天机骰，高稀有更常见，但敌潮升温更快。",
+        route: "专属路线：命运头奖 · 宝箱/高稀有/改命签"
       },
       {
         id: "bloodMoon",
         name: "血月誓约",
         color: "#ff335f",
-        text: "生命上限下降，伤害与低血触发更强。适合极限反杀。"
+        text: "生命上限明显下降，开局带血色收割和相位斩波，低血爆发更猛。",
+        route: "专属路线：血月终章 · 血莲/低血/赤月清屏"
       },
       {
         id: "swarm",
-        name: "工蜂协议",
+        name: "天工傀儡师",
         color: "#7df9ff",
-        text: "召唤、卫星、回响更常出现；本体火力略降。适合自动炮台流。"
+        text: "开局带机关灵鸢和镜花水月倾向，本体伤害略低，但自动火力成型快。",
+        route: "专属路线：万象机傀 · 机关/镜像/自动炮台"
       },
       {
         id: "riftMiner",
-        name: "裂隙矿区",
+        name: "归墟阵主",
         color: "#b26cff",
-        text: "力场、地雷、裂隙更常出现；移速略降。适合边跑边布阵。"
+        text: "开局带乾坤印和遁甲雷印，移速略低，靠符阵和归墟聚怪滚雪球。",
+        route: "专属路线：九幽王庭 · 聚怪/符阵/墨裂"
       },
       {
         id: "prismFocus",
-        name: "棱镜专注",
+        name: "太白剑君",
         color: "#ffd166",
-        text: "暴击率和暴击伤害提升；非暴击略低。适合爆数字流。"
+        text: "开局带太白剑芒，暴击更高，爆发更帅，但稳定伤害略低。",
+        route: "专属路线：天门开 · 白金剑光/暴击/处刑"
       },
       {
         id: "lightRunner",
-        name: "逐光者",
+        name: "逐光剑修",
         color: "#ffffff",
-        text: "冲刺冷却更短，冲刺后短暂增伤。适合操作流。"
+        text: "开局带月影斩，冲刺更频繁，越会走位越像白虹闪光。",
+        route: "专属路线：剑开天河 · 冲刺/月影/白虹"
       }
     ];
   };
@@ -894,7 +1385,8 @@
       button.innerHTML = [
         "<em>命运</em>",
         "<strong>" + trait.name + "</strong>",
-        "<span>" + trait.text + "</span>"
+        "<span>" + trait.text + "</span>",
+        trait.route ? '<small class="void-bloom-evo-hint is-trait">' + trait.route + "</small>" : ""
       ].join("");
       button.addEventListener("click", function () {
         self.applyRunTrait(trait);
@@ -922,42 +1414,56 @@
       this.stats.hp = this.stats.maxHp;
       this.stats.damageMult *= 1.18;
       this.stats.critChance += 0.04;
+      this.weaponLevels.phaseSlash = Math.max(this.weaponLevels.phaseSlash || 0, 2);
+      this.stats.scarletLevel += 1;
+      this.stats.bloodHarvestLevel += 1;
     }
     if (trait.id === "swarm") {
       this.stats.damageMult *= 0.93;
       this.stats.echoChance += 0.04;
       this.stats.rerolls += 1;
+      this.weaponLevels.satellite = Math.max(this.weaponLevels.satellite || 0, 2);
+      this.stats.mirrorPrismLevel += 1;
     }
     if (trait.id === "riftMiner") {
       this.stats.speed *= 0.94;
       this.stats.fusionLevel += 1;
       this.stats.banishes += 1;
+      this.weaponLevels.gravity = Math.max(this.weaponLevels.gravity || 0, 2);
+      this.weaponLevels.warpMine = Math.max(this.weaponLevels.warpMine || 0, 1);
     }
     if (trait.id === "prismFocus") {
       this.stats.critChance += 0.08;
       this.stats.critDamage += 0.2;
       this.stats.damageMult *= 0.96;
+      this.weaponLevels.laser = Math.max(this.weaponLevels.laser || 0, 2);
+      this.stats.executionLevel += 1;
     }
     if (trait.id === "lightRunner") {
       this.stats.dashCooldown *= 0.82;
       this.stats.speed += 10;
       this.stats.kineticLevel += 1;
+      this.weaponLevels.phaseSlash = Math.max(this.weaponLevels.phaseSlash || 0, 2);
+      this.stats.dashDamage += 24;
     }
     if (trait.id === "gambler") {
-      this.stats.rerolls += 2;
-      this.stats.cursedDiceLevel += 1;
+      this.stats.rerolls += 3;
+      this.stats.cursedDiceLevel += 2;
+      this.stats.treasureLevel += 1;
+      if (this.director) this.director.heat += 0.28;
     }
   };
 
   VoidBloom.prototype.showStart = function () {
     var self = this;
+    var theme = CONFIG.themes || {};
     this.state = "start";
     this.paused = true;
     this.panel.innerHTML = "";
     var card = createElement("div", "void-bloom-card");
     card.innerHTML = [
-      "<h3>虚空绽放：幸存者</h3>",
-      "<p>移动、闪避、自动开火、升级三选一，活得越久越强。</p>",
+      "<h3>" + (theme.title || "虚空绽放：幸存者") + "</h3>",
+      "<p>" + (theme.startText || "移动、闪避、自动开火、升级三选一，活得越久越强。") + "</p>",
       '<div class="void-bloom-actions"></div>'
     ].join("");
     var actions = card.querySelector(".void-bloom-actions");
@@ -983,8 +1489,10 @@
     var actions = card.querySelector(".void-bloom-actions");
     var resume = createElement("button", "void-bloom-button", "继续");
     var restart = createElement("button", "void-bloom-button void-bloom-secondary", "重新开始");
+    var codex = createElement("button", "void-bloom-button void-bloom-secondary", "本局天书");
     resume.type = "button";
     restart.type = "button";
+    codex.type = "button";
     resume.addEventListener("click", function () {
       self.hidePanel();
       self.state = "playing";
@@ -992,8 +1500,56 @@
       self.resume();
     });
     restart.addEventListener("click", function () { self.startRun(); });
+    codex.addEventListener("click", function () { self.showCodexPanel(); });
     actions.appendChild(resume);
+    actions.appendChild(codex);
     actions.appendChild(restart);
+    this.panel.appendChild(card);
+    this.panel.classList.add("is-visible");
+  };
+
+  VoidBloom.prototype.getAscensionCodexHtml = function () {
+    var ids = Object.keys(this.ascensionLevels || {})
+      .filter(function (id) { return this.ascensionLevels[id] > 0; }, this)
+      .sort(function (a, b) { return this.ascensionLevels[b] - this.ascensionLevels[a]; }.bind(this));
+    if (!ids.length) {
+      return '<p class="void-bloom-codex-empty">尚未参悟天书。优先把主武器升到 4/7/10/13，或把被动、触发卡升到 2/4/6/8。</p>';
+    }
+    var rows = ids.slice(0, 12).map(function (id) {
+      var route = this.ascensionRoutes[id] || this.getAscensionRoute(id) || {};
+      var family = route.routeFamily && CONFIG.routeFamilies ? CONFIG.routeFamilies[route.routeFamily] : null;
+      var color = route.color || (family && family.color) || "#fff3a3";
+      var familyLabel = family ? family.label : "天书";
+      return '<li style="--route-color:' + color + '"><strong>' + this.getUpgradeName(id) + '</strong><span>' + (route.route || route.name || id) + ' · ' + familyLabel + ' · ' + this.ascensionLevels[id] + '/4</span></li>';
+    }, this);
+    return '<ul class="void-bloom-codex">' + rows.join("") + "</ul>";
+  };
+
+  VoidBloom.prototype.showCodexPanel = function () {
+    var self = this;
+    this.state = "paused";
+    this.paused = true;
+    this.panel.innerHTML = "";
+    var card = createElement("div", "void-bloom-card");
+    card.innerHTML = [
+      "<h3>本局天书</h3>",
+      this.getAscensionCodexHtml(),
+      '<div class="void-bloom-actions"></div>'
+    ].join("");
+    var actions = card.querySelector(".void-bloom-actions");
+    var back = createElement("button", "void-bloom-button", "返回");
+    var resume = createElement("button", "void-bloom-button void-bloom-secondary", "继续");
+    back.type = "button";
+    resume.type = "button";
+    back.addEventListener("click", function () { self.showPause(); });
+    resume.addEventListener("click", function () {
+      self.hidePanel();
+      self.state = "playing";
+      self.paused = false;
+      self.resume();
+    });
+    actions.appendChild(back);
+    actions.appendChild(resume);
     this.panel.appendChild(card);
     this.panel.classList.add("is-visible");
   };
@@ -1043,6 +1599,9 @@
     this.stats.gateTimer = Math.max(0, this.stats.gateTimer - dt);
     this.updateDefensiveSystems(dt);
     this.updateBuildSystems(dt);
+    this.updateDirectorRecovery(dt);
+    this.recordChapterMetrics(dt);
+    this.updateAdaptiveDirector(dt);
     if (this.stats.regen > 0) {
       this.applyHealing(this.stats.regen * dt, "regen");
     }
@@ -1081,9 +1640,10 @@
       this.stats.shieldFatigue = Math.max(0, (this.stats.shieldFatigue || 0) - dt * 0.08);
       if (this.stats.shieldTimer <= 0 && this.stats.shield < this.stats.shieldMax) {
         var suppress = this.stats.healBlockTimer > 0 ? 0.45 : 1;
-        var tide = this.tide && this.tide.active ? 0.75 : 1;
+        var tide = this.tide && this.tide.active ? (this.tide.theme === "breakerHunter" ? 0.58 : 0.74) : 1;
+        var boss = this.chapter && this.chapter.bossAlive ? 1 / (1 + (this.chapter.pressure || 0) * 0.12) : 1;
         var fatigue = 1 / (1 + (this.stats.shieldFatigue || 0) * 0.35);
-        this.stats.shield = Math.min(this.stats.shieldMax, this.stats.shield + this.stats.shieldMax * 0.08 * dt * suppress * tide * fatigue);
+        this.stats.shield = Math.min(this.stats.shieldMax, this.stats.shield + this.stats.shieldMax * 0.08 * dt * suppress * tide * boss * fatigue);
       }
     }
     if (this.stats.bloodHarvestLevel > 0) {
@@ -1173,17 +1733,60 @@
     return true;
   };
 
+  VoidBloom.prototype.damagePlayer = function (amount, label, color, options) {
+    options = options || {};
+    if (amount <= 0 || (this.stats.invuln > 0 && !options.pierceIframes)) return false;
+    var effectiveArmor = Math.max(0, this.stats.armor - (options.armorPierce || 0));
+    var damage = Math.max(1, amount * (1 - effectiveArmor));
+    var shieldPressure = damage * (options.shieldDamage || 1);
+    var shieldHit = Math.min(this.stats.shield || 0, shieldPressure);
+    if (shieldHit > 0) {
+      this.stats.shield -= shieldHit;
+      damage = Math.max(0, damage - shieldHit / (options.shieldDamage || 1));
+      this.stats.shieldTimer = Math.max(this.stats.shieldTimer || 0, options.shieldDamage > 1 ? 7 : 5.5);
+      this.addDamageText(this.player.x, this.player.y - 24, "-" + Math.round(shieldHit) + "盾", "#66f0ff", { kind: "shield", priority: 2, size: 15 });
+      this.playSfx("shield", options.shieldDamage || 1);
+    }
+    if (damage > 0) {
+      this.stats.hp -= damage;
+      this.stats.recentHitTimer = 2.2;
+      if (this.chapter && this.chapter.metrics) {
+        this.chapter.metrics.damageTaken += damage;
+        this.chapter.metrics.hitsTaken += 1;
+      }
+      if (this.director) {
+        this.director.recentDamage = (this.director.recentDamage || 0) + damage;
+        this.director.recentHits = (this.director.recentHits || 0) + 1;
+      }
+      this.addDamageText(this.player.x, this.player.y - 24, "-" + Math.round(damage) + (label ? " " + label : ""), color || "#ff6b6b", { kind: "hurt", priority: 3, size: 18 });
+      this.playSfx("hurt", damage / 16);
+    }
+    if (options.healBlock) {
+      this.stats.healBlockTimer = Math.max(this.stats.healBlockTimer || 0, options.healBlock);
+    }
+    this.stats.invuln = Math.max(this.stats.invuln, options.invuln || 0.42);
+    this.shake(options.shake || 5);
+    return damage > 0 || shieldHit > 0;
+  };
+
   VoidBloom.prototype.updateSuppressionAuras = function () {
     var maxBlock = 0;
+    var shieldBlock = 0;
     for (var i = 0; i < this.enemies.length; i += 1) {
       var e = this.enemies[i];
-      if (!e.active || !e.suppressAura) continue;
-      if (distSq(e.x, e.y, this.player.x, this.player.y) < e.suppressAura * e.suppressAura) {
-        maxBlock = Math.max(maxBlock, e.type === "suppressor" ? 1.2 : 0.65);
+      if (!e.active) continue;
+      if (e.suppressAura && distSq(e.x, e.y, this.player.x, this.player.y) < e.suppressAura * e.suppressAura) {
+        maxBlock = Math.max(maxBlock, e.type === "suppressor" ? 1.2 : e.type === "leechMoth" ? 0.95 : 0.65);
+      }
+      if ((e.type === "prismGuard" || e.type === "riftHunter") && distSq(e.x, e.y, this.player.x, this.player.y) < Math.pow(e.radius + 120, 2)) {
+        shieldBlock = Math.max(shieldBlock, e.type === "prismGuard" ? 1.1 : 0.65);
       }
     }
     if (maxBlock > 0) {
       this.stats.healBlockTimer = Math.max(this.stats.healBlockTimer || 0, maxBlock);
+    }
+    if (shieldBlock > 0 && this.stats.shieldMax > 0) {
+      this.stats.shieldTimer = Math.max(this.stats.shieldTimer || 0, shieldBlock);
     }
   };
 
@@ -1246,20 +1849,24 @@
     this.addBurst(this.player.x, this.player.y, "#ffffff", 18, 4);
     this.spawnEmberTrail(startX, startY, this.player.x, this.player.y);
     if (this.stats.dashDamage > 0) {
+      var dashAsc = this.getAscensionTier("dashDamage");
+      var dashRadius = 92 + dashAsc * 12;
       for (var i = 0; i < this.enemies.length; i += 1) {
         var e = this.enemies[i];
-        if (e.active && distSq(e.x, e.y, this.player.x, this.player.y) < 92 * 92) {
-          this.damageEnemy(e, this.stats.dashDamage, "#ffffff");
+        if (e.active && distSq(e.x, e.y, this.player.x, this.player.y) < dashRadius * dashRadius) {
+          this.damageEnemy(e, this.stats.dashDamage * (1 + dashAsc * 0.05), dashAsc >= 2 ? "#ffd166" : "#ffffff", false, { source: dashAsc >= 2 ? "雷遁斩" : "冲刺" });
         }
       }
+      if (dashAsc >= 3) this.addParticle(startX, startY, this.player.x, this.player.y, "#ffd166", 0.26, 5, "bolt");
     }
     if (this.stats.shortCircuitLevel > 0) {
-      var jumps = 3 + Math.floor(this.stats.shortCircuitLevel / 2);
+      var shortAsc = this.getAscensionTier("shortCircuitDash");
+      var jumps = 3 + Math.floor(this.stats.shortCircuitLevel / 2) + shortAsc;
       var source = { x: this.player.x, y: this.player.y };
       var hit = [];
-      var target = this.findNearestEnemyFrom(source.x, source.y, hit, 250 + this.stats.shortCircuitLevel * 18);
+      var target = this.findNearestEnemyFrom(source.x, source.y, hit, 250 + this.stats.shortCircuitLevel * 18 + shortAsc * 24);
       for (var arc = 0; arc < jumps && target; arc += 1) {
-        this.damageEnemy(target, (35 + this.stats.shortCircuitLevel * 9) * this.damageMultiplier(), "#66f0ff", false, { source: "短路" });
+        this.damageEnemy(target, (35 + this.stats.shortCircuitLevel * 9) * this.damageMultiplier() * (1 + shortAsc * 0.035), "#66f0ff", false, { source: shortAsc >= 2 ? "雷遁" : "短路" });
         this.addParticle(source.x, source.y, target.x, target.y, "#66f0ff", 0.17, 3, "bolt");
         hit.push(target);
         source = target;
@@ -1267,18 +1874,20 @@
       }
       this.playSfx("shield", 0.7);
     }
-    if (this.evolutions.shadowCrescent) {
-      var radius = this.areaValue(170 + (this.weaponLevels.phaseSlash || 0) * 9);
+    var slashAsc = this.getAscensionTier("phaseSlash");
+    if (this.evolutions.shadowCrescent || slashAsc >= 2) {
+      var radius = this.areaValue((170 + (this.weaponLevels.phaseSlash || 0) * 9) * this.getAscensionAreaFactor("phaseSlash"));
       var hits = 0;
       for (var c = 0; c < this.enemies.length; c += 1) {
         var enemy = this.enemies[c];
         if (!enemy.active) continue;
         if (distSq(enemy.x, enemy.y, this.player.x, this.player.y) < Math.pow(radius + enemy.radius, 2)) {
           hits += 1;
-          this.damageEnemy(enemy, (54 + (this.weaponLevels.phaseSlash || 0) * 8) * this.damageMultiplier(), "#ffffff", false, { source: "月牙" });
+          this.damageEnemy(enemy, (54 + (this.weaponLevels.phaseSlash || 0) * 8) * this.damageMultiplier() * this.getAscensionDamageFactor("phaseSlash"), "#ffffff", false, { source: slashAsc >= 2 ? "白虹" : "月牙" });
         }
       }
       this.fields.push({ type: "nova", x: this.player.x, y: this.player.y, radius: radius, damage: 0, life: 0.36, maxLife: 0.36, color: "#ffffff", altColor: "#66f0ff", tick: 0 });
+      if (slashAsc >= 4) this.fields.push({ type: "sigil", x: this.player.x, y: this.player.y, radius: radius * 0.86, life: 0.42, maxLife: 0.42, color: "#f8f3df", family: "sword", tier: slashAsc, seed: this.random() * 1000 });
       if (hits >= 8) {
         this.stats.dashTimer *= 0.65;
         this.addDamageText(this.player.x, this.player.y - 44, "冷却返还", "#ffffff", { priority: 3, size: 15 });
@@ -1291,8 +1900,9 @@
     var level = this.stats.emberTrailLevel || 0;
     var length = Math.hypot(x2 - x1, y2 - y1);
     if (!level || length < 12) return;
-    var life = 1.45 + level * 0.18;
-    var width = 14 + level * 2.6;
+    var emberAsc = this.getAscensionTier("emberTrail");
+    var life = 1.45 + level * 0.18 + emberAsc * 0.1;
+    var width = 14 + level * 2.6 + emberAsc * 2;
     this.fields.push({
       type: "trail",
       x1: x1,
@@ -1300,91 +1910,407 @@
       x2: x2,
       y2: y2,
       width: width,
-      damage: (26 + level * 6) * this.damageMultiplier(),
+      damage: (26 + level * 6) * this.damageMultiplier() * (1 + emberAsc * 0.04),
       life: life,
       maxLife: life,
       color: "#ff7a38",
       seed: this.random() * 1000
     });
     this.addParticle(x1, y1, x2, y2, "#ff7a38", 0.36, Math.max(4, width * 0.42), "ember");
+    if (emberAsc >= 4) {
+      var dx = x2 - x1;
+      var dy = y2 - y1;
+      var len = Math.hypot(dx, dy) || 1;
+      var nx = -dy / len;
+      var ny = dx / len;
+      for (var side = -1; side <= 1; side += 2) {
+        this.fields.push({
+          type: "trail",
+          x1: x1 + nx * side * 28,
+          y1: y1 + ny * side * 28,
+          x2: x2 + nx * side * 28,
+          y2: y2 + ny * side * 28,
+          width: width * 0.58,
+          damage: (18 + level * 4) * this.damageMultiplier(),
+          life: life * 0.72,
+          maxLife: life * 0.72,
+          color: "#ffd166",
+          seed: this.random() * 1000
+        });
+      }
+    }
+  };
+
+  VoidBloom.prototype.getCrisisTheme = function (chapterIndex) {
+    var rules = this.getChapterRules(chapterIndex);
+    var themes = {
+      healLock: {
+        id: "healLock",
+        label: "禁疗危机",
+        color: "#78f7d2",
+        text: "禁疗"
+      },
+      breakerHunter: {
+        id: "breakerHunter",
+        label: "破盾猎潮",
+        color: "#66f0ff",
+        text: "破盾/猎手"
+      },
+      anchorNest: {
+        id: "anchorNest",
+        label: "锚点巢潮",
+        color: "#f472ff",
+        text: "锚点/巢母"
+      },
+      mixed: {
+        id: "mixed",
+        label: "混合危机",
+        color: "#fff3a3",
+        text: "混合"
+      }
+    };
+    return themes[rules.crisis] || themes.mixed;
+  };
+
+  VoidBloom.prototype.pickCrisisEnemyType = function (theme, slot, diff) {
+    var chapter = diff.chapter || 1;
+    if (theme.id === "healLock") {
+      if (slot % 5 === 0) return "leechMoth";
+      if (chapter >= 2 && slot % 7 === 1) return "suppressor";
+      return slot % 3 === 0 ? "runner" : "seeker";
+    }
+    if (theme.id === "breakerHunter") {
+      if (slot % 5 === 0) return "prismGuard";
+      if (slot % 4 === 1) return "riftHunter";
+      return slot % 3 === 2 ? "piercer" : "runner";
+    }
+    if (theme.id === "anchorNest") {
+      if (slot % 8 === 0) return "nestMother";
+      if (slot % 4 === 1) return "starMiner";
+      if (slot % 5 === 2) return "prismGuard";
+      return slot % 2 === 0 ? "drifter" : "seeker";
+    }
+    var mixed = ["leechMoth", "riftHunter", "prismGuard", "starMiner", "runner", "piercer", "drifter", "nestMother"];
+    return mixed[(slot + chapter + (this.tide ? this.tide.index : 0)) % mixed.length];
+  };
+
+  VoidBloom.prototype.updateChapter = function (dt, diff) {
+    if (!this.chapter) return;
+    var chapter = this.chapter;
+    var elapsed = this.time - chapter.startedAt;
+    var windows = this.getChapterBossWindows(chapter.index);
+    var summonTime = chapter.bossDelayUntil || chapter.bossSummonAt || (chapter.startedAt + windows.hard);
+    this.bossTimer = chapter.bossSpawned ? 0 : Math.max(0, summonTime - this.time);
+    if (!chapter.bossSpawned && this.canSpawnChapterBoss(diff)) {
+      this.spawnChapterBoss(diff);
+    }
+    if (!chapter.bossAlive) return;
+    var alive = false;
+    for (var i = 0; i < this.enemies.length; i += 1) {
+      if (this.enemies[i].active && this.enemies[i].type === "boss" && this.enemies[i].chapterBoss) {
+        alive = true;
+        break;
+      }
+    }
+    if (!alive) {
+      chapter.bossAlive = false;
+      return;
+    }
+    chapter.bossOvertime = Math.max(0, this.time - chapter.bossSpawnedAt - 34);
+    var pressure = Math.min(8 + (diff.endlessLoop || 0) * 2 + Math.max(0, Math.floor((diff.heat || 0) / 2)), Math.floor(chapter.bossOvertime / 14));
+    if (pressure > chapter.pressure) {
+      chapter.pressure = pressure;
+      this.addDamageText(this.player.x, this.player.y - 58, "首领压力 +" + pressure, "#ff6b6b", { priority: 3, size: 17 });
+      this.stats.healBlockTimer = Math.max(this.stats.healBlockTimer || 0, 0.8 + pressure * 0.08);
+      this.shake(2.5);
+    }
+    chapter.pressureTimer -= dt;
+    if (chapter.bossOvertime > 0 && chapter.pressureTimer <= 0) {
+      this.spawnBossPressureWave(diff);
+      chapter.pressureTimer = clamp(8.5 - chapter.pressure * 0.45, 4.2, 8.5) * (diff.recoveryMode ? 1.24 : 1);
+    }
+  };
+
+  VoidBloom.prototype.spawnBossPressureWave = function (diff) {
+    var theme = this.getCrisisTheme((diff.chapter || 1) + Math.max(1, this.chapter.pressure || 1));
+    var batch = Math.min(24, 6 + Math.floor((diff.chapter || 1) * 1.35) + (this.chapter.pressure || 0) * 2);
+    for (var i = 0; i < batch; i += 1) {
+      this.spawnEnemy(this.pickCrisisEnemyType(theme, i, diff), diff, { pressure: true, hp: 0.92, damage: 1.08, speed: 1.16 });
+    }
+    this.addDamageText(this.player.x, this.player.y - 54, theme.text + "增压", theme.color, { priority: 3, size: 16 });
+    this.playSfx("boss", 0.62);
+  };
+
+  VoidBloom.prototype.compactEnemies = function () {
+    if (!this.enemies || !this.enemies.length) return 0;
+    var active = [];
+    for (var i = 0; i < this.enemies.length; i += 1) {
+      if (this.enemies[i].active) active.push(this.enemies[i]);
+    }
+    this.enemies = active;
+    return active.length;
+  };
+
+  VoidBloom.prototype.getEnemyPopulationTarget = function (diff) {
+    diff = diff || this.getDifficultyState();
+    var mobile = window.innerWidth < 760;
+    var chapter = diff.chapter || 1;
+    var progress = diff.chapterProgress || 0;
+    var endless = diff.endlessLoop || 0;
+    var pressure = diff.bossPressure || 0;
+    var warmup = clamp(this.time / 90, 0.22, 1);
+    var target = (mobile ? 48 : 78) +
+      chapter * (mobile ? 26 : 42) +
+      progress * (mobile ? 42 : 78) +
+      endless * (mobile ? 30 : 56) +
+      pressure * (mobile ? 12 : 24);
+    if (this.tide && this.tide.active) target += mobile ? 24 : 42;
+    if (this.chapter && this.chapter.bossAlive) target += mobile ? 28 : 54;
+    target *= clamp(1 + (diff.heat || 0) * 0.1 + (diff.liveHeat || 0) * 0.18 + ((this.director && this.director.chapterAdjustment) || 0) * 0.24, 0.82, 1.72) * (diff.recoveryMode ? 0.82 : 1);
+    return Math.floor(Math.min(this.enemyCap * 0.94, target * warmup));
+  };
+
+  VoidBloom.prototype.getChapterRank = function (score) {
+    if (score >= 90) return "S";
+    if (score >= 76) return "A";
+    if (score >= 60) return "B";
+    if (score >= 44) return "C";
+    return "D";
+  };
+
+  VoidBloom.prototype.getHeatText = function () {
+    var heat = this.director ? ((this.director.heat || 0) + Math.max(0, this.director.liveHeat || 0)) : 0;
+    var adjustment = this.director ? (this.director.chapterAdjustment || 0) : 0;
+    var parts = [];
+    if (heat > 0.25) {
+      var level = clamp(Math.ceil(heat), 1, 5);
+      var tier = this.director ? (this.director.powerTier || 0) : 0;
+      parts.push("热度 " + ["", "I", "II", "III", "IV", "V"][level] + (tier >= 2 ? " ↑" : ""));
+    }
+    if (Math.abs(adjustment) >= 0.06) {
+      parts.push("天机" + (this.director.chapterAdjustmentLabel || (adjustment > 0 ? "升压" : "护持")));
+    }
+    return parts.join(" · ");
+  };
+
+  VoidBloom.prototype.settleChapterDirector = function (cleared) {
+    var director = this.director || { heat: 0, history: [] };
+    var chapter = this.chapter || {};
+    var metrics = chapter.metrics || {};
+    var elapsed = Math.max(1, this.time - (chapter.startedAt || 0));
+    var windows = this.getChapterBossWindows(cleared);
+    var bossTime = chapter.bossSpawnedAt ? Math.max(1, this.time - chapter.bossSpawnedAt) : windows.hard;
+    var goal = Math.max(1, chapter.goal || this.getChapterGoal(cleared));
+    var progressRatio = (chapter.progress || 0) / goal;
+    var targetAvg = metrics.targetSamples ? metrics.targetTotal / metrics.targetSamples : this.getEnemyPopulationTarget(this.getDifficultyState());
+    var enemyAvg = metrics.enemySamples ? metrics.enemyTotal / metrics.enemySamples : targetAvg;
+    var damageRatio = (metrics.damageTaken || 0) / Math.max(1, this.stats.maxHp);
+    var speedScore = clamp((windows.soft + 26 - elapsed) / 46, -1, 1.2) * 16;
+    var bossScore = clamp((54 - bossTime) / 34, -1, 1.15) * 13;
+    var killScore = clamp((progressRatio - 0.76) * 28, -10, 16);
+    var fieldScore = clamp((enemyAvg / Math.max(1, targetAvg) - 0.72) * 8, -6, 7);
+    var survivalScore = clamp(11 - damageRatio * 11 - (metrics.lowHpTime || 0) * 0.34 - (metrics.hitsTaken || 0) * 0.72, -20, 11);
+    var insuranceUsedThisChapter = !!(this.stats.voidInsuranceUsed && !metrics.insuranceUsedAtStart);
+    var savePenalty = (insuranceUsedThisChapter ? 12 : 0) + ((metrics.minHpRatio || 1) < 0.2 ? 6 : 0);
+    var score = clamp(50 + speedScore + bossScore + killScore + fieldScore + survivalScore - savePenalty, 0, 100);
+    var delta = score >= 88 ? 1.0 : score >= 72 ? 0.55 : score >= 58 ? 0.18 : score >= 42 ? -0.25 : -0.72;
+    if (insuranceUsedThisChapter || (metrics.minHpRatio || 1) < 0.25 || bossTime > 72 || damageRatio > 1.15) {
+      delta = Math.min(delta, 0);
+    }
+    var cap = 0.8 + cleared * 0.65;
+    var previous = director.heat || 0;
+    director.heat = clamp(previous + delta, -1.5, cap);
+    var targetAdjustment = score >= 90 ? 0.35 :
+      score >= 82 ? 0.24 :
+        score >= 72 ? 0.12 :
+          score < 35 ? -0.32 :
+            score < 45 ? -0.22 :
+              score < 58 ? -0.1 : 0;
+    if (insuranceUsedThisChapter || (metrics.minHpRatio || 1) < 0.25 || damageRatio > 1.05) {
+      targetAdjustment = Math.min(targetAdjustment, -0.12);
+    }
+    director.chapterAdjustment = clamp(lerp(director.chapterAdjustment || 0, targetAdjustment, 0.72), -0.35, 0.35);
+    director.chapterAdjustmentLabel = director.chapterAdjustment > 0.18 ? "升压" :
+      director.chapterAdjustment < -0.18 ? "护持" :
+        Math.abs(director.chapterAdjustment) < 0.06 ? "平衡" :
+          director.chapterAdjustment > 0 ? "微升" : "微降";
+    director.lastPerformance = score;
+    director.recoveryTimer = 0;
+    director.recoveryMode = false;
+    director.recentDamage = 0;
+    director.recentHits = 0;
+    director.history = director.history || [];
+    director.history.push({
+      chapter: cleared,
+      score: score,
+      delta: delta,
+      heat: director.heat,
+      adjustment: director.chapterAdjustment,
+      elapsed: elapsed,
+      bossTime: bossTime
+    });
+    if (director.history.length > 8) director.history.shift();
+    this.director = director;
+    return {
+      score: score,
+      rank: this.getChapterRank(score),
+      delta: delta,
+      heat: director.heat,
+      adjustment: director.chapterAdjustment,
+      adjustmentLabel: director.chapterAdjustmentLabel
+    };
+  };
+
+  VoidBloom.prototype.completeChapter = function (enemy) {
+    if (!this.chapter || !enemy || !enemy.chapterBoss) return;
+    var cleared = this.chapter.index;
+    var result = this.settleChapterDirector(cleared);
+    this.chapter = this.createChapterState(cleared + 1, this.time);
+    this.bossTimer = this.getChapterBossWindows(this.chapter.index).hard;
+    this.eliteTimer = Math.min(this.eliteTimer, this.getDifficultyState().eliteInterval * 0.78);
+    if (this.tide) {
+      this.tide.active = false;
+      this.tide.timer = 0;
+      this.tide.budget = 0;
+      this.tide.warned = false;
+      this.tide.nextTime = this.time + clamp(64 - this.chapter.index * 3, 38, 64);
+      var theme = this.getCrisisTheme(this.chapter.index);
+      this.tide.theme = theme.id;
+      this.tide.label = theme.label;
+    }
+    this.score += 350 + cleared * 120;
+    this.applyHealing(Math.min(24, 10 + cleared * 2.2), "chapterClear", enemy.x, enemy.y - 34);
+    this.addDamageText(enemy.x, enemy.y - 66, "评价" + result.rank + " · 热度" + (result.delta >= 0 ? "+" : "") + result.delta.toFixed(1), "#fff3a3", { priority: 4, size: 18, stroke: "#312300" });
+    this.addDamageText(enemy.x, enemy.y - 116, "天机" + result.adjustmentLabel + " " + (result.adjustment >= 0 ? "+" : "") + Math.round(result.adjustment * 100) + "%", result.adjustment > 0 ? "#ffd166" : result.adjustment < 0 ? "#78f7d2" : "#ffffff", { priority: 4, size: 16, stroke: "#10203a" });
+    this.addDamageText(enemy.x, enemy.y - 92, "晋级第" + this.chapter.index + "章", "#ffffff", { priority: 4, size: 22, stroke: "#312300" });
+    this.addBurst(enemy.x, enemy.y, "#fff3a3", 88, 7.5);
+    this.shake(7);
   };
 
   VoidBloom.prototype.spawnEnemies = function (dt) {
     var diff = this.getDifficultyState();
+    this.updateChapter(dt, diff);
+    diff = this.getDifficultyState();
     this.updateTide(dt, diff);
     this.spawnTimer -= dt;
-    var interval = clamp((0.92 - this.time * 0.0014) / diff.spawnMult, 0.09, 0.92);
+    var interval = clamp((0.82 - Math.min(0.38, (diff.chapter - 1) * 0.05) - diff.chapterProgress * 0.1) / diff.spawnMult, 0.055, 0.88);
     if (this.spawnTimer <= 0) {
-      var count = Math.min(16, Math.ceil((1 + Math.floor(Math.max(0, this.time - 20) / 58) + Math.floor(this.random() * 2)) * Math.min(1.45, diff.spawnMult)));
-      if (this.time < 24) count = 1;
+      var activeCount = this.compactEnemies();
+      var targetCount = this.getEnemyPopulationTarget(diff);
+      var deficitBoost = activeCount < targetCount ? Math.ceil((targetCount - activeCount) / (window.innerWidth < 760 ? 8 : 7)) : 0;
+      var baseCount = 2 + Math.floor((diff.chapter - 1) * 1.15) + Math.floor(diff.chapterProgress * 3.3) + Math.max(0, diff.powerTier || 0) + (this.random() < 0.7 ? 1 : 0);
+      if (this.chapter && this.chapter.bossAlive) baseCount += 2 + Math.min(8, (this.chapter.pressure || 0) * 2);
+      var count = Math.min(window.innerWidth < 760 ? 26 : 42, Math.ceil(baseCount * Math.min(2.45, diff.spawnMult)) + Math.min(window.innerWidth < 760 ? 12 : 22, deficitBoost));
+      var overflow = Math.max(window.innerWidth < 760 ? 8 : 14, Math.floor(targetCount * 0.1)) + ((this.chapter && this.chapter.bossAlive) ? Math.min(28, (this.chapter.pressure || 0) * 5 + 10) : 0);
+      count = Math.min(count, Math.max(0, targetCount + overflow - activeCount));
+      if (this.time < 24) count = Math.min(2, count);
       for (var i = 0; i < count; i += 1) {
-        this.spawnEnemy(this.pickEnemyType(), diff);
+        this.spawnEnemy(this.pickEnemyType(diff), diff);
       }
       this.spawnTimer = interval;
     }
     this.eliteTimer -= dt;
-    if (this.eliteTimer <= 0) {
+    var chapterElapsed = this.chapter ? this.time - this.chapter.startedAt : this.time;
+    if (this.eliteTimer <= 0 && chapterElapsed >= 12 && !diff.recoveryMode) {
       this.spawnEnemy("elite", diff);
-      this.eliteTimer = clamp(44 - this.time / 20, 14, 44);
-    }
-    this.bossTimer -= dt;
-    if (this.bossTimer <= 0) {
-      this.spawnEnemy("boss", diff);
-      this.bossTimer = 180;
-      this.playSfx("boss", 1.2);
+      this.eliteTimer = diff.eliteInterval * (0.92 + this.random() * 0.18);
+    } else if (this.eliteTimer <= 0 && diff.recoveryMode) {
+      this.eliteTimer = 4.5;
     }
   };
 
   VoidBloom.prototype.updateTide = function (dt, diff) {
     if (!this.tide) return;
-    if (!this.tide.active && !this.tide.warned && this.time > this.tide.nextTime - 5) {
+    var chapterElapsed = this.chapter ? this.time - this.chapter.startedAt : this.time;
+    if (!this.tide.active && chapterElapsed < 12) return;
+    var theme = this.getCrisisTheme(diff.chapter);
+    if (!this.tide.active) {
+      this.tide.theme = theme.id;
+      this.tide.label = theme.label;
+    }
+    if (!this.tide.active && !this.tide.warned && this.time > this.tide.nextTime - 6) {
       this.tide.warned = true;
-      this.addDamageText(this.player.x, this.player.y - 52, "虚空潮汐将至", "#8de7ff", { priority: 3, size: 18 });
+      this.addDamageText(this.player.x, this.player.y - 52, theme.label + "将至", theme.color, { priority: 3, size: 18 });
       this.playSfx("boss", 0.55);
     }
     if (!this.tide.active && this.time >= this.tide.nextTime) {
       this.tide.active = true;
       this.tide.index += 1;
-      this.tide.timer = 10 + this.tide.index * 0.8;
+      this.tide.theme = theme.id;
+      this.tide.label = theme.label;
+      this.tide.timer = 10 + diff.chapter * 0.9 + (diff.endlessLoop || 0) * 1.6;
       this.tide.spawnTimer = 0;
-      this.tide.budget = 16 + this.tide.index * 5;
+      this.tide.budget = Math.round((14 + diff.chapter * 5 + (diff.endlessLoop || 0) * 8 + (diff.bossPressure || 0) * 3) * (diff.tideMult || 1));
       this.tide.warned = false;
-      this.tide.nextTime += 60;
-      this.addDamageText(this.player.x, this.player.y - 54, "虚空潮汐", "#8de7ff", { priority: 3, size: 20 });
+      this.tide.nextTime += clamp((64 - diff.chapter * 2.5 - (diff.endlessLoop || 0) * 3) / clamp(diff.tideMult || 1, 0.8, 1.6), 34, 64);
+      this.addDamageText(this.player.x, this.player.y - 54, theme.label, theme.color, { priority: 3, size: 20 });
       this.playSfx("boss", 0.9);
     }
     if (!this.tide.active) return;
     this.tide.timer -= dt;
     this.tide.spawnTimer -= dt;
+    if (this.tide.theme === "healLock") {
+      this.stats.healBlockTimer = Math.max(this.stats.healBlockTimer || 0, 0.55);
+    }
     if (this.tide.spawnTimer <= 0 && this.tide.budget > 0) {
-      var batch = Math.min(this.tide.budget, 4 + Math.floor(this.tide.index / 2));
+      var activeTheme = this.getCrisisTheme(diff.chapter);
+      if (activeTheme.id !== this.tide.theme) {
+        activeTheme = { id: this.tide.theme, label: this.tide.label || theme.label, color: theme.color, text: theme.text };
+      }
+      var batch = Math.min(this.tide.budget, Math.round((4 + Math.floor(diff.chapter / 2) + (diff.endlessLoop || 0)) * clamp(diff.tideMult || 1, 0.8, 1.8)));
       for (var i = 0; i < batch; i += 1) {
-        var type = this.tide.index >= 4 && i === 0 ? "piercer" :
-          this.tide.index >= 3 && i === 1 ? "suppressor" : "seeker";
-        this.spawnEnemy(type, diff, { tide: true, hp: 0.78, damage: 0.85, speed: 1.08 });
+        var type = this.pickCrisisEnemyType(activeTheme, i + this.tide.budget, diff);
+        this.spawnEnemy(type, diff, { tide: true, hp: 0.78, damage: 0.86, speed: 1.08 });
       }
       this.tide.budget -= batch;
-      this.tide.spawnTimer = 0.7;
+      this.tide.spawnTimer = clamp((0.72 - diff.chapter * 0.025) / clamp(diff.tideMult || 1, 0.85, 1.55), 0.36, 0.72);
     }
     if (this.tide.timer <= 0 && this.tide.budget <= 0) {
       this.tide.active = false;
+      this.addChapterProgress(12 + diff.chapter * 3, "crisis");
     }
   };
 
-  VoidBloom.prototype.pickEnemyType = function () {
-    var t = this.time;
-    var table = [{ id: "seeker", weight: 65 }];
-    if (t > 45) table.push({ id: "runner", weight: 20 });
-    if (t > 85) table.push({ id: "drifter", weight: 16 });
-    if (t > 135) table.push({ id: "bomber", weight: 12 });
-    if (t > 240) table.push({ id: "suppressor", weight: t > 480 ? 11 : 6 });
-    if (t > 360) table.push({ id: "piercer", weight: t > 480 ? 13 : 7 });
+  VoidBloom.prototype.pickEnemyType = function (diff) {
+    diff = diff || this.getDifficultyState();
+    var chapter = diff.chapter || 1;
+    var progress = diff.chapterProgress || 0;
+    var functional = diff.functionalMult || 1;
+    var heat = Math.max(0, (diff.heat || 0) + (diff.liveHeat || 0));
+    var focus = this.director ? (this.director.pressureFocus || "mixed") : "mixed";
+    var table = [{ id: "seeker", weight: Math.max(16, 64 - chapter * 7 - heat * 3) }];
+    if (this.time > 38 || progress > 0.18) table.push({ id: "runner", weight: 18 + chapter + heat });
+    if (this.time > 75 || chapter >= 2) table.push({ id: "drifter", weight: 14 + Math.floor(chapter * 0.8) });
+    if (this.time > 125 || chapter >= 2) table.push({ id: "bomber", weight: 9 + Math.floor(chapter * 0.7) + heat * 0.6 });
+    if (chapter >= 2) table.push({ id: "leechMoth", weight: (5 + chapter) * functional });
+    if (chapter >= 2) table.push({ id: "suppressor", weight: (4 + Math.floor(chapter * 1.3)) * functional });
+    if (chapter >= 2) table.push({ id: "piercer", weight: (5 + Math.floor(chapter * 1.5)) * functional });
+    if (chapter >= 3) table.push({ id: "prismGuard", weight: (6 + chapter) * functional });
+    if (chapter >= 3) table.push({ id: "riftHunter", weight: (7 + chapter) * functional });
+    if (chapter >= 4) table.push({ id: "starMiner", weight: (7 + Math.floor(chapter * 0.8)) * functional });
+    if (chapter >= 5 || diff.endlessLoop > 0) table.push({ id: "nestMother", weight: (4 + Math.floor(chapter * 0.7)) * functional });
+    if ((diff.powerTier || 0) > 0) {
+      if (focus === "regen") {
+        table.push({ id: "leechMoth", weight: 10 * functional });
+        if (!(chapter === 1 && this.time < 60)) table.push({ id: "suppressor", weight: 8 * functional });
+      } else if (focus === "shield") {
+        if (chapter >= 2) table.push({ id: "piercer", weight: 11 * functional });
+        if (chapter >= 3) table.push({ id: "riftHunter", weight: 9 * functional });
+      } else if (focus === "clear") {
+        if (chapter >= 3) table.push({ id: "prismGuard", weight: 12 * functional });
+        if (chapter >= 4) table.push({ id: "starMiner", weight: 10 * functional });
+        if (chapter >= 5) table.push({ id: "nestMother", weight: 7 * functional });
+      }
+    }
     return weightedChoice(table, this.random).id;
   };
 
   VoidBloom.prototype.spawnEnemy = function (type, difficulty, modifiers) {
     if (this.enemies.length >= this.enemyCap && type !== "boss") {
-      return;
+      this.compactEnemies();
+    }
+    if (this.enemies.length >= this.enemyCap && type !== "boss") {
+      return null;
     }
     var diff = typeof difficulty === "number"
       ? { hpMult: difficulty, damageMult: 1, speedMult: 1, affixCount: 0, bossCycle: 1 }
@@ -1396,8 +2322,13 @@
     var x = wrapValue(this.player.x + Math.cos(angle) * spawnRadius, this.world.width);
     var y = wrapValue(this.player.y + Math.sin(angle) * spawnRadius, this.world.height);
     var bossCycle = diff.bossCycle || 1;
-    var typeHpMod = type === "boss" ? 1.1 + bossCycle * 0.35 + Math.pow(bossCycle, 1.2) * 0.18 : type === "elite" ? 1.25 : 1;
-    var typeDamageMod = type === "boss" ? 1.2 + bossCycle * 0.25 + Math.max(0, bossCycle - 3) * 0.18 : 1;
+    var endlessLoop = diff.endlessLoop || 0;
+    var typeHpMod = type === "boss"
+      ? 1.72 + Math.min(8, bossCycle) * 0.38 + endlessLoop * 0.55 + (diff.bossPressure || 0) * 0.12
+      : type === "elite" ? 1.24 + endlessLoop * 0.08 : 1;
+    var typeDamageMod = type === "boss"
+      ? 1.28 + Math.min(8, bossCycle) * 0.18 + endlessLoop * 0.18
+      : 1;
     var affixes = type === "elite" || type === "boss" ? this.rollEliteAffixes(diff.affixCount || 0, type) : [];
     var hp = data.hp * diff.hpMult * typeHpMod * (modifiers.hp || 1);
     var speed = data.speed * diff.speedMult * (modifiers.speed || 1);
@@ -1407,8 +2338,9 @@
       if (affixes[a] === "swift") speed *= 1.28;
       if (affixes[a] === "frenzy") damage *= 1.15;
     }
-    this.enemies.push({
+    var enemy = {
       active: true,
+      id: ++this.enemySeq,
       type: type,
       label: data.label,
       x: x,
@@ -1424,28 +2356,36 @@
       color: data.color,
       score: data.score,
       affixes: affixes,
-      shieldDamage: type === "piercer" ? 2.4 : affixes.indexOf("breaker") !== -1 ? 2.15 : 1,
-      armorPierce: type === "piercer" ? 0.25 : affixes.indexOf("breaker") !== -1 ? 0.18 : 0,
-      suppressAura: type === "suppressor" ? 210 : affixes.indexOf("suppressor") !== -1 ? 235 : 0,
-      bulwarkAura: affixes.indexOf("bulwark") !== -1 ? 210 : 0,
+      chapterBoss: !!modifiers.chapterBoss,
+      tide: !!modifiers.tide,
+      pressure: !!modifiers.pressure,
+      shieldDamage: type === "piercer" ? 2.4 : type === "prismGuard" ? 2.85 : type === "riftHunter" ? 1.85 : affixes.indexOf("breaker") !== -1 ? 2.15 : 1,
+      armorPierce: type === "piercer" ? 0.25 : type === "riftHunter" ? 0.18 : affixes.indexOf("breaker") !== -1 ? 0.18 : 0,
+      suppressAura: type === "suppressor" ? 210 : type === "leechMoth" ? 185 : affixes.indexOf("suppressor") !== -1 ? 235 : 0,
+      bulwarkAura: type === "prismGuard" ? 190 : type === "nestMother" ? 145 : affixes.indexOf("bulwark") !== -1 ? 210 : 0,
       phaseTimer: 2.6 + this.random() * 1.4,
+      actionTimer: 0.8 + this.random() * 2.2,
+      bossSkillTimer: type === "boss" ? 2.4 : 0,
+      riftRush: 0,
       wobble: this.random() * Math.PI * 2,
       freeze: 0,
       hitFlash: 0,
       touchTimer: 0,
       lastX: x,
       lastY: y
-    });
+    };
+    this.enemies.push(enemy);
     if (type === "elite" || type === "boss") {
       this.playSfx(type === "boss" ? "boss" : "shield", type === "boss" ? 1 : 0.65);
     }
+    return enemy;
   };
 
   VoidBloom.prototype.rollEliteAffixes = function (count, type) {
     var result = [];
     var pool = ["vital", "swift", "breaker", "suppressor", "frenzy"];
     if (type === "boss" && this.time > 540) pool.push("bulwark");
-    count = type === "boss" ? Math.min(3, Math.max(1, count)) : Math.min(3, count || 0);
+    count = type === "boss" ? Math.min(4, Math.max(1, count)) : Math.min(4, count || 0);
     while (result.length < count && pool.length) {
       var index = Math.floor(this.random() * pool.length);
       result.push(pool.splice(index, 1)[0]);
@@ -1453,7 +2393,127 @@
     return result;
   };
 
+  VoidBloom.prototype.spawnEnemyNear = function (source, type, diff, modifiers, spread) {
+    if (!source || !source.active) return null;
+    var child = this.spawnEnemy(type, diff, modifiers);
+    if (!child) return null;
+    var angle = this.random() * Math.PI * 2;
+    var distance = (spread || 42) * (0.35 + this.random() * 0.9);
+    child.x = wrapValue(source.x + Math.cos(angle) * distance, this.world.width);
+    child.y = wrapValue(source.y + Math.sin(angle) * distance, this.world.height);
+    child.tide = child.tide || source.tide;
+    child.pressure = child.pressure || source.pressure;
+    return child;
+  };
+
+  VoidBloom.prototype.fireBossSkill = function (boss, diff) {
+    if (!boss || !boss.active) return;
+    var chapter = diff.chapter || 1;
+    var pressure = diff.bossPressure || 0;
+    var pattern = (Math.floor(this.time / 4) + chapter + pressure + boss.id) % 3;
+    var damage = boss.damage * (0.58 + chapter * 0.035 + pressure * 0.035);
+    if (pattern === 0) {
+      var radius = 150 + chapter * 22 + pressure * 14;
+      this.fields.push({
+        type: "bossNova",
+        hostile: true,
+        x: boss.x,
+        y: boss.y,
+        radius: radius,
+        damage: damage,
+        delay: 0.58,
+        life: 1.05,
+        maxLife: 1.05,
+        color: "#ff5d73",
+        label: "冲击"
+      });
+      this.addDamageText(boss.x, boss.y - boss.radius - 28, "虚空冲击", "#ff8aa0", { priority: 3, size: 15 });
+    } else if (pattern === 1) {
+      var dx = this.shortestDelta(boss.x, this.player.x, this.world.width);
+      var dy = this.shortestDelta(boss.y, this.player.y, this.world.height);
+      var len = Math.hypot(dx, dy) || 1;
+      var nx = dx / len;
+      var ny = dy / len;
+      var length = 640 + chapter * 48 + pressure * 24;
+      this.fields.push({
+        type: "bossLine",
+        hostile: true,
+        x1: wrapValue(boss.x + nx * 22, this.world.width),
+        y1: wrapValue(boss.y + ny * 22, this.world.height),
+        x2: wrapValue(boss.x + nx * length, this.world.width),
+        y2: wrapValue(boss.y + ny * length, this.world.height),
+        width: 34 + chapter * 2.8,
+        damage: damage * 0.86,
+        delay: 0.5,
+        life: 1.0,
+        maxLife: 1.0,
+        color: "#ff335f",
+        label: "裂隙"
+      });
+      this.addDamageText(boss.x, boss.y - boss.radius - 28, "裂隙扫射", "#ff6b8a", { priority: 3, size: 15 });
+    } else {
+      var theme = this.getCrisisTheme(chapter + Math.max(1, pressure));
+      var count = Math.min(18, 5 + Math.floor(chapter * 1.35) + pressure);
+      for (var i = 0; i < count; i += 1) {
+        this.spawnEnemyNear(boss, this.pickCrisisEnemyType(theme, i + pressure, diff), diff, { pressure: true, hp: 0.86, damage: 1.04, speed: 1.14 }, 130 + pressure * 6);
+      }
+      this.addDamageText(boss.x, boss.y - boss.radius - 28, "首领召唤", theme.color, { priority: 3, size: 15 });
+    }
+    boss.bossSkillTimer = clamp(4.2 - chapter * 0.22 - pressure * 0.2, 1.55, 4.2) * (diff.bossCooldownMult || 1);
+    this.playSfx("boss", 0.72 + pressure * 0.08);
+    this.shake(2.4 + Math.min(3, pressure * 0.45));
+  };
+
+  VoidBloom.prototype.runEnemySpecial = function (enemy, dt, diff) {
+    enemy.actionTimer = Math.max(0, (enemy.actionTimer || 0) - dt);
+    if (enemy.type === "boss") {
+      enemy.bossSkillTimer = Math.max(0, (enemy.bossSkillTimer || 0) - dt);
+      if (enemy.bossSkillTimer <= 0) {
+        this.fireBossSkill(enemy, diff);
+      }
+    }
+    if (enemy.type === "leechMoth" && enemy.actionTimer <= 0) {
+      var healed = 0;
+      for (var i = 0; i < this.enemies.length && healed < 4; i += 1) {
+        var ally = this.enemies[i];
+        if (!ally.active || ally === enemy || ally.hp >= ally.maxHp) continue;
+        if (distSq(ally.x, ally.y, enemy.x, enemy.y) < 170 * 170) {
+          ally.hp = Math.min(ally.maxHp, ally.hp + Math.max(5, ally.maxHp * 0.025));
+          healed += 1;
+          this.addParticle(enemy.x, enemy.y, ally.x, ally.y, enemy.color, 0.22, 2, "bolt");
+        }
+      }
+      if (distSq(enemy.x, enemy.y, this.player.x, this.player.y) < 205 * 205) {
+        this.stats.healBlockTimer = Math.max(this.stats.healBlockTimer || 0, 0.95);
+      }
+      enemy.actionTimer = 1.25 + this.random() * 0.45;
+    }
+    if (enemy.type === "starMiner" && enemy.actionTimer <= 0) {
+      var mine = this.spawnEnemyNear(enemy, "bomber", diff, { hp: 0.48, damage: 0.74, speed: 0.34 }, 58);
+      if (mine) {
+        mine.label = "星蚀雷";
+        mine.color = enemy.color;
+        mine.radius = Math.max(10, mine.radius - 3);
+        mine.xp = 1;
+        mine.score = 8;
+        mine.phaseTimer = 4;
+        this.addDamageText(enemy.x, enemy.y - 22, "布雷", enemy.color, { priority: 1, size: 12 });
+      }
+      enemy.actionTimer = 3.1 + this.random() * 1.1;
+    }
+    if (enemy.type === "nestMother" && enemy.actionTimer <= 0) {
+      var count = 1 + Math.min(3, Math.floor((diff.chapter || 1) / 3));
+      for (var n = 0; n < count; n += 1) {
+        var type = n === 0 && (diff.chapter || 1) >= 4 ? "leechMoth" : this.random() < 0.45 ? "runner" : "seeker";
+        this.spawnEnemyNear(enemy, type, diff, { hp: 0.62, damage: 0.72, speed: 1.1 }, 68);
+      }
+      this.addDamageText(enemy.x, enemy.y - 26, "孵化", enemy.color, { priority: 1, size: 12 });
+      enemy.actionTimer = 4.4 + this.random() * 1.6;
+    }
+  };
+
   VoidBloom.prototype.updateEnemies = function (dt) {
+    var diff = this.getDifficultyState();
     for (var i = this.enemies.length - 1; i >= 0; i -= 1) {
       var e = this.enemies[i];
       if (!e.active) {
@@ -1467,24 +2527,41 @@
         continue;
       }
       e.phaseTimer = Math.max(0, (e.phaseTimer || 0) - dt);
+      e.riftRush = Math.max(0, (e.riftRush || 0) - dt);
+      this.runEnemySpecial(e, dt, diff);
       var dx = this.shortestDelta(e.x, this.player.x, this.world.width);
       var dy = this.shortestDelta(e.y, this.player.y, this.world.height);
       var len = Math.hypot(dx, dy) || 1;
       var drift = e.type === "drifter" ? Math.sin(this.time * 2.4 + e.wobble) * 0.72 : 0;
+      if (e.type === "leechMoth") drift += Math.sin(this.time * 3.2 + e.wobble) * 0.9;
+      if (e.type === "starMiner") drift += Math.sin(this.time * 1.7 + e.wobble) * 0.58;
+      if (e.type === "nestMother") drift += Math.sin(this.time * 1.1 + e.wobble) * 0.34;
       var rush = 1;
-      if ((e.affixes && e.affixes.indexOf("frenzy") !== -1 && e.hp / e.maxHp < 0.4) || (e.type === "piercer" && e.phaseTimer <= 0)) {
-        rush = e.type === "piercer" ? 2.25 : 1.35;
-        if (e.type === "piercer") {
-          e.phaseTimer = 3.2 + this.random() * 1.2;
+      if (e.riftRush > 0) rush = 2.85;
+      if ((e.affixes && e.affixes.indexOf("frenzy") !== -1 && e.hp / e.maxHp < 0.4) ||
+        ((e.type === "piercer" || e.type === "riftHunter") && e.phaseTimer <= 0)) {
+        rush = e.type === "riftHunter" ? 3.05 : e.type === "piercer" ? 2.25 : 1.35;
+        if (e.type === "piercer" || e.type === "riftHunter") {
+          e.phaseTimer = (e.type === "riftHunter" ? 2.45 : 3.2) + this.random() * 1.2;
+          e.riftRush = e.type === "riftHunter" ? 0.38 : 0;
           this.addParticle(e.x, e.y, this.player.x, this.player.y, e.color, 0.16, 2, "bolt");
         }
       }
       var nx = dx / len;
       var ny = dy / len;
+      var desired = e.type === "leechMoth" ? 155 : e.type === "starMiner" ? 225 : e.type === "nestMother" ? 255 : 0;
+      var approach = 1;
+      if (desired > 0) {
+        if (len < desired * 0.78) {
+          approach = e.type === "nestMother" ? -0.34 : -0.62;
+        } else if (len < desired * 1.16) {
+          approach = 0.18;
+        }
+      }
       var px = -ny * drift;
       var py = nx * drift;
-      e.vx = (nx + px) * e.speed * rush;
-      e.vy = (ny + py) * e.speed * rush;
+      e.vx = (nx * approach + px) * e.speed * rush;
+      e.vy = (ny * approach + py) * e.speed * rush;
       e.x = wrapValue(e.x + e.vx * dt, this.world.width);
       e.y = wrapValue(e.y + e.vy * dt, this.world.height);
       if (e.type === "boss" && Math.floor(this.time * 2) % 9 === 0 && this.random() < 0.011) {
@@ -1543,7 +2620,7 @@
   };
 
   VoidBloom.prototype.areaMultiplier = function () {
-    return 1 + (this.stats.fusionLevel || 0) * 0.075;
+    return Math.min(1.85, 1 + (this.stats.fusionLevel || 0) * 0.075 + (this.stats.ascensionAreaBonus || 0));
   };
 
   VoidBloom.prototype.areaValue = function (value) {
@@ -1609,6 +2686,37 @@
     return best;
   };
 
+  VoidBloom.prototype.getAutoAttackAngle = function (options) {
+    options = options || {};
+    var target = this.findNearestEnemy();
+    if (target) {
+      var tx = this.shortestDelta(this.player.x, target.x, this.world.width);
+      var ty = this.shortestDelta(this.player.y, target.y, this.world.height);
+      return { angle: Math.atan2(ty, tx), target: target, x: target.x, y: target.y };
+    }
+    if (!options.allowFacing && options.fallback !== "facing") return null;
+    var face = this.getFacingVector();
+    return { angle: face.angle, target: null, x: this.player.x + face.x * 160, y: this.player.y + face.y * 160 };
+  };
+
+  VoidBloom.prototype.getAutoAttackPoint = function () {
+    var aim = this.getAutoAttackAngle({ allowFacing: true });
+    if (!aim) return null;
+    return {
+      x: aim.x,
+      y: aim.y,
+      target: aim.target
+    };
+  };
+
+  VoidBloom.prototype.withWeaponMeta = function (meta, source) {
+    var next = Object.assign({}, meta || {});
+    if (source && !next.source) {
+      next.source = source;
+    }
+    return next;
+  };
+
   VoidBloom.prototype.getFacingVector = function () {
     var x = this.player.vx;
     var y = this.player.vy;
@@ -1640,50 +2748,90 @@
   VoidBloom.prototype.firePulse = function () {
     var level = this.weaponLevels.pulse || 0;
     if (!level || this.cooldowns.pulse > 0) return;
-    var target = this.findNearestEnemy();
-    if (!target) return;
-    var angle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
-    var shots = this.evolutions.quantumBuckshot ? 5 : level >= 7 ? 3 : level >= 4 ? 2 : 1;
+    var aim = this.getAutoAttackAngle();
+    if (!aim) return;
+    var angle = aim.angle;
+    var ascTier = this.getAscensionTier("pulse");
+    var evolved = !!this.evolutions.quantumBuckshot;
+    var shots = Math.min(7, (evolved ? 5 : level >= 7 ? 3 : level >= 4 ? 2 : 1) + Math.floor((ascTier + 1) / 3));
     var spread = this.evolutions.quantumBuckshot ? 0.13 : 0.16;
     for (var i = 0; i < shots; i += 1) {
-      var roll = this.rollDamageMeta((13 + level * 4) * (this.evolutions.quantumBuckshot ? 0.78 : 1));
-      this.spawnProjectile(angle + (i - (shots - 1) / 2) * spread, 520, roll.amount, 5, "#45d7ff", 1 + Math.floor(level / 4), "pulse", roll);
+      var roll = this.rollDamageMeta((13 + level * 4) * (this.evolutions.quantumBuckshot ? 0.78 : 1) * this.getAscensionDamageFactor("pulse"));
+      this.spawnProjectile(angle + (i - (shots - 1) / 2) * spread, 520, roll.amount, 5, "#45d7ff", 1 + Math.floor(level / 4), "pulse", this.withWeaponMeta(roll, "脉冲"));
       if (this.evolutions.quantumBuckshot && roll.crit && this.projectiles.length < this.projectileCap - 3) {
         for (var q = 0; q < 3; q += 1) {
-          this.spawnProjectile(angle + (this.random() - 0.5) * 0.75, 430, roll.amount * 0.34, 3, "#b8f4ff", 1, "pulseShard", { crit: false, source: "霰星" });
+          this.spawnProjectile(angle + (this.random() - 0.5) * 0.75, 430, roll.amount * 0.34, 3, "#b8f4ff", 1, "pulseShard", this.withWeaponMeta({ crit: false, source: "霰星" }));
         }
       }
     }
-    this.cooldowns.pulse = Math.max(0.16, (0.54 - level * 0.022) * this.stats.cooldownMult);
+    if (evolved) {
+      this.stats.pulseBeat = (this.stats.pulseBeat || 0) + 1;
+      if (this.stats.pulseBeat % Math.max(3, 5 - Math.floor(ascTier / 2)) === 0) {
+        var beatRadius = this.areaValue((132 + level * 9) * this.getAscensionAreaFactor("pulse"));
+        this.damageArea(this.player.x, this.player.y, beatRadius, (34 + level * 6) * this.damageMultiplier(), "#45d7ff", 34, false, {
+          source: "宇宙心跳",
+          area: true
+        });
+        this.fields.push({
+          type: "nova",
+          x: this.player.x,
+          y: this.player.y,
+          radius: beatRadius,
+          damage: 0,
+          life: 0.34,
+          maxLife: 0.34,
+          color: "#45d7ff",
+          altColor: "#b8f4ff",
+          tick: 0
+        });
+        this.playSfx("crit", 0.95);
+      }
+    }
+    if (ascTier >= 4) {
+      for (var s = 0; s < 6; s += 1) {
+        var sa = angle + s * Math.PI * 2 / 6;
+        this.addParticle(this.player.x, this.player.y, this.player.x + Math.cos(sa) * 180, this.player.y + Math.sin(sa) * 180, "#f8f3df", 0.22, 3, "sword");
+      }
+    }
+    this.cooldowns.pulse = Math.max(0.16, (0.54 - level * 0.022) * this.stats.cooldownMult * this.getAscensionCooldownFactor("pulse"));
   };
 
   VoidBloom.prototype.fireSplitter = function () {
     var level = this.weaponLevels.splitter || 0;
     if (!level || this.cooldowns.splitter > 0) return;
-    var target = this.findNearestEnemy();
-    if (!target) return;
-    var angle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
-    var roll = this.rollDamageMeta(18 + level * 5);
-    this.spawnProjectile(angle, 430, roll.amount, 7, "#ff5aa5", 1, "splitter", roll);
-    this.cooldowns.splitter = Math.max(0.42, (1.25 - level * 0.045) * this.stats.cooldownMult);
+    var aim = this.getAutoAttackAngle();
+    if (!aim) return;
+    var angle = aim.angle;
+    var ascTier = this.getAscensionTier("splitter");
+    var roll = this.rollDamageMeta((18 + level * 5) * this.getAscensionDamageFactor("splitter"));
+    var volley = ascTier >= 3 ? 2 : 1;
+    for (var v = 0; v < volley; v += 1) {
+      this.spawnProjectile(angle + (v - (volley - 1) / 2) * 0.16, 430, roll.amount * (volley > 1 ? 0.82 : 1), 7, ascTier >= 2 ? "#ff7ad8" : "#ff5aa5", 1, "splitter", this.withWeaponMeta(roll, ascTier >= 2 ? "莲华" : "裂变"));
+    }
+    if (ascTier >= 4) {
+      this.fields.push({ type: "sigil", x: this.player.x, y: this.player.y, radius: this.areaValue(120 + level * 6), life: 0.32, maxLife: 0.32, color: "#ff7ad8", family: "lotus", tier: ascTier, seed: this.random() * 1000 });
+    }
+    this.cooldowns.splitter = Math.max(0.42, (1.25 - level * 0.045) * this.stats.cooldownMult * this.getAscensionCooldownFactor("splitter"));
   };
 
   VoidBloom.prototype.fireLightning = function () {
     var level = this.weaponLevels.lightning || 0;
     if (!level || this.cooldowns.lightning > 0 || !this.enemies.length) return;
-    var strikes = 1 + Math.floor(level / 3);
+    var ascTier = this.getAscensionTier("lightning");
+    var strikes = Math.min(8, 1 + Math.floor(level / 3) + Math.floor((ascTier + 1) / 2));
     for (var i = 0; i < strikes; i += 1) {
       var target = this.enemies[Math.floor(this.random() * this.enemies.length)];
       if (target && target.active) {
-        var roll = this.rollDamageMeta(30 + level * 7);
-        this.damageArea(target.x, target.y, 58 + level * 5, roll.amount, "#ffd166", null, false, { crit: roll.crit, source: "雷击" });
+        var roll = this.rollDamageMeta((30 + level * 7) * this.getAscensionDamageFactor("lightning"));
+        var radius = (58 + level * 5) * this.getAscensionAreaFactor("lightning");
+        this.damageArea(target.x, target.y, radius, roll.amount, "#ffd166", null, false, { crit: roll.crit, source: ascTier >= 2 ? "天雷" : "雷击" });
         this.addParticle(target.x, target.y - 90, target.x, target.y, "#ffd166", 0.22, 4, "bolt");
-        if (this.evolutions.stormExecution) {
+        if (this.evolutions.stormExecution || ascTier >= 2) {
           this.fields.push({
             type: "storm",
             x: target.x,
             y: target.y,
-            radius: this.areaValue(72 + level * 4),
+            radius: this.areaValue((72 + level * 4) * this.getAscensionAreaFactor("lightning")),
             damage: (22 + level * 4) * this.damageMultiplier(),
             life: 1.6,
             maxLife: 1.6,
@@ -1693,43 +2841,55 @@
         }
       }
     }
-    this.cooldowns.lightning = Math.max(0.95, (3.2 - level * 0.13) * this.stats.cooldownMult);
+    if (ascTier >= 4) {
+      this.addMysticBurst(this.player.x, this.player.y, "#ffd166", "thunder", 2, "九霄劫云");
+    }
+    this.cooldowns.lightning = Math.max(0.95, (3.2 - level * 0.13) * this.stats.cooldownMult * this.getAscensionCooldownFactor("lightning"));
   };
 
   VoidBloom.prototype.fireGravity = function () {
     var level = this.weaponLevels.gravity || 0;
     if (!level || this.cooldowns.gravity > 0) return;
-    var target = this.findNearestEnemy();
-    if (!target) return;
+    var aim = this.getAutoAttackPoint();
+    if (!aim) return;
+    var ascTier = this.getAscensionTier("gravity");
     var evolved = !!this.evolutions.singularityBloom;
-    var radius = this.areaValue((78 + level * 8) * (evolved ? 1.45 : 1));
+    var radius = this.areaValue((78 + level * 8) * (evolved ? 1.45 : 1) * this.getAscensionAreaFactor("gravity"));
     var life = (3.0 + level * 0.15) * (evolved ? 1.18 : 1);
     this.fields.push({
       type: "gravity",
-      x: target.x,
-      y: target.y,
+      x: aim.x,
+      y: aim.y,
       radius: radius,
-      damage: this.rollDamage((7 + level * 2) * (evolved ? 1.18 : 1)),
-      collapseDamage: evolved ? this.rollDamage(95 + level * 12) : 0,
+      damage: this.rollDamage((7 + level * 2) * (evolved ? 1.18 : 1) * this.getAscensionDamageFactor("gravity")),
+      collapseDamage: evolved || ascTier >= 2 ? this.rollDamage((86 + level * 10) * (ascTier >= 4 ? 1.12 : 1)) : 0,
+      pull: (evolved ? 96 : 44) + ascTier * 13,
+      gemPull: evolved || ascTier >= 3,
       life: life,
       maxLife: life,
       color: "#9b7cff",
+      ascTier: ascTier,
       tick: 0
     });
-    this.cooldowns.gravity = Math.max(2.2, (7.2 - level * 0.28) * this.stats.cooldownMult);
+    if (ascTier >= 4) this.addMysticBurst(aim.x, aim.y, "#b26cff", "void", 2, "山河社稷");
+    this.playSfx("gravity", 0.75);
+    this.cooldowns.gravity = Math.max(2.2, (7.2 - level * 0.28) * this.stats.cooldownMult * this.getAscensionCooldownFactor("gravity"));
   };
 
   VoidBloom.prototype.fireLaser = function () {
     var level = this.weaponLevels.laser || 0;
     if (!level || this.cooldowns.laser > 0) return;
-    var target = this.findNearestEnemy();
-    if (!target) return;
-    var angle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+    var aim = this.getAutoAttackAngle({ fallback: "facing" });
+    if (!aim) return;
+    var angle = aim.angle;
     var range = Math.max(this.width, this.height) * 1.3;
-    var width = 16 + level * 2;
-    var roll = this.rollDamageMeta(52 + level * 13);
-    var damage = roll.amount;
-    var angles = level >= 6 ? [angle - 0.16, angle + 0.16] : [angle];
+    var ascTier = this.getAscensionTier("laser");
+    var evolved = !!this.evolutions.prismJudgement;
+    var width = (16 + level * 2) * (evolved ? 0.92 : 1);
+    var roll = this.rollDamageMeta((52 + level * 13) * this.getAscensionDamageFactor("laser"));
+    var damage = roll.amount * (evolved ? 0.82 : 1);
+    var angles = evolved || ascTier >= 2 ? [angle - 0.24, angle, angle + 0.24] : level >= 6 ? [angle - 0.16, angle + 0.16] : [angle];
+    if (ascTier >= 4) angles = [angle - 0.36, angle - 0.18, angle, angle + 0.18, angle + 0.36];
     for (var a = 0; a < angles.length; a += 1) {
       var beamAngle = angles[a];
       for (var i = 0; i < this.enemies.length; i += 1) {
@@ -1740,13 +2900,18 @@
         var along = ex * Math.cos(beamAngle) + ey * Math.sin(beamAngle);
         var cross = Math.abs(ex * Math.sin(beamAngle) - ey * Math.cos(beamAngle));
         if (along > -20 && along < range && cross < width + e.radius) {
-          this.damageEnemy(e, damage * (angles.length > 1 ? 0.78 : 1), "#ffffff", false, { crit: roll.crit, source: "射线" });
+          this.damageEnemy(e, damage * (angles.length > 1 ? 0.78 : 1), "#ffffff", false, this.withWeaponMeta({ crit: roll.crit, source: "射线" }));
         }
       }
       this.addParticle(this.player.x, this.player.y, this.player.x + Math.cos(beamAngle) * range, this.player.y + Math.sin(beamAngle) * range, "#ffffff", 0.18, width, "laser");
+      if (evolved || ascTier >= 2) {
+        this.addParticle(this.player.x, this.player.y, this.player.x + Math.cos(beamAngle) * range * 0.72, this.player.y + Math.sin(beamAngle) * range * 0.72, a === 1 ? "#fff3a3" : "#45d7ff", 0.24, Math.max(3, width * 0.32), "bolt");
+      }
     }
-    this.cooldowns.laser = Math.max(2.6, (6.8 - level * 0.22) * this.stats.cooldownMult);
-    this.shake(2.4);
+    if (ascTier >= 4) this.fields.push({ type: "sigil", x: this.player.x + Math.cos(angle) * 120, y: this.player.y + Math.sin(angle) * 120, radius: this.areaValue(150 + level * 8), life: 0.42, maxLife: 0.42, color: "#f8f3df", family: "sword", tier: ascTier, seed: this.random() * 1000 });
+    this.playSfx("laser", 0.9);
+    this.cooldowns.laser = Math.max(evolved ? 2.25 : 2.6, (6.8 - level * 0.22) * this.stats.cooldownMult * this.getAscensionCooldownFactor("laser"));
+    this.shake(evolved ? 4 : 2.4);
   };
 
   VoidBloom.prototype.fireArcSpear = function () {
@@ -1754,9 +2919,10 @@
     if (!level || this.cooldowns.arcSpear > 0) return;
     var target = this.findNearestEnemy();
     if (!target) return;
-    var roll = this.rollDamageMeta(18 + level * 5);
+    var ascTier = this.getAscensionTier("arcSpear");
+    var roll = this.rollDamageMeta((18 + level * 5) * this.getAscensionDamageFactor("arcSpear"));
     var damage = roll.amount;
-    var jumps = Math.min(7, 2 + Math.floor(level / 2));
+    var jumps = Math.min(10, 2 + Math.floor(level / 2) + ascTier);
     var previous = { x: this.player.x, y: this.player.y };
     var hit = [];
     for (var i = 0; i < jumps && target; i += 1) {
@@ -1767,36 +2933,61 @@
       previous = target;
       target = this.findNearestEnemyFrom(previous.x, previous.y, hit, 260 + level * 16);
     }
-    this.cooldowns.arcSpear = Math.max(0.48, (1.25 - level * 0.045) * this.stats.cooldownMult);
+    if ((this.evolutions.arcHydra || ascTier >= 2) && hit.length) {
+      var branchStarts = hit.slice(0, Math.min(3, hit.length));
+      for (var b = 0; b < branchStarts.length; b += 1) {
+        var source = branchStarts[b];
+        var branchTarget = this.findNearestEnemyFrom(source.x, source.y, hit, 340 + level * 14);
+        for (var fork = 0; fork < 2 && branchTarget; fork += 1) {
+          this.damageEnemy(branchTarget, damage * (0.46 - fork * 0.08), "#66f0ff", false, { crit: false, source: "雷蛇" });
+          this.addParticle(source.x, source.y, branchTarget.x, branchTarget.y, fork ? "#8de7ff" : "#ffffff", 0.18, fork ? 3 : 4, "bolt");
+          hit.push(branchTarget);
+          source = branchTarget;
+          branchTarget = this.findNearestEnemyFrom(source.x, source.y, hit, 270);
+        }
+      }
+      this.playSfx("crit", 0.8);
+    }
+    if (ascTier >= 4 && hit.length) {
+      this.addMysticBurst(hit[hit.length - 1].x, hit[hit.length - 1].y, "#ffd166", "thunder", 2, "雷龙归海");
+    }
+    this.cooldowns.arcSpear = Math.max(0.48, (1.25 - level * 0.045) * this.stats.cooldownMult * this.getAscensionCooldownFactor("arcSpear"));
   };
 
   VoidBloom.prototype.fireVoidRift = function () {
     var level = this.weaponLevels.voidRift || 0;
     if (!level || this.cooldowns.voidRift > 0) return;
-    var face = this.getFacingVector();
-    var length = 190 + level * 16;
-    var width = 28 + level * 2.5;
+    var aim = this.getAutoAttackAngle({ fallback: "facing" });
+    var face = { x: Math.cos(aim.angle), y: Math.sin(aim.angle), angle: aim.angle };
+    var ascTier = this.getAscensionTier("voidRift");
+    var length = (190 + level * 16) * this.getAscensionAreaFactor("voidRift");
+    var width = (28 + level * 2.5) * (1 + ascTier * 0.04);
     var start = 28;
-    var x1 = this.player.x + face.x * start;
-    var y1 = this.player.y + face.y * start;
-    var x2 = this.player.x + face.x * length;
-    var y2 = this.player.y + face.y * length;
     var life = 2.0 + level * 0.12;
-    this.fields.push({
-      type: "rift",
-      x1: x1,
-      y1: y1,
-      x2: x2,
-      y2: y2,
-      width: width,
-      damage: (18 + level * 5) * this.damageMultiplier(),
-      life: life,
-      maxLife: life,
-      color: "#b26cff",
-      tick: 0
-    });
-    this.addParticle(x1, y1, x2, y2, "#b26cff", 0.34, width, "rift");
-    this.cooldowns.voidRift = Math.max(2.6, (5.3 - level * 0.18) * this.stats.cooldownMult);
+    var lanes = ascTier >= 4 ? [-1, -0.45, 0, 0.45, 1] : ascTier >= 2 ? [-0.55, 0, 0.55] : [0];
+    for (var r = 0; r < lanes.length; r += 1) {
+      var offset = lanes[r] * (42 + level * 2);
+      var x1 = this.player.x + face.x * start + -face.y * offset;
+      var y1 = this.player.y + face.y * start + face.x * offset;
+      var x2 = this.player.x + face.x * length + -face.y * offset;
+      var y2 = this.player.y + face.y * length + face.x * offset;
+      this.fields.push({
+        type: "rift",
+        x1: x1,
+        y1: y1,
+        x2: x2,
+        y2: y2,
+        width: width * (lanes.length > 1 ? 0.78 : 1),
+        damage: (18 + level * 5) * this.damageMultiplier() * this.getAscensionDamageFactor("voidRift") * (lanes.length > 1 ? 0.72 : 1),
+        life: life,
+        maxLife: life,
+        color: "#b26cff",
+        tick: 0
+      });
+      this.addParticle(x1, y1, x2, y2, "#b26cff", 0.34, width, "rift");
+    }
+    this.playSfx("rift", 0.8);
+    this.cooldowns.voidRift = Math.max(2.6, (5.3 - level * 0.18) * this.stats.cooldownMult * this.getAscensionCooldownFactor("voidRift"));
   };
 
   VoidBloom.prototype.updateSatellite = function () {
@@ -1805,8 +2996,9 @@
       this.satellites.length = 0;
       return;
     }
-    var count = this.evolutions.swarmProtocol ? Math.min(8, 4 + Math.ceil(level / 2)) : Math.min(6, 1 + Math.ceil(level / 2));
-    var radius = 82 + level * 4 + (this.evolutions.swarmProtocol ? 18 : 0);
+    var ascTier = this.getAscensionTier("satellite");
+    var count = this.evolutions.swarmProtocol || ascTier >= 2 ? Math.min(10, 4 + Math.ceil(level / 2) + Math.floor(ascTier / 2)) : Math.min(6, 1 + Math.ceil(level / 2));
+    var radius = 82 + level * 4 + (this.evolutions.swarmProtocol ? 18 : 0) + ascTier * 7;
     this.satellites.length = 0;
     for (var i = 0; i < count; i += 1) {
       var angle = -this.time * (1.8 + level * 0.05) + i * Math.PI * 2 / count;
@@ -1817,14 +3009,14 @@
         var target = this.findNearestEnemyFrom(sx, sy, null, 340 + level * 18);
         if (target) {
           var shotAngle = Math.atan2(target.y - sy, target.x - sx);
-          var mirror = this.stats.mirrorPrismLevel > 0 && this.random() < Math.min(0.42, 0.08 + this.stats.mirrorPrismLevel * 0.045);
+          var mirror = (this.stats.mirrorPrismLevel > 0 || ascTier >= 3) && this.random() < Math.min(0.48, 0.08 + this.stats.mirrorPrismLevel * 0.045 + ascTier * 0.025);
           this.projectiles.push({
             active: true,
             x: sx,
             y: sy,
             vx: Math.cos(shotAngle) * 500,
             vy: Math.sin(shotAngle) * 500,
-            damage: this.rollDamage((9 + level * 3) * (this.evolutions.swarmProtocol ? 1.12 : 1)),
+            damage: this.rollDamage((9 + level * 3) * (this.evolutions.swarmProtocol ? 1.12 : 1) * this.getAscensionDamageFactor("satellite")),
             radius: 4,
             color: "#7df9ff",
             pierce: 1,
@@ -1832,14 +3024,14 @@
             meta: null,
             life: 0.9
           });
-          if (mirror || this.evolutions.swarmProtocol) {
+          if (mirror || this.evolutions.swarmProtocol || ascTier >= 2) {
             this.projectiles.push({
               active: true,
               x: sx,
               y: sy,
               vx: Math.cos(shotAngle + (mirror ? 0.22 : -0.18)) * 470,
               vy: Math.sin(shotAngle + (mirror ? 0.22 : -0.18)) * 470,
-              damage: this.rollDamage(6 + level * 2.1),
+              damage: this.rollDamage((6 + level * 2.1) * (1 + ascTier * 0.025)),
               radius: 3,
               color: mirror ? "#d8f5ff" : "#7df9ff",
               pierce: 1,
@@ -1852,17 +3044,20 @@
       }
     }
     if (this.cooldowns.satellite <= 0) {
-      this.cooldowns.satellite = Math.max(0.18, (0.78 - level * 0.035) * this.stats.cooldownMult);
+      if (ascTier >= 4) this.fields.push({ type: "sigil", x: this.player.x, y: this.player.y, radius: this.areaValue(120 + level * 4), life: 0.3, maxLife: 0.3, color: "#7df9ff", family: "machine", tier: ascTier, seed: this.random() * 1000 });
+      this.cooldowns.satellite = Math.max(0.18, (0.78 - level * 0.035) * this.stats.cooldownMult * this.getAscensionCooldownFactor("satellite"));
     }
   };
 
   VoidBloom.prototype.firePhaseSlash = function () {
     var level = this.weaponLevels.phaseSlash || 0;
     if (!level || this.cooldowns.phaseSlash > 0) return;
-    var face = this.getFacingVector();
-    var radius = 118 + level * 12;
-    var angleWidth = Math.PI * (0.34 + Math.min(0.18, level * 0.012));
-    var damage = this.rollDamage(30 + level * 8);
+    var aim = this.getAutoAttackAngle({ fallback: "facing" });
+    var face = { x: Math.cos(aim.angle), y: Math.sin(aim.angle), angle: aim.angle };
+    var ascTier = this.getAscensionTier("phaseSlash");
+    var radius = (118 + level * 12) * this.getAscensionAreaFactor("phaseSlash");
+    var angleWidth = Math.PI * (0.34 + Math.min(0.18, level * 0.012) + ascTier * 0.018);
+    var damage = this.rollDamage((30 + level * 8) * this.getAscensionDamageFactor("phaseSlash"));
     for (var i = 0; i < this.enemies.length; i += 1) {
       var e = this.enemies[i];
       if (!e.active) continue;
@@ -1871,7 +3066,7 @@
       var distance = Math.hypot(dx, dy) || 1;
       var delta = Math.atan2(Math.sin(Math.atan2(dy, dx) - face.angle), Math.cos(Math.atan2(dy, dx) - face.angle));
       if (distance < radius + e.radius && Math.abs(delta) < angleWidth) {
-        this.damageEnemy(e, damage, "#d8f5ff", false, { source: "斩波" });
+        this.damageEnemy(e, damage, "#d8f5ff", false, this.withWeaponMeta({ source: "斩波" }));
         this.tryQuantumEchoHit(e, damage * 0.35, this.player.x, this.player.y);
       }
     }
@@ -1887,22 +3082,32 @@
       color: "#d8f5ff",
       tick: 0
     });
-    this.cooldowns.phaseSlash = Math.max(0.9, (2.25 - level * 0.07) * this.stats.cooldownMult);
+    if (ascTier >= 4) {
+      this.fields.push({ type: "slash", x: this.player.x, y: this.player.y, angle: face.angle + Math.PI, angleWidth: angleWidth * 0.72, radius: radius * 0.82, life: 0.2, maxLife: 0.2, color: "#f8f3df", tick: 0 });
+    }
+    this.cooldowns.phaseSlash = Math.max(0.9, (2.25 - level * 0.07) * this.stats.cooldownMult * this.getAscensionCooldownFactor("phaseSlash"));
     this.shake(1.6);
   };
 
   VoidBloom.prototype.fireMeteorRain = function () {
     var level = this.weaponLevels.meteorRain || 0;
     if (!level || this.cooldowns.meteorRain > 0) return;
-    var count = Math.min(9, 3 + Math.floor(level / 2));
+    var aim = this.getAutoAttackPoint();
+    var ascTier = this.getAscensionTier("meteorRain");
+    var evolved = !!this.evolutions.cataclysmEpoch;
+    var count = Math.min(evolved || ascTier >= 2 ? 14 : 9, 3 + Math.floor(level / 2) + (evolved ? 2 : 0) + Math.floor(ascTier / 2));
     for (var i = 0; i < count; i += 1) {
       var target = this.enemies.length
         ? this.enemies[Math.floor(this.random() * this.enemies.length)]
         : null;
-      var x = target && target.active
+      var x = aim
+        ? aim.x + (i === 0 ? 0 : (this.random() - 0.5) * 180)
+        : target && target.active
         ? target.x + (this.random() - 0.5) * 180
         : wrapValue(this.player.x + (this.random() - 0.5) * this.width, this.world.width);
-      var y = target && target.active
+      var y = aim
+        ? aim.y + (i === 0 ? 0 : (this.random() - 0.5) * 180)
+        : target && target.active
         ? target.y + (this.random() - 0.5) * 180
         : wrapValue(this.player.y + (this.random() - 0.5) * this.height, this.world.height);
       var delay = 0.18 + i * 0.055;
@@ -1910,23 +3115,27 @@
         type: "meteor",
         x: wrapValue(x, this.world.width),
         y: wrapValue(y, this.world.height),
-        radius: this.areaValue(64 + level * 5),
-        damage: this.rollDamage(38 + level * 10),
+        radius: this.areaValue((64 + level * 5) * (evolved ? 1.12 : 1) * this.getAscensionAreaFactor("meteorRain")),
+        damage: this.rollDamage((38 + level * 10) * (evolved ? 0.92 : 1) * this.getAscensionDamageFactor("meteorRain")),
         delay: delay,
-        life: delay + 0.72,
-        maxLife: delay + 0.72,
-        color: "#ffb347",
+        life: delay + (evolved ? 0.82 : 0.72),
+        maxLife: delay + (evolved ? 0.82 : 0.72),
+        color: evolved && i % 3 === 1 ? "#ffd166" : "#ffb347",
+        cataclysm: evolved || ascTier >= 2,
         tick: 0
       });
     }
-    this.cooldowns.meteorRain = Math.max(2.8, (6.2 - level * 0.18) * this.stats.cooldownMult);
+    if (ascTier >= 4) this.addMysticBurst(this.player.x, this.player.y, "#ffcf6b", "thunder", 2, "星河倒悬");
+    this.playSfx("meteor", 0.95);
+    this.cooldowns.meteorRain = Math.max(evolved ? 2.45 : 2.8, (6.2 - level * 0.18) * this.stats.cooldownMult * this.getAscensionCooldownFactor("meteorRain"));
   };
 
   VoidBloom.prototype.fireWarpMine = function () {
     var level = this.weaponLevels.warpMine || 0;
     if (!level || this.cooldowns.warpMine > 0) return;
     var face = this.getFacingVector();
-    var spread = level >= 6 ? 2 : 1;
+    var ascTier = this.getAscensionTier("warpMine");
+    var spread = Math.min(4, (level >= 6 ? 2 : 1) + Math.floor((ascTier + 1) / 2));
     for (var i = 0; i < spread; i += 1) {
       var side = i === 0 ? 0 : (i % 2 ? 1 : -1);
       var x = wrapValue(this.player.x - face.x * (52 + i * 18) + -face.y * side * 34, this.world.width);
@@ -1935,29 +3144,31 @@
         type: "mine",
         x: x,
         y: y,
-        radius: this.areaValue(54 + level * 4),
+        radius: this.areaValue((54 + level * 4) * this.getAscensionAreaFactor("warpMine")),
         triggerRadius: this.areaValue(38 + level * 3),
-        damage: this.rollDamage(44 + level * 9),
+        damage: this.rollDamage((44 + level * 9) * this.getAscensionDamageFactor("warpMine") * (spread > 2 ? 0.86 : 1)),
         life: 7.5,
         maxLife: 7.5,
         color: "#f472ff",
         tick: 0
       });
     }
-    this.cooldowns.warpMine = Math.max(0.72, (2.35 - level * 0.08) * this.stats.cooldownMult);
+    this.cooldowns.warpMine = Math.max(0.72, (2.35 - level * 0.08) * this.stats.cooldownMult * this.getAscensionCooldownFactor("warpMine"));
   };
 
   VoidBloom.prototype.fireFrostfireNova = function () {
     var level = this.weaponLevels.frostfireNova || 0;
     if (!level || this.cooldowns.frostfireNova > 0) return;
-    var radius = this.areaValue(132 + level * 13);
-    var roll = this.rollDamageMeta(34 + level * 8);
+    var ascTier = this.getAscensionTier("frostfireNova");
+    var evolved = !!this.evolutions.frostfireSingularity;
+    var radius = this.areaValue((132 + level * 13) * (evolved ? 1.18 : 1) * this.getAscensionAreaFactor("frostfireNova"));
+    var roll = this.rollDamageMeta((34 + level * 8) * (evolved ? 1.08 : 1) * this.getAscensionDamageFactor("frostfireNova"));
     var damage = roll.amount;
     for (var i = 0; i < this.enemies.length; i += 1) {
       var e = this.enemies[i];
       if (!e.active) continue;
       if (distSq(e.x, e.y, this.player.x, this.player.y) < Math.pow(radius + e.radius, 2)) {
-        e.freeze = Math.max(e.freeze, 0.75 + level * 0.08);
+        e.freeze = Math.max(e.freeze, (evolved ? 1.0 : 0.75) + level * 0.08 + ascTier * 0.05);
         this.damageEnemy(e, damage, i % 2 ? "#ff7a38" : "#8de7ff", false, { crit: roll.crit, source: "新星" });
       }
     }
@@ -1973,10 +3184,25 @@
       altColor: "#ff7a38",
       tick: 0
     });
+    if (evolved || ascTier >= 2) {
+      this.fields.push({
+        type: "burn",
+        x: this.player.x,
+        y: this.player.y,
+        radius: radius * 0.74,
+        damage: (22 + level * 5) * this.damageMultiplier(),
+        life: 1.35,
+        maxLife: 1.35,
+        color: "#ff7a38",
+        tick: 0
+      });
+      this.damageArea(this.player.x, this.player.y, radius * 0.52, damage * 0.42, "#ffffff", 30, false, { source: "霜火核心", area: true });
+    }
     this.addBurst(this.player.x, this.player.y, "#8de7ff", 38, 4.8);
     this.addBurst(this.player.x, this.player.y, "#ff7a38", 24, 4.2);
-    this.cooldowns.frostfireNova = Math.max(2.4, (5.8 - level * 0.18) * this.stats.cooldownMult);
-    this.shake(3);
+    if (ascTier >= 4) this.addMysticBurst(this.player.x, this.player.y, "#8de7ff", "lotus", 2, "太极寂灭");
+    this.cooldowns.frostfireNova = Math.max(evolved ? 2.05 : 2.4, (5.8 - level * 0.18) * this.stats.cooldownMult * this.getAscensionCooldownFactor("frostfireNova"));
+    this.shake(evolved ? 4.5 : 3);
   };
 
   VoidBloom.prototype.fireBlackHoleBloom = function () {
@@ -1984,51 +3210,82 @@
     if (!level || this.cooldowns.blackHoleBloom > 0) return;
     var target = this.findNearestEnemy();
     if (!target) return;
-    var life = 2.8 + level * 0.13;
+    var ascTier = this.getAscensionTier("blackHoleBloom");
+    var evolved = !!this.evolutions.eventHorizon;
+    var life = (2.8 + level * 0.13) * (evolved ? 1.18 : 1);
     this.fields.push({
       type: "blackhole",
       x: target.x,
       y: target.y,
-      radius: this.areaValue(92 + level * 9),
-      damage: (18 + level * 5) * this.damageMultiplier(),
-      collapseDamage: (82 + level * 13) * this.damageMultiplier(),
-      pull: 98 + level * 8,
+      radius: this.areaValue((92 + level * 9) * (evolved ? 1.36 : 1) * this.getAscensionAreaFactor("blackHoleBloom")),
+      damage: (18 + level * 5) * this.damageMultiplier() * (evolved ? 1.08 : 1) * this.getAscensionDamageFactor("blackHoleBloom"),
+      collapseDamage: (82 + level * 13) * this.damageMultiplier() * (evolved ? 1.42 : 1) * (1 + ascTier * 0.04),
+      pull: (98 + level * 8) * (evolved ? 1.45 : 1) + ascTier * 15,
+      eventHorizon: evolved || ascTier >= 2,
       life: life,
       maxLife: life,
-      color: "#7c3cff",
+      color: evolved || ascTier >= 2 ? "#b26cff" : "#7c3cff",
       tick: 0,
       seed: this.random() * 1000
     });
-    this.addDamageText(target.x, target.y - 30, "黑洞花", "#b26cff", { priority: 2, size: 14 });
-    this.playSfx("shield", 0.65);
-    this.cooldowns.blackHoleBloom = Math.max(3.6, (6.8 - level * 0.18) * this.stats.cooldownMult);
+    this.addDamageText(target.x, target.y - 30, evolved ? "事件视界" : "黑洞花", "#b26cff", { priority: 2, size: evolved ? 17 : 14 });
+    this.playSfx(evolved ? "gravity" : "shield", evolved ? 1.1 : 0.65);
+    if (ascTier >= 4) this.addMysticBurst(target.x, target.y, "#b26cff", "void", 2, "归墟帝莲");
+    this.cooldowns.blackHoleBloom = Math.max(evolved ? 3.1 : 3.6, (6.8 - level * 0.18) * this.stats.cooldownMult * this.getAscensionCooldownFactor("blackHoleBloom"));
   };
 
   VoidBloom.prototype.updateAura = function (dt) {
     var level = this.weaponLevels.aura || 0;
     if (!level) return;
-    var radius = 66 + level * 8;
-    var damage = (18 + level * 5) * dt * this.damageMultiplier();
+    var ascTier = this.getAscensionTier("aura");
+    var evolved = !!this.evolutions.greenSunHalo;
+    var radius = (66 + level * 8) * (evolved ? 1.18 : 1) * this.getAscensionAreaFactor("aura");
+    var damage = (18 + level * 5) * dt * this.damageMultiplier() * (evolved ? 1.12 : 1) * this.getAscensionDamageFactor("aura");
     for (var i = 0; i < this.enemies.length; i += 1) {
       var e = this.enemies[i];
       if (e.active && distSq(e.x, e.y, this.player.x, this.player.y) < Math.pow(radius + e.radius, 2)) {
-        this.damageEnemy(e, damage, "#78f7d2", true);
+        this.damageEnemy(e, damage, evolved ? "#c8ffe7" : "#78f7d2", true);
       }
+    }
+    if ((evolved || ascTier >= 2) && this.cooldowns.aura <= 0) {
+      var haloRadius = this.areaValue((150 + level * 13) * this.getAscensionAreaFactor("aura"));
+      this.damageArea(this.player.x, this.player.y, haloRadius, (42 + level * 8) * this.damageMultiplier(), "#78f7d2", 42, false, {
+        source: "苍翠日冕",
+        area: true
+      });
+      this.fields.push({
+        type: "nova",
+        x: this.player.x,
+        y: this.player.y,
+        radius: haloRadius,
+        damage: 0,
+        life: 0.5,
+        maxLife: 0.5,
+        color: "#78f7d2",
+        altColor: "#fff3a3",
+        tick: 0
+      });
+      if (ascTier >= 4) this.fields.push({ type: "sigil", x: this.player.x, y: this.player.y, radius: haloRadius * 0.82, life: 0.56, maxLife: 0.56, color: "#78f7d2", family: "lotus", tier: ascTier, seed: this.random() * 1000 });
+      this.applyHealing(2.2 + level * 0.18, "halo", this.player.x, this.player.y - 36);
+      this.cooldowns.aura = Math.max(2.2, (4.6 - level * 0.12) * this.stats.cooldownMult * this.getAscensionCooldownFactor("aura"));
+      this.playSfx("shield", 0.75);
     }
   };
 
   VoidBloom.prototype.updateOrbit = function (dt) {
     var level = this.weaponLevels.orbit || 0;
     if (!level) return;
-    var count = Math.min(6, 2 + Math.floor(level / 2));
-    var radius = 46 + level * 5;
-    var damage = (22 + level * 6) * this.damageMultiplier();
+    var ascTier = this.getAscensionTier("orbit");
+    var evolved = !!this.evolutions.bladeGalaxy;
+    var count = Math.min(evolved || ascTier >= 2 ? 10 : 6, 2 + Math.floor(level / 2) + (evolved ? 1 : 0) + Math.floor(ascTier / 2));
+    var radius = (46 + level * 5 + (evolved ? 10 : 0)) * this.getAscensionAreaFactor("orbit");
+    var damage = (22 + level * 6) * this.damageMultiplier() * (evolved ? 1.08 : 1) * this.getAscensionDamageFactor("orbit");
     this.orbs.length = 0;
     for (var i = 0; i < count; i += 1) {
       var angle = this.time * (2.4 + level * 0.08) + i * Math.PI * 2 / count;
       var ox = this.player.x + Math.cos(angle) * radius;
       var oy = this.player.y + Math.sin(angle) * radius;
-      this.orbs.push({ x: ox, y: oy, radius: 8, color: "#22e6b7" });
+      this.orbs.push({ x: ox, y: oy, radius: evolved ? 9 : 8, color: evolved && i % 2 ? "#d8f5ff" : "#22e6b7" });
       for (var j = 0; j < this.enemies.length; j += 1) {
         var e = this.enemies[j];
         if (e.active && e.touchTimer <= 0 && distSq(e.x, e.y, ox, oy) < Math.pow(e.radius + 10, 2)) {
@@ -2037,19 +3294,19 @@
         }
       }
     }
-    if (level >= 8) {
-      var outerCount = Math.min(5, Math.floor(level / 4));
-      var outerRadius = radius + 34;
+    if (level >= 8 || evolved || ascTier >= 3) {
+      var outerCount = Math.min(evolved || ascTier >= 3 ? 8 : 5, Math.floor(level / 4) + (evolved ? 3 : 0) + Math.floor(ascTier / 2));
+      var outerRadius = radius + (evolved ? 50 : 34);
       for (var o = 0; o < outerCount; o += 1) {
         var outerAngle = -this.time * (2.9 + level * 0.06) + o * Math.PI * 2 / outerCount;
         var px = this.player.x + Math.cos(outerAngle) * outerRadius;
         var py = this.player.y + Math.sin(outerAngle) * outerRadius;
-        this.orbs.push({ x: px, y: py, radius: 5, color: "#d8f5ff" });
+        this.orbs.push({ x: px, y: py, radius: evolved ? 6 : 5, color: evolved ? "#fff3a3" : "#d8f5ff" });
         for (var k = 0; k < this.enemies.length; k += 1) {
           var target = this.enemies[k];
           if (target.active && target.touchTimer <= 0 && distSq(target.x, target.y, px, py) < Math.pow(target.radius + 8, 2)) {
             target.touchTimer = 0.18;
-            this.damageEnemy(target, damage * 0.45, "#d8f5ff");
+            this.damageEnemy(target, damage * (evolved ? 0.58 : 0.45), evolved ? "#fff3a3" : "#d8f5ff");
           }
         }
       }
@@ -2058,17 +3315,19 @@
 
   VoidBloom.prototype.updateTriggers = function (dt) {
     if (this.stats.frostLevel > 0) {
+      var frostAsc = this.getAscensionTier("frostPulse");
       this.frostTimer -= dt;
       if (this.frostTimer <= 0) {
-        var radius = 110 + this.stats.frostLevel * 18;
+        var radius = 110 + this.stats.frostLevel * 18 + frostAsc * 18;
         for (var i = 0; i < this.enemies.length; i += 1) {
           var e = this.enemies[i];
           if (e.active && distSq(e.x, e.y, this.player.x, this.player.y) < radius * radius) {
-            e.freeze = Math.max(e.freeze, 1.1 + this.stats.frostLevel * 0.12);
+            e.freeze = Math.max(e.freeze, 1.1 + this.stats.frostLevel * 0.12 + frostAsc * 0.08);
           }
         }
         this.addBurst(this.player.x, this.player.y, "#8de7ff", 32, 4);
-        this.frostTimer = Math.max(5.5, 12 - this.stats.frostLevel * 0.65);
+        if (frostAsc >= 3) this.fields.push({ type: "sigil", x: this.player.x, y: this.player.y, radius: this.areaValue(radius), life: 0.42, maxLife: 0.42, color: "#8de7ff", family: "lotus", tier: frostAsc, seed: this.random() * 1000 });
+        this.frostTimer = Math.max(4.8, 12 - this.stats.frostLevel * 0.65 - frostAsc * 0.25);
       }
     }
   };
@@ -2103,25 +3362,85 @@
     }
   };
 
+  VoidBloom.prototype.updateHostileField = function (f, dt) {
+    f.delay = Math.max(0, (f.delay || 0) - dt);
+    if (f.delay > 0 || f.hitDone) return;
+    f.hitDone = true;
+    var hit = false;
+    if (f.type === "bossLine") {
+      hit = pointSegmentDistanceSq(this.player.x, this.player.y, f.x1, f.y1, f.x2, f.y2) < Math.pow((f.width || 34) + this.stats.radius, 2);
+    } else {
+      hit = distSq(this.player.x, this.player.y, f.x, f.y) < Math.pow((f.radius || 120) + this.stats.radius, 2);
+    }
+    if (hit) {
+      this.damagePlayer(f.damage || 12, f.label || "首领", f.color || "#ff6b6b", {
+        shieldDamage: f.type === "bossLine" ? 2.1 : 1.55,
+        armorPierce: 0.08,
+        healBlock: 1.35,
+        invuln: 0.34,
+        shake: f.type === "bossLine" ? 6 : 7
+      });
+    }
+    if (f.type === "bossLine") {
+      this.addParticle(f.x1, f.y1, f.x2, f.y2, f.color || "#ff335f", 0.22, 8, "bolt");
+    } else {
+      this.addBurst(f.x, f.y, f.color || "#ff335f", 46, 5.4);
+    }
+  };
+
   VoidBloom.prototype.updateFields = function (dt) {
     for (var i = this.fields.length - 1; i >= 0; i -= 1) {
       var f = this.fields[i];
       f.life -= dt;
       f.tick = (f.tick || 0) - dt;
+      if (f.hostile) {
+        this.updateHostileField(f, dt);
+        if (f.life <= 0) {
+          this.fields.splice(i, 1);
+        }
+        continue;
+      }
       if (f.life <= 0) {
         if ((f.type === "blackhole" || f.type === "gravity") && f.collapseDamage) {
-          this.damageArea(f.x, f.y, f.radius * (f.type === "blackhole" ? 1.05 : 0.82), f.collapseDamage, f.color, 38, false, { source: "坍缩", area: true });
+          this.damageArea(f.x, f.y, f.radius * (f.type === "blackhole" ? 1.05 : 0.82), f.collapseDamage, f.color, 38, false, {
+            source: "坍缩",
+            area: true
+          });
           this.addBurst(f.x, f.y, f.color, f.type === "blackhole" ? 46 : 34, 5.2);
           this.shake(f.type === "blackhole" ? 4 : 3);
         }
         this.fields.splice(i, 1);
         continue;
       }
+      if (f.type === "sigil") {
+        // Pure visual field; rendered in drawFields().
+        continue;
+      }
       if (f.type === "meteor") {
         f.delay -= dt;
         if (f.delay <= 0 && !f.exploded) {
           f.exploded = true;
-          this.damageArea(f.x, f.y, f.radius, f.damage, f.color, 22);
+          this.damageArea(f.x, f.y, f.radius, f.damage, f.color, 22, false, {
+            source: "陨星"
+          });
+          if (f.cataclysm) {
+            this.damageArea(f.x, f.y, f.radius * 1.18, f.damage * 0.46, "#ffd166", 26, false, {
+              source: "天灾雷火",
+              area: true
+            });
+            this.fields.push({
+              type: "storm",
+              x: f.x,
+              y: f.y,
+              radius: f.radius * 0.92,
+              damage: f.damage * 0.34,
+              life: 1.35,
+              maxLife: 1.35,
+              color: "#ffd166",
+              tick: 0
+            });
+            this.addParticle(f.x, f.y - f.radius * 1.6, f.x, f.y, "#ffd166", 0.2, 5, "bolt");
+          }
           if ((this.weaponLevels.meteorRain || 0) >= 8) {
             this.fields.push({
               type: "burn",
@@ -2177,12 +3496,29 @@
       if (f.type === "nova") {
         continue;
       }
+      if (f.type === "sigil") {
+        continue;
+      }
       if (f.type === "gravity" && f.tick <= 0 && (this.weaponLevels.gravity || 0) >= 7) {
-        this.damageArea(f.x, f.y, f.radius * 0.72, (24 + (this.weaponLevels.gravity || 0) * 5) * this.damageMultiplier(), f.color, 18, true);
+        this.damageArea(f.x, f.y, f.radius * 0.72, (24 + (this.weaponLevels.gravity || 0) * 5) * this.damageMultiplier(), f.color, 18, true, {
+          source: "力场"
+        });
         f.tick = 0.8;
       }
+      if (f.type === "gravity" && f.gemPull) {
+        for (var gp = 0; gp < this.gems.length; gp += 1) {
+          var gem = this.gems[gp];
+          var gdx = this.shortestDelta(gem.x, f.x, this.world.width);
+          var gdy = this.shortestDelta(gem.y, f.y, this.world.height);
+          var gd = Math.hypot(gdx, gdy) || 1;
+          if (gd < f.radius * 1.35) {
+            gem.x = wrapValue(gem.x + gdx / gd * 260 * dt, this.world.width);
+            gem.y = wrapValue(gem.y + gdy / gd * 260 * dt, this.world.height);
+          }
+        }
+      }
       if (f.type === "blackhole" && f.tick <= 0) {
-        f.radius = Math.min(f.radius + 2.4, this.areaValue(160 + (this.weaponLevels.blackHoleBloom || 0) * 8));
+        f.radius = Math.min(f.radius + (f.eventHorizon ? 3.6 : 2.4), this.areaValue((160 + (this.weaponLevels.blackHoleBloom || 0) * 8) * (f.eventHorizon ? 1.22 : 1)));
         this.damageArea(f.x, f.y, f.radius * 0.62, f.damage * 0.52, f.color, 26, true, { source: "黑洞", area: true });
         f.tick = 0.42;
       }
@@ -2197,7 +3533,10 @@
           var px = f.x1 + lx * t;
           var py = f.y1 + ly * t;
           if (distSq(e.x, e.y, px, py) < Math.pow((f.width || 20) + e.radius, 2)) {
-            this.damageEnemy(e, f.damage * dt, f.color, true, { dot: true, source: f.type === "trail" ? "轨迹" : "裂隙" });
+            this.damageEnemy(e, f.damage * dt, f.color, true, {
+              dot: true,
+              source: f.type === "trail" ? "轨迹" : "裂隙"
+            });
           }
           continue;
         }
@@ -2208,10 +3547,14 @@
         var dy = f.y - e.y;
         var d = Math.hypot(dx, dy) || 1;
         if (d < f.radius) {
-          var pull = f.type === "burn" || f.type === "storm" ? 0 : f.type === "blackhole" ? (f.pull || 110) : 44;
+          var pull = f.type === "burn" || f.type === "storm" ? 0 : f.type === "blackhole" ? (f.pull || 110) : (f.pull || 44);
           e.x += dx / d * pull * dt;
           e.y += dy / d * pull * dt;
-          this.damageEnemy(e, f.damage * dt, f.color, true, { dot: true, source: f.type === "burn" ? "灼烧" : f.type === "storm" ? "电场" : f.type === "blackhole" ? "黑洞" : "力场", area: true });
+          this.damageEnemy(e, f.damage * dt, f.color, true, {
+            dot: true,
+            source: f.type === "burn" ? "灼烧" : f.type === "storm" ? "电场" : f.type === "blackhole" ? "黑洞" : "力场",
+            area: true
+          });
         }
       }
     }
@@ -2240,6 +3583,9 @@
         while (this.xp >= this.nextXp) {
           this.xp -= this.nextXp;
           this.level += 1;
+          var playerConfig = CONFIG.player || {};
+          var levelHeal = (playerConfig.levelHealFlat || 0) + this.stats.maxHp * (playerConfig.levelHealRatio || 0);
+          this.applyHealing(levelHeal, "levelUp", this.player.x, this.player.y - 34);
           this.nextXp = this.getNextXp();
           this.showUpgrade();
           return;
@@ -2445,7 +3791,8 @@
 
   VoidBloom.prototype.splitProjectile = function (projectile) {
     var level = this.weaponLevels.splitter || 1;
-    var count = Math.min(10, 3 + Math.floor(level / 2));
+    var ascTier = this.getAscensionTier("splitter");
+    var count = Math.min(12, 3 + Math.floor(level / 2) + Math.floor(ascTier / 2));
     for (var i = 0; i < count; i += 1) {
       if (this.projectiles.length >= this.projectileCap) break;
       var angle = i * Math.PI * 2 / count + this.time;
@@ -2455,9 +3802,9 @@
         y: projectile.y,
         vx: Math.cos(angle) * 330,
         vy: Math.sin(angle) * 330,
-        damage: projectile.damage * 0.48,
+        damage: projectile.damage * (ascTier >= 4 ? 0.42 : 0.48),
         radius: 4,
-        color: "#ff9ad0",
+        color: ascTier >= 2 ? "#ff7ad8" : "#ff9ad0",
         pierce: 1,
         type: "split",
         meta: projectile.meta || null,
@@ -2478,6 +3825,9 @@
       damage *= executeBonus;
       meta.priority = Math.max(meta.priority || 0, enemy.hp / Math.max(1, enemy.maxHp) < 0.22 ? 2 : 1);
       meta.source = meta.source || "处刑";
+    }
+    if (this.chapter && this.chapter.metrics) {
+      this.chapter.metrics.damageDealt += Math.min(damage, Math.max(0, enemy.hp));
     }
     if (silent || meta.dot) {
       this.queueDotText(enemy, damage, color, meta);
@@ -2548,34 +3898,43 @@
     this.kills += 1;
     if (enemy.type === "elite") this.eliteKills += 1;
     if (enemy.type === "boss") this.bossKills += 1;
+    if (this.chapter) {
+      if (enemy.type !== "boss") {
+        this.chapter.kills = (this.chapter.kills || 0) + 1;
+        if (enemy.type === "elite") this.chapter.eliteKills = (this.chapter.eliteKills || 0) + 1;
+        this.addChapterProgress(this.getChapterProgressValue(enemy), enemy.tide ? "crisis" : "kill");
+      }
+    }
     if (this.stats.bloodHarvestLevel > 0) {
-      this.stats.harvestStacks += enemy.type === "boss" ? 12 : enemy.type === "elite" ? 6 : 1;
+      this.stats.harvestStacks += (enemy.type === "boss" ? 12 : enemy.type === "elite" ? 6 : 1) + Math.floor(this.getAscensionTier("bloodHarvest") / 2);
     }
     if (this.stats.stormCrownLevel > 0) {
-      this.stats.stormKills += enemy.type === "boss" ? 18 : enemy.type === "elite" ? 8 : 1;
-      var stormNeed = Math.max(18, 42 - this.stats.stormCrownLevel * 4);
+      var stormAsc = this.getAscensionTier("stormCrown");
+      this.stats.stormKills += (enemy.type === "boss" ? 18 : enemy.type === "elite" ? 8 : 1) + Math.floor(stormAsc / 2);
+      var stormNeed = Math.max(15, 42 - this.stats.stormCrownLevel * 4 - stormAsc * 2);
       if (this.stats.stormKills >= stormNeed) {
         this.stats.stormKills = 0;
-        var jumps = 8 + this.stats.stormCrownLevel * 3;
+        var jumps = 8 + this.stats.stormCrownLevel * 3 + stormAsc * 2;
         var origin = { x: enemy.x, y: enemy.y };
         var hit = [];
         var target = this.findNearestEnemyFrom(origin.x, origin.y, hit, 520);
         for (var st = 0; st < jumps && target; st += 1) {
-          this.damageEnemy(target, (34 + this.stats.stormCrownLevel * 8) * this.damageMultiplier(), "#ffd166", false, { source: "雷暴" });
+          this.damageEnemy(target, (34 + this.stats.stormCrownLevel * 8) * this.damageMultiplier() * (1 + stormAsc * 0.03), "#ffd166", false, { source: stormAsc >= 2 ? "雷帝冠" : "雷暴" });
           this.addParticle(origin.x, origin.y, target.x, target.y, "#ffd166", 0.18, 4, "bolt");
           hit.push(target);
           origin = target;
           target = this.findNearestEnemyFrom(origin.x, origin.y, hit, 360);
         }
+        if (stormAsc >= 3) this.fields.push({ type: "sigil", x: enemy.x, y: enemy.y, radius: this.areaValue(130 + stormAsc * 16), life: 0.38, maxLife: 0.38, color: "#ffd166", family: "thunder", tier: stormAsc, seed: this.random() * 1000 });
         this.addDamageText(enemy.x, enemy.y - 30, "雷暴王冠", "#ffd166", { priority: 3, size: 16 });
         this.playSfx("crit", 1.1);
       }
     }
     if (this.stats.bloodDebtLevel > 0 && this.stats.hp / this.stats.maxHp < 0.42) {
-      this.applyHealing((enemy.type === "boss" ? 6 : enemy.type === "elite" ? 3 : 0.8) * this.stats.bloodDebtLevel, "bloodDebt", enemy.x, enemy.y - 18);
+      this.applyHealing((enemy.type === "boss" ? 6 : enemy.type === "elite" ? 3 : 0.8) * this.stats.bloodDebtLevel, enemy.type === "boss" || enemy.type === "elite" ? "bloodDebtMajor" : "bloodDebt", enemy.x, enemy.y - 18);
     }
     if (this.stats.scarletLevel > 0 && this.random() < 0.16 + this.stats.scarletLevel * 0.025) {
-      this.applyHealing(enemy.type === "boss" ? 8 : enemy.type === "elite" ? 3.5 : 0.7, "scarlet", enemy.x, enemy.y - 18);
+      this.applyHealing(enemy.type === "boss" ? 8 : enemy.type === "elite" ? 3.5 : 0.7, enemy.type === "boss" || enemy.type === "elite" ? "scarletMajor" : "scarlet", enemy.x, enemy.y - 18);
     }
     this.score += enemy.score + Math.floor(this.time);
     this.dropGem(enemy.x, enemy.y, Math.ceil(enemy.xp * (1 + Math.min(1.15, this.time / 360))));
@@ -2586,6 +3945,7 @@
       this.applyHealing(12, "bossKill", enemy.x, enemy.y - 30);
       this.addDamageText(enemy.x, enemy.y - 44, "首领坠落", "#fff3a3", { priority: 3, size: 18 });
       this.dropChest(enemy.x, enemy.y, "boss");
+      this.completeChapter(enemy);
     } else if (enemy.type === "elite") {
       var chestChance = Math.min(0.92, 0.56 + (this.stats.treasureLevel || 0) * 0.075);
       if (this.random() < chestChance) {
@@ -2599,16 +3959,20 @@
       this.shake(3);
     }
     if (this.stats.chainChance > 0 && this.chainBudget > 0 && this.random() < this.stats.chainChance) {
+      var chainAsc = this.getAscensionTier("chainExplosion");
       this.chainBudget -= 1;
-      this.damageArea(enemy.x, enemy.y, 58 + this.stats.chainChance * 70, 34 * this.damageMultiplier(), "#ff9f55", 12, true, { area: true, source: "爆破" });
+      this.damageArea(enemy.x, enemy.y, 58 + this.stats.chainChance * 70 + chainAsc * 8, 34 * this.damageMultiplier() * (1 + chainAsc * 0.035), "#ff9f55", 12 + chainAsc, true, { area: true, source: chainAsc >= 2 ? "爆裂符" : "爆破" });
+      if (chainAsc >= 3) this.fields.push({ type: "sigil", x: enemy.x, y: enemy.y, radius: this.areaValue(80 + chainAsc * 10), life: 0.28, maxLife: 0.28, color: "#ff9f55", family: "talisman", tier: chainAsc, seed: this.random() * 1000 });
     }
     if (this.stats.sparkEvery > 0 && this.sparkIcd <= 0) {
       this.sparkCounter += 1;
       if (this.sparkCounter >= this.stats.sparkEvery) {
+        var sparkAsc = this.getAscensionTier("sparkBurst");
         this.sparkCounter = 0;
-        this.sparkIcd = 5;
-        this.damageArea(this.player.x, this.player.y, Math.max(this.width, this.height), 70 * this.damageMultiplier(), "#ffd166", 24, true, { area: true, source: "火花" });
+        this.sparkIcd = Math.max(3.8, 5 - sparkAsc * 0.25);
+        this.damageArea(this.player.x, this.player.y, Math.max(this.width, this.height), 70 * this.damageMultiplier() * (1 + sparkAsc * 0.035), "#ffd166", 24 + sparkAsc * 2, true, { area: true, source: sparkAsc >= 2 ? "满天星火" : "火花" });
         this.addBurst(this.player.x, this.player.y, "#ffd166", 50, 5);
+        if (sparkAsc >= 3) this.addMysticBurst(this.player.x, this.player.y, "#ffd166", "thunder", 2, "满天星火");
         this.playSfx("crit", 1.4);
         this.shake(4);
       }
@@ -2716,6 +4080,74 @@
     }
   };
 
+  VoidBloom.prototype.addMysticBurst = function (x, y, color, family, tier, label) {
+    tier = tier || 1;
+    family = family || "sword";
+    var radius = this.areaValue(120 + tier * 34);
+    this.fields.push({
+      type: "sigil",
+      x: x,
+      y: y,
+      radius: radius,
+      life: 0.78 + tier * 0.08,
+      maxLife: 0.78 + tier * 0.08,
+      color: color,
+      family: family,
+      tier: tier,
+      label: label || "",
+      seed: this.random() * 1000
+    });
+    this.fields.push({
+      type: "nova",
+      x: x,
+      y: y,
+      radius: radius * 0.72,
+      damage: 0,
+      life: 0.48,
+      maxLife: 0.48,
+      color: color,
+      altColor: family === "blood" ? "#ff8aa0" : family === "void" ? "#d8b4ff" : "#fff3a3",
+      tick: 0
+    });
+    var count = reduceMotion ? 12 : 28 + tier * 14;
+    for (var i = 0; i < count; i += 1) {
+      var angle = i * Math.PI * 2 / count + this.random() * 0.18;
+      var distance = radius * (0.18 + this.random() * 0.58);
+      this.particles.push({
+        x: x + Math.cos(angle) * distance * 0.2,
+        y: y + Math.sin(angle) * distance * 0.2,
+        tx: x + Math.cos(angle) * distance,
+        ty: y + Math.sin(angle) * distance,
+        vx: Math.cos(angle) * (80 + tier * 32),
+        vy: Math.sin(angle) * (80 + tier * 32),
+        color: color,
+        life: 0.42 + this.random() * 0.22,
+        maxLife: 0.64,
+        size: 2 + this.random() * (family === "sword" ? 3.8 : 2.4),
+        type: family === "sword" ? "sword" : family === "thunder" ? "bolt" : family === "void" ? "rift" : family === "lotus" ? "petal" : "rune"
+      });
+    }
+  };
+
+  VoidBloom.prototype.getAscensionDamageFactor = function (id) {
+    return 1 + Math.min(0.22, this.getAscensionTier(id) * 0.045);
+  };
+
+  VoidBloom.prototype.getAscensionAreaFactor = function (id) {
+    return 1 + Math.min(0.26, this.getAscensionTier(id) * 0.055);
+  };
+
+  VoidBloom.prototype.getAscensionCooldownFactor = function (id) {
+    return 1 - Math.min(0.16, this.getAscensionTier(id) * 0.03);
+  };
+
+  VoidBloom.prototype.getAscensionColor = function (id, fallback) {
+    var route = this.getAscensionRoute(id);
+    if (route && route.color) return route.color;
+    var family = route && route.routeFamily && CONFIG.routeFamilies ? CONFIG.routeFamilies[route.routeFamily] : null;
+    return (family && family.color) || fallback || "#fff3a3";
+  };
+
   VoidBloom.prototype.addDamageText = function (x, y, text, color, options) {
     options = options || {};
     this.damageTexts.push({
@@ -2752,43 +4184,48 @@
     this.paused = true;
     this.pendingChest = chest;
     this.stopLoop();
+    try {
     var count = chest && chest.tier === "boss" ? 4 : 3;
     var choices = this.buildUpgradeChoices(count, { source: "chest", forceRare: true, includeEvolution: true });
     this.panel.innerHTML = "";
     var card = createElement("div", "void-bloom-card void-bloom-chest-card");
+    var theme = CONFIG.themes || {};
     card.innerHTML = [
       "<h3>" + (chest && chest.tier === "boss" ? "首领宝箱" : "虚空宝箱") + "</h3>",
-      "<p>选择一份奖励。宝箱更偏向成型流派，也更容易触发组合进化。</p>"
+      "<p>" + (theme.chestText || "选择一份奖励。宝箱更偏向成型流派，也更容易触发组合进化。") + "</p>"
     ].join("");
     var list = createElement("div", "void-bloom-upgrades" + (choices.length === 4 ? " has-four" : ""));
     choices.forEach(function (choice, index) {
       var button = createElement("button", "void-bloom-upgrade");
       button.type = "button";
       button.setAttribute("data-shortcut", String(index + 1));
-      button.setAttribute("data-rarity", choice.evolution ? "legendary" : choice.rarity.id);
+      button.setAttribute("data-rarity", choice.ascension ? "legendary" : choice.rarity.id);
       button.innerHTML = [
-        "<em>" + (choice.evolution ? "进化" : choice.rarity.label + " · " + self.typeLabel(choice.data.type)) + "</em>",
-        "<strong>" + (choice.evolution ? choice.name : choice.data.name) + "</strong>",
-        "<span>" + choice.text + "</span>"
+        "<em>" + (choice.ascension ? (choice.kind || "进阶") + " · 天书" : choice.rarity.label + " · " + self.typeLabel(choice.data.type)) + "</em>",
+        "<strong>" + (choice.ascension ? choice.name : choice.data.name) + "</strong>",
+        "<span>" + choice.text + "</span>",
+        choice.hint ? '<small class="void-bloom-evo-hint' + (choice.hintReady ? " is-ready" : "") + '">' + choice.hint + "</small>" : ""
       ].join("");
       button.addEventListener("click", function () {
-        if (choice.evolution) {
-          self.applyEvolution(choice);
-        } else {
-          self.applyUpgrade(choice);
-        }
-        if (chest && chest.tier === "boss") {
-          var bonus = self.buildUpgradeChoices(1, { forceRare: true })[0];
-          if (bonus) {
-            self.applyUpgrade(bonus);
-            self.addDamageText(self.player.x, self.player.y - 64, "首领连升：" + bonus.data.name, bonus.data.color || "#fff3a3", { priority: 3, size: 15 });
+        try {
+          if (choice.ascension || choice.evolution) {
+            self.applyAscension(choice);
+          } else {
+            self.applyUpgrade(choice);
           }
+          if (chest && chest.tier === "boss") {
+            var bonus = self.buildUpgradeChoices(1, { forceRare: true })[0];
+            if (bonus) {
+              self.applyUpgrade(bonus);
+              self.addDamageText(self.player.x, self.player.y - 64, "首领连升：" + bonus.data.name, bonus.data.color || "#fff3a3", { priority: 3, size: 15 });
+            }
+          }
+        } catch (error) {
+          console.error("[VoidBloom] chest choice recovered", error);
+          self.addDamageText(self.player.x, self.player.y - 56, "宝箱回稳", "#fff3a3", { priority: 3, size: 16, stroke: "#10203a" });
+        } finally {
+          self.resumePlaying();
         }
-        self.hidePanel();
-        self.pendingChest = null;
-        self.state = "playing";
-        self.paused = false;
-        self.resume();
       });
       list.appendChild(button);
     });
@@ -2798,6 +4235,11 @@
     this.addBurst(this.player.x, this.player.y, chest && chest.color ? chest.color : "#ffd166", 54, 4.8);
     this.playSfx("upgrade", 1);
     this.draw();
+    } catch (error) {
+      console.error("[VoidBloom] chest offer recovered", error);
+      this.addDamageText(this.player.x, this.player.y - 56, "宝箱回稳", "#fff3a3", { priority: 3, size: 16, stroke: "#10203a" });
+      this.resumePlaying();
+    }
   };
 
   VoidBloom.prototype.showUpgrade = function () {
@@ -2809,28 +4251,42 @@
       this.stats.rerolls += 1;
     }
     this.currentChoices = this.buildUpgradeChoices(this.level % 5 === 0 ? 4 : 3, { includeEvolution: true });
-    this.renderUpgradeOffer();
+    try {
+      this.renderUpgradeOffer();
+    } catch (error) {
+      console.error("[VoidBloom] upgrade offer recovered", error);
+      this.currentChoices = this.buildUpgradeChoices(this.level % 5 === 0 ? 4 : 3, { includeEvolution: false, ignoreBanish: true });
+      try {
+        this.renderUpgradeOffer();
+      } catch (fallbackError) {
+        console.error("[VoidBloom] upgrade fallback recovered", fallbackError);
+        this.addDamageText(this.player.x, this.player.y - 56, "天书回稳", "#fff3a3", { priority: 3, size: 16, stroke: "#10203a" });
+        this.resumePlaying();
+      }
+    }
   };
 
   VoidBloom.prototype.renderUpgradeOffer = function () {
     var self = this;
     var choices = this.currentChoices || [];
+    var theme = CONFIG.themes || {};
     this.panel.innerHTML = "";
     var card = createElement("div", "void-bloom-card");
     card.innerHTML = [
       "<h3>等级 " + this.level + "</h3>",
-      "<p>选择一个升级。刷新和放逐会改变这一局的构筑方向。</p>"
+      "<p>" + (theme.upgradeText || "选择一个升级。刷新和放逐会改变这一局的构筑方向。") + "</p>"
     ].join("");
     var list = createElement("div", "void-bloom-upgrades" + (choices.length === 4 ? " has-four" : ""));
     choices.forEach(function (choice, index) {
       var button = createElement("button", "void-bloom-upgrade");
       button.type = "button";
       button.setAttribute("data-shortcut", String(index + 1));
-      button.setAttribute("data-rarity", choice.evolution ? "legendary" : choice.rarity.id);
+      button.setAttribute("data-rarity", choice.ascension ? "legendary" : choice.rarity.id);
       button.innerHTML = [
-        "<em>" + (choice.evolution ? "进化 · 质变" : choice.rarity.label + " · " + self.typeLabel(choice.data.type) + " · 等级 " + choice.currentLevel + " → " + choice.nextLevel) + "</em>",
-        "<strong>" + (choice.evolution ? choice.name : choice.data.name) + "</strong>",
-        "<span>" + choice.text + "</span>"
+        "<em>" + (choice.ascension ? (choice.kind || "进阶") + " · 天书" : choice.rarity.label + " · " + self.typeLabel(choice.data.type) + " · 等级 " + choice.currentLevel + " → " + choice.nextLevel) + "</em>",
+        "<strong>" + (choice.ascension ? choice.name : choice.data.name) + "</strong>",
+        "<span>" + choice.text + "</span>",
+        choice.hint ? '<small class="void-bloom-evo-hint' + (choice.hintReady ? " is-ready" : "") + '">' + choice.hint + "</small>" : ""
       ].join("");
       button.addEventListener("click", function () {
         self.acceptUpgradeChoice(choice);
@@ -2873,17 +4329,26 @@
   };
 
   VoidBloom.prototype.acceptUpgradeChoice = function (choice) {
-    if (choice.evolution) {
-      this.applyEvolution(choice);
-    } else {
-      this.applyUpgrade(choice);
+    try {
+      if (choice.ascension || choice.evolution) {
+        this.applyAscension(choice);
+      } else {
+        this.applyUpgrade(choice);
+      }
+    } catch (error) {
+      console.error("[VoidBloom] upgrade choice recovered", error);
+      this.addDamageText(this.player.x, this.player.y - 56, "升级回稳", "#fff3a3", { priority: 3, size: 16, stroke: "#10203a" });
+    } finally {
+      this.resumePlaying();
     }
-    this.currentChoices = null;
-    this.hidePanel();
-    this.pendingUpgrade = false;
-    this.state = "playing";
-    this.paused = false;
-    this.resume();
+  };
+
+  VoidBloom.prototype.canOfferUpgrade = function (item) {
+    if (!item) return false;
+    if (item.maxLevel && this.currentUpgradeLevel(item.id, item.type) >= item.maxLevel) {
+      return false;
+    }
+    return true;
   };
 
   VoidBloom.prototype.buildUpgradeChoices = function (count, options) {
@@ -2892,8 +4357,8 @@
     var used = Object.create(null);
     var upgrades = this.getWeightedUpgradePool(CONFIG.upgrades || []);
     var self = this;
-    var evolutionChoices = options.includeEvolution ? this.buildEvolutionChoices() : [];
-    if (evolutionChoices.length && (options.source === "chest" || this.random() < 0.32)) {
+    var evolutionChoices = options.includeEvolution ? this.buildEvolutionChoices(options) : [];
+    if (evolutionChoices.length && (options.source === "chest" || this.level % 5 === 0 || this.random() < 0.52)) {
       var evo = evolutionChoices[Math.floor(this.random() * evolutionChoices.length)];
       choices.push(evo);
       used[evo.id] = true;
@@ -2902,11 +4367,11 @@
     function addChoice(pool) {
       if (choices.length >= count) return;
       var candidates = pool.filter(function (item) {
-        return item && !used[item.id] && (options.ignoreBanish || !self.banished[item.id]);
+        return item && !used[item.id] && self.canOfferUpgrade(item) && (options.ignoreBanish || !self.banished[item.id]);
       });
       if (!candidates.length) {
         candidates = upgrades.filter(function (item) {
-          return item && !used[item.id] && (options.ignoreBanish || !self.banished[item.id]);
+          return item && !used[item.id] && self.canOfferUpgrade(item) && (options.ignoreBanish || !self.banished[item.id]);
         });
       }
       if (!candidates.length) {
@@ -2916,6 +4381,7 @@
       var rarity = self.rollUpgradeRarity(options);
       var currentLevel = self.currentUpgradeLevel(data.id, data.type);
       var nextLevel = currentLevel + (data.type === "weapon" ? Math.max(1, Math.round(rarity.power)) : 1);
+      var evolutionHint = self.describeEvolutionProgress(data, currentLevel, nextLevel);
       used[data.id] = true;
       choices.push({
         id: data.id,
@@ -2924,7 +4390,9 @@
         power: rarity.power,
         currentLevel: currentLevel,
         nextLevel: nextLevel,
-        text: self.describeUpgrade(data, rarity.power, currentLevel, nextLevel)
+        text: self.describeUpgrade(data, rarity.power, currentLevel, nextLevel),
+        hint: evolutionHint.text,
+        hintReady: evolutionHint.ready
       });
     }
 
@@ -2936,10 +4404,11 @@
     while (choices.length < count && guard < 100) {
       guard += 1;
       var data = upgrades[Math.floor(this.random() * upgrades.length)];
-      if (!data || used[data.id] || (!options.ignoreBanish && this.banished[data.id])) continue;
+      if (!data || used[data.id] || !this.canOfferUpgrade(data) || (!options.ignoreBanish && this.banished[data.id])) continue;
       var rarity = this.rollUpgradeRarity(options);
       var currentLevel = this.currentUpgradeLevel(data.id, data.type);
       var nextLevel = currentLevel + (data.type === "weapon" ? Math.max(1, Math.round(rarity.power)) : 1);
+      var evolutionHint = this.describeEvolutionProgress(data, currentLevel, nextLevel);
       used[data.id] = true;
       choices.push({
         id: data.id,
@@ -2948,7 +4417,9 @@
         power: rarity.power,
         currentLevel: currentLevel,
         nextLevel: nextLevel,
-        text: this.describeUpgrade(data, rarity.power, currentLevel, nextLevel)
+        text: this.describeUpgrade(data, rarity.power, currentLevel, nextLevel),
+        hint: evolutionHint.text,
+        hintReady: evolutionHint.ready
       });
     }
     if (!choices.length && !options.ignoreBanish && (CONFIG.upgrades || []).length) {
@@ -3014,41 +4485,293 @@
     return rarity;
   };
 
-  VoidBloom.prototype.buildEvolutionChoices = function () {
-    var self = this;
-    return (CONFIG.evolutions || [])
-      .filter(function (evolution) { return self.canApplyEvolution(evolution); })
-      .map(function (evolution) {
-        return {
-          id: evolution.id,
-          evolution: true,
-          name: evolution.name,
-          color: evolution.color,
-          data: { type: "evolution", name: evolution.name, color: evolution.color },
-          text: evolution.text,
-          source: evolution
-        };
-      });
+  VoidBloom.prototype.getUpgradeType = function (id) {
+    var upgrades = CONFIG.upgrades || [];
+    for (var i = 0; i < upgrades.length; i += 1) {
+      if (upgrades[i].id === id) return upgrades[i].type;
+    }
+    return this.weaponLevels[id] != null ? "weapon" : "passive";
   };
 
-  VoidBloom.prototype.canApplyEvolution = function (evolution) {
-    if (!evolution || this.evolutions[evolution.id]) return false;
-    if ((this.weaponLevels[evolution.weapon] || 0) < (evolution.weaponLevel || 8)) return false;
-    var requires = evolution.requires || [];
+  VoidBloom.prototype.normalizeLegacyEvolution = function (evolution) {
+    if (!evolution) return null;
+    var item = evolution.weapon || evolution.item || evolution.trait;
+    return Object.assign({}, evolution, {
+      ascension: true,
+      legacy: true,
+      item: item,
+      type: evolution.weapon ? "weapon" : evolution.trait ? "trait" : "passive",
+      route: evolution.kind || "旧脉",
+      routeFamily: evolution.trait ? "treasure" : "void",
+      itemLevel: evolution.weaponLevel || evolution.itemLevel,
+      requiresWeapons: evolution.weapons || evolution.requiresWeapons,
+      requiresAscension: evolution.requiresEvolution || evolution.requiresAscension,
+      requiresTrait: evolution.trait || evolution.requiresTrait,
+      requiresChapter: evolution.tier >= 3 ? 3 : evolution.requiresChapter
+    });
+  };
+
+  VoidBloom.prototype.getAscensionPool = function () {
+    var pool = (CONFIG.ascensions || []).slice();
+    var legacy = CONFIG.evolutions || [];
+    for (var i = 0; i < legacy.length; i += 1) {
+      var normalized = this.normalizeLegacyEvolution(legacy[i]);
+      if (normalized) pool.push(normalized);
+    }
+    return pool;
+  };
+
+  VoidBloom.prototype.getAscensionTier = function (id) {
+    return this.ascensionLevels && this.ascensionLevels[id] ? this.ascensionLevels[id] : 0;
+  };
+
+  VoidBloom.prototype.getAscensionRoute = function (id) {
+    if (this.ascensionRoutes && this.ascensionRoutes[id]) return this.ascensionRoutes[id];
+    var pool = CONFIG.ascensions || [];
+    for (var i = 0; i < pool.length; i += 1) {
+      if (pool[i].item === id || pool[i].weapon === id) return pool[i];
+    }
+    return null;
+  };
+
+  VoidBloom.prototype.getRouteFamilyForItem = function (id) {
+    var route = this.getAscensionRoute(id);
+    return route ? route.routeFamily : null;
+  };
+
+  VoidBloom.prototype.getFamilyAscensionCount = function (family, minTier) {
+    if (!family) return 0;
+    minTier = minTier || 1;
+    var count = 0;
+    var seen = Object.create(null);
+    var pool = CONFIG.ascensions || [];
+    for (var i = 0; i < pool.length; i += 1) {
+      var source = pool[i];
+      var item = source.item || source.weapon;
+      if (!item || seen[item] || source.routeFamily !== family) continue;
+      if (this.getAscensionTier(item) >= minTier) {
+        seen[item] = true;
+        count += 1;
+      }
+    }
+    return count;
+  };
+
+  VoidBloom.prototype.canApplyAscension = function (source, options) {
+    options = options || {};
+    if (!source || !source.id) return false;
+    if (this.ascensions[source.id] || this.evolutions[source.id]) return false;
+    var item = source.item || source.weapon;
+    var type = source.type || (source.weapon ? "weapon" : this.getUpgradeType(item));
+    if (source.weapon || type === "weapon") {
+      if ((this.weaponLevels[source.weapon || item] || 0) < (source.weaponLevel || source.itemLevel || 0)) return false;
+    } else if (item && source.itemLevel) {
+      if (this.currentUpgradeLevel(item, type) < source.itemLevel) return false;
+    }
+    var requires = source.requires || [];
     for (var i = 0; i < requires.length; i += 1) {
-      if ((this.upgrades[requires[i].id] || 0) < (requires[i].level || 1)) return false;
+      if (this.currentUpgradeLevel(requires[i].id, this.getUpgradeType(requires[i].id)) < (requires[i].level || 1)) return false;
+    }
+    var weaponReqs = source.requiresWeapons || source.weapons || [];
+    for (var w = 0; w < weaponReqs.length; w += 1) {
+      if ((this.weaponLevels[weaponReqs[w].id] || 0) < (weaponReqs[w].level || 1)) return false;
+    }
+    var ascReqs = source.requiresAscension || source.requiresEvolution || [];
+    for (var a = 0; a < ascReqs.length; a += 1) {
+      if (!this.ascensions[ascReqs[a]] && !this.evolutions[ascReqs[a]]) return false;
+    }
+    var traitReq = source.requiresTrait || source.trait;
+    if (traitReq && (!this.runTrait || this.runTrait.id !== traitReq)) return false;
+    if (source.requiresFamily) {
+      if (this.getFamilyAscensionCount(source.requiresFamily.family, source.requiresFamily.minTier || 1) < (source.requiresFamily.count || 1)) return false;
+    }
+    if (source.requiresChapter && (!this.chapter || this.chapter.index < source.requiresChapter)) {
+      var bossChest = options.source === "chest" && this.pendingChest && this.pendingChest.tier === "boss";
+      if (!bossChest) return false;
     }
     return true;
   };
 
+  VoidBloom.prototype.buildEvolutionChoices = function (options) {
+    options = options || {};
+    var self = this;
+    return this.getAscensionPool()
+      .filter(function (source) { return self.canApplyAscension(source, options); })
+      .map(function (source) {
+        return {
+          id: source.id,
+          ascension: true,
+          evolution: true,
+          name: source.name,
+          kind: source.kind || "进阶",
+          route: source.route,
+          routeFamily: source.routeFamily,
+          tier: source.tier || 1,
+          color: source.color,
+          data: { type: "ascension", name: source.name, color: source.color },
+          text: source.text,
+          hint: "天书条件已满，选择后立刻" + (source.kind || "进阶") + "。",
+          hintReady: true,
+          source: source
+        };
+      });
+  };
+
+  VoidBloom.prototype.describeEvolutionProgress = function (data, currentLevel, nextLevel) {
+    if (!data) return { text: "", ready: false };
+    var candidates = [];
+    var pool = this.getAscensionPool();
+    for (var i = 0; i < pool.length; i += 1) {
+      var source = pool[i];
+      if (!source || this.ascensions[source.id] || this.evolutions[source.id]) continue;
+      var item = source.item || source.weapon;
+      var relevant = data.id === item;
+      var parts = [];
+      var missing = 0;
+      var type = source.type || (source.weapon ? "weapon" : this.getUpgradeType(item));
+      if (item && source.itemLevel) {
+        var current = (source.weapon || type === "weapon") ? (this.weaponLevels[item] || 0) : this.currentUpgradeLevel(item, type);
+        var after = data.id === item ? nextLevel : current;
+        parts.push(this.getUpgradeName(item) + " " + Math.min(after, source.itemLevel) + "/" + source.itemLevel);
+        missing += Math.max(0, source.itemLevel - after);
+      }
+      var requires = source.requires || [];
+      for (var r = 0; r < requires.length; r += 1) {
+        if (data.id === requires[r].id) relevant = true;
+        var reqCurrent = this.currentUpgradeLevel(requires[r].id, this.getUpgradeType(requires[r].id));
+        var reqAfter = data.id === requires[r].id ? nextLevel : reqCurrent;
+        var reqNeed = requires[r].level || 1;
+        parts.push(this.getUpgradeName(requires[r].id) + " " + Math.min(reqAfter, reqNeed) + "/" + reqNeed);
+        missing += Math.max(0, reqNeed - reqAfter);
+      }
+      var weaponReqs = source.requiresWeapons || source.weapons || [];
+      for (var w = 0; w < weaponReqs.length; w += 1) {
+        if (data.id === weaponReqs[w].id) relevant = true;
+        var weaponAfter = data.id === weaponReqs[w].id ? nextLevel : (this.weaponLevels[weaponReqs[w].id] || 0);
+        var weaponNeed = weaponReqs[w].level || 1;
+        parts.push(this.getUpgradeName(weaponReqs[w].id) + " " + Math.min(weaponAfter, weaponNeed) + "/" + weaponNeed);
+        missing += Math.max(0, weaponNeed - weaponAfter);
+      }
+      if (source.requiresFamily) {
+        var family = source.requiresFamily.family;
+        if (this.getRouteFamilyForItem(data.id) === family) relevant = true;
+        var count = this.getFamilyAscensionCount(family, source.requiresFamily.minTier || 1);
+        parts.push(((CONFIG.routeFamilies && CONFIG.routeFamilies[family] && CONFIG.routeFamilies[family].label) || family) + "路线 " + Math.min(count, source.requiresFamily.count || 1) + "/" + (source.requiresFamily.count || 1));
+        missing += Math.max(0, (source.requiresFamily.count || 1) - count);
+      }
+      if (source.requiresChapter) {
+        var chapterOk = this.chapter && this.chapter.index >= source.requiresChapter;
+        parts.push(chapterOk ? "章节已达成" : "第" + source.requiresChapter + "章/首领宝箱");
+        if (!chapterOk) missing += 1;
+      }
+      if (!relevant) continue;
+      candidates.push({
+        name: source.name,
+        missing: missing,
+        ready: missing <= 0,
+        tier: source.tier || 1,
+        text: (missing <= 0 ? "本次解锁：" : "天书：") + (source.route ? source.route + " · " : "") + (source.kind || "进阶") + "「" + source.name + "」" + (missing <= 0 ? "" : " · " + parts.join(" · "))
+      });
+    }
+    if (!candidates.length) return { text: "", ready: false };
+    candidates.sort(function (a, b) {
+      if (a.ready !== b.ready) return a.ready ? -1 : 1;
+      if (a.missing !== b.missing) return a.missing - b.missing;
+      return a.tier - b.tier;
+    });
+    return { text: candidates[0].text, ready: candidates[0].ready };
+  };
+
+  VoidBloom.prototype.canApplyEvolution = function (source) {
+    return this.canApplyAscension(this.normalizeLegacyEvolution(source) || source);
+  };
+
+  VoidBloom.prototype.unlockLegacyMilestone = function (weapon, tier) {
+    if (!weapon || tier < 2) return;
+    var legacy = {
+      pulse: ["quantumBuckshot", "stellarHeartbeat"],
+      orbit: ["bladeGalaxy", "galaxyGrinder"],
+      lightning: ["stormExecution", "heavenlyMatrix"],
+      splitter: ["splitterNebula", "fractalBlossom"],
+      gravity: ["singularityBloom", "omegaCollapse"],
+      aura: ["greenSunHalo", "livingStar"],
+      laser: ["prismJudgement", "daybreakVerdict"],
+      arcSpear: ["arcHydra", "thunderNeural"],
+      voidRift: ["riftCrown", "abyssLoom"],
+      satellite: ["swarmProtocol", "orbitalFleet"],
+      phaseSlash: ["shadowCrescent", "lunarTempest"],
+      meteorRain: ["cataclysmEpoch", "starfallDoom"],
+      warpMine: ["chainMinefield", "detonationGarden"],
+      frostfireNova: ["frostfireSingularity", "frostfireCourt"],
+      blackHoleBloom: ["eventHorizon", "voidFlowerKing"]
+    };
+    var ids = legacy[weapon] || [];
+    if (ids[0]) this.evolutions[ids[0]] = true;
+    if (tier >= 3 && ids[1]) this.evolutions[ids[1]] = true;
+  };
+
+  VoidBloom.prototype.applyAscensionBonus = function (source) {
+    var tier = source.tier || 1;
+    var family = source.routeFamily || "sword";
+    if (source.type === "weapon") {
+      this.stats.ascensionAreaBonus = Math.min(0.25, (this.stats.ascensionAreaBonus || 0) + 0.006 * tier);
+      this.stats.ascensionProcBonus = Math.min(0.22, (this.stats.ascensionProcBonus || 0) + 0.004 * tier);
+      return;
+    }
+    if (family === "sword") {
+      this.stats.speed += 1.5 * tier;
+      this.stats.critChance = Math.min(0.72, this.stats.critChance + 0.005 * tier);
+    } else if (family === "thunder") {
+      this.stats.chainChance = Math.min(0.36, this.stats.chainChance + 0.004 * tier);
+      this.stats.ascensionProcBonus = Math.min(0.22, (this.stats.ascensionProcBonus || 0) + 0.006 * tier);
+    } else if (family === "lotus") {
+      this.stats.regen = Math.min(4.4, this.stats.regen + 0.025 * tier);
+      this.stats.ascensionAreaBonus = Math.min(0.25, (this.stats.ascensionAreaBonus || 0) + 0.004 * tier);
+    } else if (family === "talisman") {
+      this.stats.ascensionAreaBonus = Math.min(0.25, (this.stats.ascensionAreaBonus || 0) + 0.004 * tier);
+      this.stats.chainChance = Math.min(0.36, this.stats.chainChance + 0.003 * tier);
+    } else if (family === "void") {
+      this.stats.ascensionAreaBonus = Math.min(0.25, (this.stats.ascensionAreaBonus || 0) + 0.005 * tier);
+      this.stats.echoChance = Math.min(0.38, this.stats.echoChance + 0.003 * tier);
+    } else if (family === "machine") {
+      this.stats.cooldownMult = Math.max(0.46, this.stats.cooldownMult * (1 - 0.004 * tier));
+      this.stats.echoChance = Math.min(0.38, this.stats.echoChance + 0.003 * tier);
+    } else if (family === "blood") {
+      this.stats.damageMult = Math.min(4.2, this.stats.damageMult + 0.008 * tier);
+    } else if (family === "treasure") {
+      this.stats.pickupRadius += 2.5 * tier;
+    } else if (family === "guard") {
+      this.stats.armor = Math.min(0.45, this.stats.armor + 0.003 * tier);
+      this.stats.shieldMax = Math.min(96, (this.stats.shieldMax || 0) + 2 * tier);
+      this.stats.shield = Math.min(this.stats.shieldMax, (this.stats.shield || 0) + 2 * tier);
+    }
+  };
+
   VoidBloom.prototype.applyEvolution = function (choice) {
-    if (!choice || !choice.id || this.evolutions[choice.id]) return;
-    this.evolutions[choice.id] = true;
-    this.score += 450 + this.level * 30;
-    this.addDamageText(this.player.x, this.player.y - 58, "进化：" + choice.name, choice.color || "#fff3a3", { priority: 4, size: 20, stroke: "#10203a" });
-    this.addBurst(this.player.x, this.player.y, choice.color || "#fff3a3", 92, 6);
-    this.playSfx("upgrade", 1.6);
-    this.shake(6);
+    this.applyAscension(choice);
+  };
+
+  VoidBloom.prototype.applyAscension = function (choice) {
+    var source = choice && (choice.source || choice);
+    if (!source || !source.id || this.ascensions[source.id] || this.evolutions[source.id]) return;
+    var item = source.item || source.weapon;
+    this.ascensions[source.id] = true;
+    if (source.legacy) this.evolutions[source.id] = true;
+    if (item) {
+      this.ascensionLevels[item] = Math.max(this.ascensionLevels[item] || 0, source.tier || 1);
+      this.ascensionRoutes[item] = source;
+      if (source.type === "weapon" || source.weapon) this.unlockLegacyMilestone(item, source.tier || 1);
+    }
+    this.applyAscensionBonus(source);
+    this.score += 420 + (source.tier || 1) * 120 + this.level * 24;
+    this.addDamageText(this.player.x, this.player.y - 58, (source.kind || "进阶") + "：" + source.name, source.color || "#fff3a3", { priority: 4, size: 20, stroke: "#10203a" });
+    this.damageArea(this.player.x, this.player.y, this.areaValue(205 + (source.tier || 1) * 18), (58 + this.level * 4 + (source.tier || 1) * 10) * this.damageMultiplier(), source.color || "#fff3a3", 58, false, {
+      source: "天书冲击",
+      area: true
+    });
+    this.addMysticBurst(this.player.x, this.player.y, source.color || "#fff3a3", source.routeFamily || "sword", source.tier || 1, source.name);
+    this.playSfx("upgrade", 1.35 + Math.min(0.45, (source.tier || 1) * 0.08));
+    this.shake(6 + (source.tier || 1));
     this.updateHud(true);
   };
 
@@ -3132,7 +4855,7 @@
       this.weaponLevels[id] = (this.weaponLevels[id] || 0) + Math.max(1, Math.round(power));
     }
     if (id === "speed") this.stats.speed += 20 * power;
-    if (id === "cooldown") this.stats.cooldownMult = Math.max(0.48, this.stats.cooldownMult * Math.max(0.78, 1 - 0.055 * power));
+    if (id === "cooldown") this.stats.cooldownMult = Math.max(0.46, this.stats.cooldownMult * Math.max(0.78, 1 - 0.055 * power));
     if (id === "magnet") this.stats.pickupRadius += 28 * power;
     if (id === "crit") {
       this.stats.critChance = Math.min(0.72, this.stats.critChance + 0.045 * power / (1 + level * 0.08));
@@ -3199,9 +4922,9 @@
     if (id === "shortCircuitDash") this.stats.shortCircuitLevel += Math.max(1, Math.round(power));
     if (id === "executionSight") this.stats.executionLevel += Math.max(1, Math.round(power));
     if (id === "voidInsurance") this.stats.voidInsuranceLevel += Math.max(1, Math.round(power));
-    var unlocked = this.buildEvolutionChoices();
+    var unlocked = this.buildEvolutionChoices({});
     if (unlocked.length && this.random() < 0.72) {
-      this.addDamageText(this.player.x, this.player.y - 66, "进化可用：" + unlocked[0].name, unlocked[0].color || "#fff3a3", { priority: 3, size: 15 });
+      this.addDamageText(this.player.x, this.player.y - 66, "天书可用：" + unlocked[0].name, unlocked[0].color || "#fff3a3", { priority: 3, size: 15 });
     }
     if (level % 3 === 0 && choice.data.type !== "passive") {
       this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + 10);
@@ -3266,7 +4989,14 @@
   VoidBloom.prototype.updateHud = function () {
     this.hpFill.style.transform = "scaleX(" + clamp(this.stats.hp / this.stats.maxHp, 0, 1) + ")";
     this.xpFill.style.transform = "scaleX(" + clamp(this.xp / Math.max(1, this.nextXp), 0, 1) + ")";
-    this.timePill.textContent = formatTime(this.time);
+    var chapter = this.chapter || { index: 1, startedAt: 0, duration: 180 };
+    var diff = this.getDifficultyState();
+    var chapterElapsed = Math.max(0, this.time - chapter.startedAt);
+    var goal = Math.max(1, chapter.goal || this.getChapterGoal(chapter.index));
+    var progressText = Math.min(goal, Math.floor(chapter.progress || 0)) + "/" + goal;
+    this.timePill.textContent = (chapter.bossAlive || chapter.bossSpawned)
+      ? "第" + chapter.index + "章 首领战"
+      : "第" + chapter.index + "章 目标 " + progressText;
     this.levelPill.textContent = "等级 " + this.level;
     this.killsPill.textContent = "击杀 " + this.kills;
     if (this.stats.dashTimer <= 0) {
@@ -3274,18 +5004,26 @@
     } else {
       this.dashPill.textContent = "冲刺 " + this.stats.dashTimer.toFixed(1) + "秒";
     }
-    if (this.stats.healBlockTimer > 0) {
-      this.alertPill.textContent = "禁疗压制";
+    if (this.chapter && this.chapter.bossAlive) {
+      this.alertPill.textContent = this.chapter.pressure > 0 ? "Boss 压力 " + this.chapter.pressure : "Boss 战";
+    } else if (this.chapter && this.chapter.bossDelayUntil > this.time) {
+      this.alertPill.textContent = "首领延迟：喘息 " + Math.ceil(this.chapter.bossDelayUntil - this.time) + "秒";
+    } else if (this.chapter && !this.chapter.bossSpawned && this.chapter.goalReachedAt) {
+      this.alertPill.textContent = this.bossTimer > 0 ? "首领降临 " + Math.ceil(this.bossTimer) + "秒" : "首领召唤中";
     } else if (this.tide && this.tide.active) {
-      this.alertPill.textContent = "潮汐 " + Math.ceil(this.tide.timer) + "秒";
+      this.alertPill.textContent = "危机·" + (this.tide.label || "虚空") + " " + Math.ceil(this.tide.timer) + "秒";
+    } else if (this.stats.healBlockTimer > 0) {
+      this.alertPill.textContent = "禁疗压制";
     } else if (this.tide && this.tide.nextTime - this.time <= 8) {
-      this.alertPill.textContent = "潮汐将至";
-    } else if (this.bossTimer <= 24) {
-      this.alertPill.textContent = "首领 " + Math.ceil(this.bossTimer) + "秒";
+      this.alertPill.textContent = "危机将至";
+    } else if (this.bossTimer <= 45) {
+      this.alertPill.textContent = "Boss " + Math.ceil(this.bossTimer) + "秒";
     } else if (this.eliteTimer <= 16) {
       this.alertPill.textContent = "精英 " + Math.ceil(this.eliteTimer) + "秒";
+    } else if (diff.recoveryMode) {
+      this.alertPill.textContent = "喘息保护";
     } else {
-      this.alertPill.textContent = "构筑成长中";
+      this.alertPill.textContent = this.getHeatText() || "构筑成长中";
     }
     this.buildPill.textContent = this.getBuildSummary();
   };
@@ -3550,6 +5288,73 @@
         ctx.beginPath();
         ctx.arc(0, 0, e.radius * 1.55 + Math.sin(this.time * 5 + i) * 2, 0, Math.PI * 2);
         ctx.stroke();
+      } else if (e.type === "leechMoth") {
+        ctx.save();
+        ctx.globalAlpha = 0.82;
+        ctx.beginPath();
+        ctx.ellipse(-e.radius * 0.55, 0, e.radius * 0.8, e.radius * 1.15, -0.45, 0, Math.PI * 2);
+        ctx.ellipse(e.radius * 0.55, 0, e.radius * 0.8, e.radius * 1.15, 0.45, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "#e9fff7";
+        ctx.fillRect(-2, -e.radius * 0.9, 4, e.radius * 1.8);
+        ctx.restore();
+      } else if (e.type === "prismGuard") {
+        ctx.beginPath();
+        for (var pg = 0; pg < 6; pg += 1) {
+          var pa = Math.PI / 6 + pg * Math.PI / 3;
+          var pr = e.radius * (pg % 2 ? 0.92 : 1.16);
+          ctx.lineTo(Math.cos(pa) * pr, Math.sin(pa) * pr);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.68)";
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, -e.radius * 0.9);
+        ctx.lineTo(e.radius * 0.62, 0);
+        ctx.lineTo(0, e.radius * 0.9);
+        ctx.lineTo(-e.radius * 0.62, 0);
+        ctx.closePath();
+        ctx.stroke();
+      } else if (e.type === "riftHunter") {
+        ctx.beginPath();
+        ctx.moveTo(e.radius * 1.35, 0);
+        ctx.quadraticCurveTo(0, -e.radius * 1.25, -e.radius * 1.05, -e.radius * 0.18);
+        ctx.lineTo(-e.radius * 0.25, 0);
+        ctx.lineTo(-e.radius * 1.05, e.radius * 0.18);
+        ctx.quadraticCurveTo(0, e.radius * 1.25, e.radius * 1.35, 0);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.58)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      } else if (e.type === "starMiner") {
+        ctx.beginPath();
+        ctx.moveTo(0, -e.radius * 1.25);
+        ctx.lineTo(e.radius, 0);
+        ctx.lineTo(0, e.radius * 1.25);
+        ctx.lineTo(-e.radius, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,0.78)";
+        for (var sm = 0; sm < 3; sm += 1) {
+          var ma = sm * Math.PI * 2 / 3 + this.time;
+          ctx.beginPath();
+          ctx.arc(Math.cos(ma) * e.radius * 0.52, Math.sin(ma) * e.radius * 0.52, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (e.type === "nestMother") {
+        ctx.beginPath();
+        ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        for (var nm = 0; nm < 6; nm += 1) {
+          var na = nm * Math.PI * 2 / 6 + Math.sin(this.time + e.wobble) * 0.2;
+          ctx.beginPath();
+          ctx.arc(Math.cos(na) * e.radius * 0.68, Math.sin(na) * e.radius * 0.68, e.radius * 0.32, 0, Math.PI * 2);
+          ctx.fill();
+        }
       } else {
         ctx.beginPath();
         ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
@@ -3576,7 +5381,7 @@
         ctx.stroke();
         ctx.restore();
       }
-      if (e.type === "elite" || e.type === "boss") {
+      if (e.type === "elite" || e.type === "boss" || e.type === "prismGuard" || e.type === "nestMother") {
         ctx.fillStyle = "rgba(255,255,255,0.15)";
         ctx.fillRect(e.x - e.radius, e.y - e.radius - 12, e.radius * 2, 4);
         ctx.fillStyle = e.color;
@@ -3762,6 +5567,95 @@
       var f = this.fields[i];
       var ratio = clamp(f.life / f.maxLife, 0, 1);
       ctx.save();
+      if (f.hostile) {
+        var armed = (f.delay || 0) <= 0;
+        var pulse = armed ? 1 : 0.5 + Math.sin(this.time * 18) * 0.08;
+        ctx.globalAlpha = armed ? 0.34 + ratio * 0.38 : 0.16 + pulse * 0.22;
+        ctx.strokeStyle = armed ? "#fff3a3" : (f.color || "#ff335f");
+        ctx.fillStyle = armed ? "rgba(255,51,95,0.18)" : "rgba(255,51,95,0.08)";
+        ctx.shadowBlur = armed ? 30 : 18;
+        ctx.shadowColor = f.color || "#ff335f";
+        ctx.lineWidth = armed ? 6 : 3;
+        if (f.type === "bossLine") {
+          ctx.lineCap = "round";
+          ctx.lineWidth = (f.width || 34) * (armed ? 0.62 : 0.42);
+          ctx.beginPath();
+          ctx.moveTo(f.x1, f.y1);
+          ctx.lineTo(f.x2, f.y2);
+          ctx.stroke();
+          ctx.globalAlpha = armed ? 0.92 : 0.58;
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = "#ffe4e8";
+          ctx.beginPath();
+          ctx.moveTo(f.x1, f.y1);
+          ctx.lineTo(f.x2, f.y2);
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, (f.radius || 120) * (armed ? 1.0 : 0.78 + pulse * 0.22), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.globalAlpha = armed ? 0.9 : 0.5;
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = "#ffe4e8";
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, (f.radius || 120) * 0.55, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+        continue;
+      }
+      if (f.type === "sigil") {
+        var turn = this.time * (f.family === "sword" ? 1.4 : f.family === "thunder" ? 2.1 : 0.85) + (f.seed || 0);
+        ctx.globalAlpha = 0.18 + ratio * 0.48;
+        ctx.strokeStyle = f.color;
+        ctx.shadowBlur = 24 + (f.tier || 1) * 5;
+        ctx.shadowColor = f.color;
+        ctx.lineWidth = 2 + Math.min(3, f.tier || 1);
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.radius * (1.02 - ratio * 0.18), 0, Math.PI * 2);
+        ctx.stroke();
+        var sides = f.family === "talisman" ? 8 : f.family === "lotus" ? 12 : f.family === "void" ? 9 : 6;
+        ctx.save();
+        ctx.translate(f.x, f.y);
+        ctx.rotate(turn);
+        ctx.beginPath();
+        for (var sg = 0; sg < sides; sg += 1) {
+          var sa = sg * Math.PI * 2 / sides;
+          var sr = f.radius * (sg % 2 && f.family === "lotus" ? 0.54 : 0.72);
+          ctx.lineTo(Math.cos(sa) * sr, Math.sin(sa) * sr);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        if (f.family === "sword") {
+          for (var sw = 0; sw < 4; sw += 1) {
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(Math.cos(sw * Math.PI / 2) * f.radius * 0.96, Math.sin(sw * Math.PI / 2) * f.radius * 0.96);
+            ctx.stroke();
+          }
+        } else if (f.family === "thunder") {
+          for (var th = 0; th < 5; th += 1) {
+            var tx = Math.cos(th * Math.PI * 2 / 5) * f.radius * 0.78;
+            var ty = Math.sin(th * Math.PI * 2 / 5) * f.radius * 0.78;
+            ctx.beginPath();
+            ctx.moveTo(tx * 0.45, ty * 0.45);
+            ctx.lineTo(tx * 0.7, ty * 0.2);
+            ctx.lineTo(tx, ty);
+            ctx.stroke();
+          }
+        } else if (f.family === "void") {
+          ctx.globalAlpha *= 0.7;
+          for (var vr = 0; vr < 3; vr += 1) {
+            ctx.beginPath();
+            ctx.arc(0, 0, f.radius * (0.26 + vr * 0.18), turn + vr, turn + vr + Math.PI * 1.35);
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+        ctx.restore();
+        continue;
+      }
       if (f.type === "meteor") {
         var warn = f.exploded ? 1 - ratio : clamp(1 - f.delay / Math.max(0.01, f.maxLife), 0, 1);
         ctx.globalAlpha = f.exploded ? 0.2 + ratio * 0.35 : 0.18 + warn * 0.5;
@@ -3866,19 +5760,27 @@
       if (f.type === "blackhole") {
         var swirl = this.time * 3 + (f.seed || 0);
         ctx.globalAlpha = 0.18 + ratio * 0.36;
-        ctx.fillStyle = "rgba(124,60,255,0.18)";
+        ctx.fillStyle = f.eventHorizon ? "rgba(178,108,255,0.22)" : "rgba(124,60,255,0.18)";
         ctx.strokeStyle = f.color;
-        ctx.shadowBlur = 32;
+        ctx.shadowBlur = f.eventHorizon ? 44 : 32;
         ctx.shadowColor = f.color;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = f.eventHorizon ? 4 : 3;
         ctx.beginPath();
         ctx.arc(f.x, f.y, f.radius * (1.04 - ratio * 0.1), 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-        for (var bh = 0; bh < 4; bh += 1) {
+        for (var bh = 0; bh < (f.eventHorizon ? 6 : 4); bh += 1) {
           ctx.globalAlpha = 0.26 + ratio * 0.24;
           ctx.beginPath();
           ctx.arc(f.x, f.y, f.radius * (0.25 + bh * 0.17), swirl + bh, swirl + bh + Math.PI * 1.35);
+          ctx.stroke();
+        }
+        if (f.eventHorizon) {
+          ctx.globalAlpha = 0.82;
+          ctx.strokeStyle = "#fff3a3";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.radius * (0.88 + Math.sin(this.time * 8) * 0.03), 0, Math.PI * 2);
           ctx.stroke();
         }
         ctx.globalAlpha = 0.92;
@@ -3924,15 +5826,40 @@
       var alpha = clamp(p.life / (p.maxLife || 1), 0, 1);
       ctx.save();
       ctx.globalAlpha = alpha;
-      if (p.type === "laser" || p.type === "bolt") {
+      if (p.type === "laser" || p.type === "bolt" || p.type === "sword" || p.type === "rift") {
         ctx.strokeStyle = p.color;
-        ctx.lineWidth = p.size || 3;
-        ctx.shadowBlur = 16;
+        ctx.lineWidth = p.type === "sword" ? (p.size || 3) * 1.35 : p.size || 3;
+        ctx.shadowBlur = p.type === "rift" ? 24 : 16;
         ctx.shadowColor = p.color;
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
         ctx.lineTo(p.tx, p.ty);
         ctx.stroke();
+        if (p.type === "sword") {
+          ctx.lineWidth = 1.2;
+          ctx.strokeStyle = "#ffffff";
+          ctx.stroke();
+        }
+      } else if (p.type === "rune" || p.type === "petal") {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(this.time * 3 + i);
+        ctx.fillStyle = p.color;
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = p.color;
+        ctx.beginPath();
+        if (p.type === "petal") {
+          ctx.ellipse(0, 0, (p.size || 2) * 1.8, p.size || 2, 0, 0, Math.PI * 2);
+        } else {
+          var r = p.size || 2;
+          for (var rn = 0; rn < 4; rn += 1) {
+            var ra = rn * Math.PI / 2;
+            ctx.lineTo(Math.cos(ra) * r, Math.sin(ra) * r);
+          }
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
       } else if (p.type === "ring") {
         ctx.strokeStyle = p.color;
         ctx.lineWidth = 3;
