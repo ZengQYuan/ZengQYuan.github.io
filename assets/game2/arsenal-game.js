@@ -69,7 +69,30 @@
 
   function makeAudio() {
     var ctx = null;
+    var master = null;
+    var compressor = null;
     var muted = false;
+    var last = Object.create(null);
+
+    function setupGraph(audio) {
+      if (master) {
+        return;
+      }
+      master = audio.createGain();
+      master.gain.value = 0.72;
+      if (audio.createDynamicsCompressor) {
+        compressor = audio.createDynamicsCompressor();
+        compressor.threshold.value = -18;
+        compressor.knee.value = 18;
+        compressor.ratio.value = 7;
+        compressor.attack.value = 0.004;
+        compressor.release.value = 0.13;
+        master.connect(compressor);
+        compressor.connect(audio.destination);
+      } else {
+        master.connect(audio.destination);
+      }
+    }
 
     function ensure() {
       if (muted) {
@@ -81,19 +104,21 @@
           return null;
         }
         ctx = new AudioContext();
+        setupGraph(ctx);
       }
       if (ctx.state === "suspended") {
-        ctx.resume();
+        ctx.resume().catch(function () {});
       }
       return ctx;
     }
 
-    function tone(freq, duration, type, volume, sweep) {
+    function tone(freq, duration, type, volume, sweep, delay) {
       var audio = ensure();
       if (!audio) {
         return;
       }
-      var now = audio.currentTime;
+      setupGraph(audio);
+      var now = audio.currentTime + (delay || 0.012);
       var osc = audio.createOscillator();
       var gain = audio.createGain();
       osc.type = type || "sine";
@@ -101,27 +126,132 @@
       if (sweep) {
         osc.frequency.exponentialRampToValueAtTime(Math.max(40, freq * sweep), now + duration);
       }
-      gain.gain.setValueAtTime(volume || 0.04, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(volume || 0.08, now + 0.008);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
       osc.connect(gain);
-      gain.connect(audio.destination);
+      gain.connect(master);
       osc.start(now);
       osc.stop(now + duration + 0.02);
     }
 
+    function noise(duration, volume, colorFreq) {
+      var audio = ensure();
+      if (!audio || !audio.createBufferSource) {
+        return;
+      }
+      setupGraph(audio);
+      var now = audio.currentTime + 0.012;
+      var length = Math.max(1, Math.floor(audio.sampleRate * duration));
+      var buffer = audio.createBuffer(1, length, audio.sampleRate);
+      var data = buffer.getChannelData(0);
+      for (var i = 0; i < length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 1.8);
+      }
+      var source = audio.createBufferSource();
+      var filter = audio.createBiquadFilter();
+      var gain = audio.createGain();
+      filter.type = "bandpass";
+      filter.frequency.value = colorFreq || 900;
+      filter.Q.value = 0.9;
+      gain.gain.setValueAtTime(volume || 0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      source.buffer = buffer;
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(master);
+      source.start(now);
+      source.stop(now + duration + 0.02);
+    }
+
+    function gated(name, gap, fn) {
+      var now = Date.now();
+      if (last[name] && now - last[name] < gap) {
+        return;
+      }
+      last[name] = now;
+      fn();
+    }
+
     return {
-      unlock: ensure,
+      unlock: function () {
+        var audio = ensure();
+        if (audio) {
+          tone(660, 0.08, "sine", 0.09, 1.35, 0.02);
+          tone(990, 0.1, "triangle", 0.07, 1.18, 0.08);
+        }
+        return audio;
+      },
       isMuted: function () { return muted; },
-      toggle: function () { muted = !muted; return muted; },
-      shoot: function () { tone(360, 0.045, "square", 0.018, 1.5); },
-      hit: function () { tone(150, 0.05, "triangle", 0.018, 0.65); },
-      crit: function () { tone(740, 0.075, "sine", 0.035, 1.25); },
-      pick: function () { tone(540, 0.05, "sine", 0.025, 1.35); },
-      buy: function () { tone(660, 0.08, "triangle", 0.035, 1.5); },
-      merge: function () { tone(260, 0.2, "sawtooth", 0.045, 2.2); },
-      boss: function () { tone(92, 0.55, "sawtooth", 0.05, 0.55); },
-      hurt: function () { tone(110, 0.16, "square", 0.045, 0.6); },
-      over: function () { tone(180, 0.5, "triangle", 0.05, 0.35); }
+      toggle: function () {
+        muted = !muted;
+        if (!muted) {
+          this.unlock();
+        }
+        return muted;
+      },
+      shoot: function () {
+        gated("shoot", 55, function () {
+          tone(410, 0.052, "square", 0.055, 1.48);
+        });
+      },
+      flame: function () {
+        gated("flame", 95, function () {
+          noise(0.11, 0.052, 520);
+          tone(130, 0.08, "sawtooth", 0.03, 0.84);
+        });
+      },
+      laser: function () {
+        gated("laser", 85, function () {
+          tone(820, 0.07, "sawtooth", 0.058, 1.9);
+          tone(1640, 0.045, "sine", 0.04, 0.72);
+        });
+      },
+      boom: function () {
+        gated("boom", 90, function () {
+          noise(0.16, 0.095, 260);
+          tone(88, 0.18, "sawtooth", 0.07, 0.58);
+        });
+      },
+      hit: function () {
+        gated("hit", 35, function () {
+          tone(170, 0.045, "triangle", 0.04, 0.65);
+        });
+      },
+      crit: function () {
+        gated("crit", 70, function () {
+          tone(820, 0.09, "sine", 0.095, 1.32);
+          tone(1230, 0.06, "triangle", 0.05, 0.86);
+        });
+      },
+      pick: function () {
+        gated("pick", 45, function () {
+          tone(620, 0.055, "sine", 0.06, 1.42);
+        });
+      },
+      buy: function () {
+        tone(660, 0.08, "triangle", 0.085, 1.5);
+        tone(990, 0.08, "sine", 0.052, 1.2, 0.06);
+      },
+      merge: function () {
+        tone(260, 0.22, "sawtooth", 0.09, 2.2);
+        tone(720, 0.2, "triangle", 0.07, 1.55, 0.07);
+        noise(0.16, 0.06, 1100);
+      },
+      boss: function () {
+        tone(86, 0.62, "sawtooth", 0.09, 0.52);
+        noise(0.42, 0.06, 180);
+      },
+      hurt: function () {
+        gated("hurt", 120, function () {
+          tone(118, 0.17, "square", 0.085, 0.58);
+          noise(0.08, 0.05, 340);
+        });
+      },
+      over: function () {
+        tone(190, 0.55, "triangle", 0.085, 0.35);
+        tone(90, 0.62, "sawtooth", 0.06, 0.5, 0.12);
+      }
     };
   }
 
@@ -198,6 +328,7 @@
     }
 
     function newRun(character) {
+      audio.unlock();
       var base = CFG.player;
       state = {
         seed: (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0,
@@ -288,7 +419,6 @@
       startWave();
       hideOverlay();
       updateHud();
-      audio.unlock();
     }
 
     function applyStats(stats) {
@@ -421,6 +551,9 @@
       }
       enemy.hp -= amount;
       enemy.flash = 0.08;
+      if (!crit) {
+        audio.hit();
+      }
       var kx = enemy.x - state.player.x;
       var ky = enemy.y - state.player.y;
       var kd = len(kx, ky);
@@ -857,6 +990,7 @@
     }
 
     function explode(x, y, radius, damage, color, hurtsPlayer) {
+      audio.boom();
       addParticle({ x: x, y: y, vx: 0, vy: 0, life: 0.42, maxLife: 0.42, radius: radius, color: color, type: "blast" });
       state.enemies.forEach(function (enemy) {
         if (!enemy.dead) {
@@ -1212,6 +1346,7 @@
     }
 
     function flameSweep(weapon, damage, color, protocol) {
+      audio.flame();
       var target = findTarget(260);
       var a = target ? Math.atan2(target.y - state.player.y, target.x - state.player.x) : weapon.spin;
       var nozzle = flagRank("plasmaNozzle");
@@ -1313,6 +1448,7 @@
         var dy = target.y - origin.y;
         var l = len(dx, dy);
         if (flagRank("droneBeam")) {
+          audio.laser();
           dealDamage(target, damage * (0.8 + flagRank("droneBeam") * 0.22) * (1 + state.stats.engineering / 180), color, critRoll(), weapon);
           addParticle({ x: target.x, y: target.y, fromX: origin.x, fromY: origin.y, life: 0.18 + flagRank("droneBeam") * 0.04, maxLife: 0.24, color: color, type: "beam", width: 5 + flagRank("droneBeam") * 3 });
           burst(target.x, target.y, color, 4 + flagRank("droneBeam") * 2, 0.45);
@@ -2324,6 +2460,7 @@
       if (!state || state.phase === "gameover") {
         renderCharacters();
       }
+      audio.unlock();
       raf = requestAnimationFrame(loop);
     }
 
