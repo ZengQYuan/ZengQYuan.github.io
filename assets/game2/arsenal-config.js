@@ -323,7 +323,7 @@
       partsStep: 8
     },
     caps: {
-      enemies: 280,
+      enemies: 420,
       projectiles: 520,
       enemyProjectiles: 100,
       parts: 360,
