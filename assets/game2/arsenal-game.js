@@ -262,11 +262,11 @@
       '<div class="arsenal-hud">',
       '  <div class="arsenal-bar"><div class="arsenal-fill arsenal-hp-fill"></div></div>',
       '  <div class="arsenal-bar"><div class="arsenal-fill arsenal-wave-fill"></div></div>',
-      '  <span class="arsenal-pill arsenal-wave-pill">第 1 波</span>',
-      '  <span class="arsenal-pill arsenal-parts-pill">零件 0</span>',
-      '  <span class="arsenal-pill arsenal-kill-pill">击杀 0</span>',
-      '  <span class="arsenal-pill arsenal-threat-pill">威胁 I</span>',
-      '  <span class="arsenal-pill arsenal-time-pill">0:00</span>',
+      '  <span class="arsenal-pill arsenal-pill-wave arsenal-wave-pill">第 1 波</span>',
+      '  <span class="arsenal-pill arsenal-pill-parts arsenal-parts-pill">零件 0</span>',
+      '  <span class="arsenal-pill arsenal-pill-kills arsenal-kill-pill">击杀 0</span>',
+      '  <span class="arsenal-pill arsenal-pill-threat arsenal-threat-pill">威胁 I</span>',
+      '  <span class="arsenal-pill arsenal-pill-time arsenal-time-pill">0:00</span>',
       '</div>',
       '<div class="arsenal-loadout"></div>',
       '<div class="arsenal-overlay is-visible"><div class="arsenal-panel"></div></div>'
@@ -987,9 +987,12 @@
         '<p>每个角色有不同的开局武器和构筑方向。数字键 1-4 可以快速选择前四个。</p>',
         '<div class="arsenal-cards">',
         CFG.characters.map(function (character, index) {
+          var startWeapon = weaponById(character.startWeapon);
           return [
-            '<button class="arsenal-card" data-character="' + character.id + '" style="border-color:' + character.color + '66">',
+            '<button class="arsenal-card is-character" data-character="' + character.id + '" style="border-color:' + character.color + '88;--card-color:' + character.color + '">',
             '  <span class="arsenal-card-key">' + (index + 1) + '</span>',
+            '  <span class="arsenal-card-orb">' + character.name.slice(0, 1) + '</span>',
+            '  <small class="arsenal-card-type">初始武器 · ' + (startWeapon ? startWeapon.name : "工坊武器") + '</small>',
             '  <strong>' + character.name + '</strong>',
             '  <em>' + character.role + '</em>',
             '  <span>' + character.text + '</span>',
@@ -1015,9 +1018,13 @@
           var disabled = state.partsMoney < offer.price || (offer.type === "weapon" && state.weapons.length >= 6 && !canMerge(offer.id, offer.tier));
           var kindText = offer.type === "weapon" ? tier.label + "阶武器" : data.skill ? "技能进阶" : "道具";
           var rankText = data.skill && data.flag ? " · Lv." + ((state.flags[data.flag] || 0) + 1) + (data.maxRank ? "/" + data.maxRank : "") : "";
+          var familyClass = " arsenal-family-" + (data.family || "item");
+          var typeClass = offer.type === "weapon" ? " is-weapon" : " is-item";
           return [
-            '<button class="arsenal-card' + (disabled ? " is-disabled" : "") + (data.skill ? " is-skill" : "") + '" data-buy="' + index + '" style="border-color:' + tier.color + '88">',
+            '<button class="arsenal-card tier-' + tier.id + typeClass + familyClass + (disabled ? " is-disabled" : "") + (data.skill ? " is-skill" : "") + '" data-buy="' + index + '" style="border-color:' + tier.color + '88;--card-color:' + tier.color + '">',
             '  <span class="arsenal-card-key">' + (index + 1) + '</span>',
+            '  <span class="arsenal-card-orb">' + cardGlyph(data, offer.type) + '</span>',
+            '  <small class="arsenal-card-type">' + familyLabel(data.family) + '</small>',
             '  <strong>' + data.name + '</strong>',
             '  <em>' + kindText + rankText + ' · ' + offer.price + ' 零件</em>',
             '  <span>' + data.text + '</span>',
@@ -1050,6 +1057,41 @@
         }
       });
       return labels.length ? labels.join(" / ") : "暂无";
+    }
+
+    function familyLabel(family) {
+      var meta = CFG.families[family];
+      if (meta) {
+        return meta.label + "协议";
+      }
+      var labels = {
+        output: "输出模组",
+        survival: "生存模组",
+        economy: "经济模组",
+        curse: "诅咒模组",
+        mobility: "机动模组",
+        item: "工坊模组"
+      };
+      return labels[family] || "工坊模组";
+    }
+
+    function cardGlyph(data, type) {
+      if (type === "item") {
+        return data.skill ? "进" : "装";
+      }
+      var glyphs = {
+        needle: "针",
+        spark: "散",
+        torch: "焰",
+        saw: "刃",
+        grenade: "爆",
+        drone: "械",
+        arc: "雷",
+        wrench: "锤",
+        anchor: "引",
+        rocket: "弹"
+      };
+      return glyphs[data.id] || data.name.slice(0, 1);
     }
 
     function buyOffer(index) {
@@ -2049,12 +2091,30 @@
     }
 
     function drawMenuBackground() {
+      var t = performance.now() / 1000;
       var g = ctx.createLinearGradient(0, 0, size.w, size.h);
       g.addColorStop(0, "#091d32");
       g.addColorStop(0.5, "#10263e");
       g.addColorStop(1, "#171d2d");
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, size.w, size.h);
+      ctx.save();
+      ctx.globalAlpha = 0.38;
+      ctx.strokeStyle = "#58c7ff";
+      ctx.lineWidth = 1;
+      for (var ring = 0; ring < 4; ring++) {
+        ctx.beginPath();
+        ctx.arc(size.w * 0.5, size.h * 0.52, 92 + ring * 74 + Math.sin(t + ring) * 4, 0, TWO_PI);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 0.22;
+      ctx.strokeStyle = "#ff4fd8";
+      ctx.beginPath();
+      ctx.moveTo(size.w * 0.12, size.h * 0.28);
+      ctx.lineTo(size.w * 0.88, size.h * 0.18);
+      ctx.lineTo(size.w * 0.74, size.h * 0.84);
+      ctx.stroke();
+      ctx.restore();
       for (var i = 0; i < 80; i++) {
         var x = (i * 131) % size.w;
         var y = (i * 79) % size.h;
@@ -2091,6 +2151,40 @@
         ctx.lineTo(cam.x + size.w + 20, y);
         ctx.stroke();
       }
+      ctx.save();
+      ctx.globalAlpha = 0.22;
+      ctx.strokeStyle = "#58c7ff";
+      ctx.lineWidth = 2;
+      var major = 360;
+      var majorStartX = Math.floor(cam.x / major) * major;
+      var majorStartY = Math.floor(cam.y / major) * major;
+      for (var mx = majorStartX; mx <= cam.x + size.w + major; mx += major) {
+        ctx.beginPath();
+        ctx.moveTo(mx, cam.y - 20);
+        ctx.lineTo(mx, cam.y + size.h + 20);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = "#ff4fd8";
+      for (var my = majorStartY; my <= cam.y + size.h + major; my += major) {
+        ctx.beginPath();
+        ctx.moveTo(cam.x - 20, my);
+        ctx.lineTo(cam.x + size.w + 20, my);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 0.28;
+      ctx.setLineDash([26, 18]);
+      ctx.lineDashOffset = -(state.elapsed * 42);
+      ctx.strokeStyle = "#ffd166";
+      ctx.lineWidth = 3;
+      var laneY = Math.floor((cam.y + 160) / 540) * 540;
+      for (var ly = laneY; ly <= cam.y + size.h + 540; ly += 540) {
+        ctx.beginPath();
+        ctx.moveTo(cam.x - 80, ly);
+        ctx.lineTo(cam.x + size.w + 80, ly + 130);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      ctx.restore();
     }
 
     function drawHazards() {
@@ -2289,6 +2383,10 @@
           var a = Math.atan2(p.vy, p.vx);
           ctx.translate(p.x, p.y);
           ctx.rotate(a);
+          if (!reduceMotion) {
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = p.type === "rocket" || p.type === "grenade" ? 18 : 12;
+          }
           if (p.rail) {
             ctx.globalAlpha = 0.38;
             ctx.strokeStyle = p.color;
@@ -2314,6 +2412,11 @@
           ctx.fillStyle = p.color;
           roundRect(-p.radius * 1.8, -p.radius * 0.75, p.radius * 3.6, p.radius * 1.5, p.radius);
           ctx.fill();
+          ctx.globalAlpha = 0.75;
+          ctx.strokeStyle = "rgba(255,255,255,0.86)";
+          ctx.lineWidth = 1;
+          roundRect(-p.radius * 1.8, -p.radius * 0.75, p.radius * 3.6, p.radius * 1.5, p.radius);
+          ctx.stroke();
           if (p.type === "grenade") {
             ctx.strokeStyle = "#fff0a4";
             ctx.lineWidth = 2;
@@ -2325,10 +2428,20 @@
         ctx.restore();
       });
       state.enemyProjectiles.forEach(function (p) {
+        ctx.save();
+        ctx.shadowColor = p.color || "#ff6473";
+        ctx.shadowBlur = reduceMotion ? 0 : 16;
         ctx.fillStyle = p.color || "#ff6473";
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.radius, 0, TWO_PI);
         ctx.fill();
+        ctx.globalAlpha = 0.28;
+        ctx.strokeStyle = p.color || "#ff6473";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius + 8 + Math.sin(state.elapsed * 10) * 2, 0, TWO_PI);
+        ctx.stroke();
+        ctx.restore();
       });
     }
 
@@ -2336,13 +2449,28 @@
       state.enemies.forEach(function (enemy) {
         ctx.save();
         ctx.translate(enemy.x, enemy.y);
+        if (!reduceMotion) {
+          ctx.shadowColor = enemy.flash > 0 ? "#ffffff" : enemy.color;
+          ctx.shadowBlur = enemy.boss ? 28 : enemy.elite ? 18 : 10;
+        }
+        ctx.globalAlpha = enemy.boss ? 0.22 : enemy.elite ? 0.18 : 0.12;
+        ctx.strokeStyle = enemy.color;
+        ctx.lineWidth = enemy.boss ? 8 : enemy.elite ? 5 : 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, enemy.radius + 8 + Math.sin(state.elapsed * 5 + enemy.spawnElapsed) * 2, 0, TWO_PI);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
         ctx.fillStyle = enemy.flash > 0 ? "#ffffff" : enemy.color;
         if (enemy.boss) {
           ctx.beginPath();
           for (var i = 0; i < 8; i++) {
             var a = i * TWO_PI / 8 + state.elapsed * 0.5;
             var r = enemy.radius * (i % 2 ? 0.72 : 1.1);
-            ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+            if (i === 0) {
+              ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+            } else {
+              ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+            }
           }
           ctx.closePath();
           ctx.fill();
@@ -2352,9 +2480,35 @@
           ctx.fill();
         } else {
           ctx.beginPath();
-          ctx.arc(0, 0, enemy.radius, 0, TWO_PI);
+          if (enemy.kind === "runner") {
+            ctx.moveTo(enemy.radius + 3, 0);
+            ctx.lineTo(-enemy.radius, enemy.radius * 0.82);
+            ctx.lineTo(-enemy.radius * 0.52, 0);
+            ctx.lineTo(-enemy.radius, -enemy.radius * 0.82);
+            ctx.closePath();
+          } else if (enemy.kind === "spitter" || enemy.kind === "sniper") {
+            for (var n = 0; n < 6; n++) {
+              var pa = n * TWO_PI / 6 + state.elapsed * 0.4;
+              var pr = n % 2 ? enemy.radius * 0.68 : enemy.radius * 1.04;
+              if (n === 0) {
+                ctx.moveTo(Math.cos(pa) * pr, Math.sin(pa) * pr);
+              } else {
+                ctx.lineTo(Math.cos(pa) * pr, Math.sin(pa) * pr);
+              }
+            }
+            ctx.closePath();
+          } else {
+            ctx.arc(0, 0, enemy.radius, 0, TWO_PI);
+          }
           ctx.fill();
         }
+        ctx.strokeStyle = "rgba(255,255,255,0.62)";
+        ctx.lineWidth = enemy.boss ? 2.4 : 1.4;
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.86)";
+        ctx.beginPath();
+        ctx.arc(-enemy.radius * 0.28, -enemy.radius * 0.22, Math.max(2, enemy.radius * 0.18), 0, TWO_PI);
+        ctx.fill();
         if (enemy.shield > 0) {
           ctx.strokeStyle = "#a7b7ff";
           ctx.lineWidth = 2;
@@ -2379,6 +2533,21 @@
       if (p.invuln > 0) {
         ctx.globalAlpha = 0.55 + Math.sin(state.elapsed * 60) * 0.25;
       }
+      ctx.save();
+      ctx.rotate(state.elapsed * 1.2);
+      ctx.globalAlpha = 0.2;
+      ctx.strokeStyle = state.character.color;
+      ctx.lineWidth = 3;
+      for (var r = 0; r < 3; r++) {
+        ctx.beginPath();
+        ctx.ellipse(0, 0, p.radius + 13 + r * 7, p.radius + 7 + r * 4, r * 0.7, 0, TWO_PI);
+        ctx.stroke();
+      }
+      ctx.restore();
+      if (!reduceMotion) {
+        ctx.shadowColor = state.character.color;
+        ctx.shadowBlur = 20;
+      }
       ctx.fillStyle = state.character.color;
       ctx.beginPath();
       ctx.arc(0, 0, p.radius + 4, 0, TWO_PI);
@@ -2391,6 +2560,11 @@
       ctx.beginPath();
       ctx.arc(0, 0, p.radius - 7, 0, TWO_PI);
       ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.86)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, p.radius + 4, 0, TWO_PI);
+      ctx.stroke();
       ctx.restore();
     }
 
@@ -2471,9 +2645,19 @@
     function drawDamageTexts() {
       ctx.save();
       ctx.textAlign = "center";
-      ctx.font = "800 13px Arial, sans-serif";
       state.damageTexts.forEach(function (t) {
         ctx.globalAlpha = clamp(t.life / t.maxLife, 0, 1);
+        var critical = t.text.indexOf("!") >= 0;
+        ctx.font = (critical ? "950 20px" : "900 14px") + " Arial, sans-serif";
+        ctx.lineWidth = critical ? 5 : 3;
+        ctx.strokeStyle = "rgba(0,0,0,0.7)";
+        ctx.strokeText(t.text, t.x, t.y);
+        if (critical && !reduceMotion) {
+          ctx.shadowColor = t.color;
+          ctx.shadowBlur = 14;
+        } else {
+          ctx.shadowBlur = 0;
+        }
         ctx.fillStyle = t.color;
         ctx.fillText(t.text, t.x, t.y);
       });
@@ -2525,7 +2709,13 @@
       loadout.innerHTML = state.weapons.map(function (weapon) {
         var cfg = weaponById(weapon.id);
         var tier = tierData(weapon.tier);
-        return '<div class="arsenal-slot" style="border-color:' + tier.color + '88;color:' + tier.color + '">' + cfg.name + ' · ' + tier.label + '</div>';
+        return [
+          '<div class="arsenal-slot arsenal-family-' + cfg.family + ' tier-' + weapon.tier + '" style="border-color:' + tier.color + '88;color:' + tier.color + ';--slot-color:' + tier.color + '">',
+          '  <span class="arsenal-slot-dot"></span>',
+          '  <strong>' + cfg.name + '</strong>',
+          '  <em>' + tier.label + '阶</em>',
+          '</div>'
+        ].join("");
       }).join("");
     }
 

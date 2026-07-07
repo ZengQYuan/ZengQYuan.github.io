@@ -1,7 +1,37 @@
 :root {
   --arsenal-cyan: #58c7ff;
+  --arsenal-blue: #2f7dff;
+  --arsenal-magenta: #ff4fd8;
   --arsenal-orange: #ffb347;
+  --arsenal-gold: #ffd166;
+  --arsenal-lime: #70ffbf;
+  --arsenal-red: #ff5468;
   --arsenal-ink: #122033;
+  --arsenal-panel: rgba(6, 18, 33, 0.78);
+  --arsenal-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes arsenalGridDrift {
+  0% { background-position: 0 0, 0 0, center, center, center, center; }
+  100% { background-position: 44px 44px, -44px 44px, center, center, center, center; }
+}
+
+@keyframes arsenalSweep {
+  0% { transform: translateX(-120%) skewX(-16deg); opacity: 0; }
+  16% { opacity: 0.45; }
+  48% { opacity: 0.16; }
+  100% { transform: translateX(120%) skewX(-16deg); opacity: 0; }
+}
+
+@keyframes arsenalPulseGlow {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(88, 199, 255, 0.45)); transform: scale(1); }
+  50% { filter: drop-shadow(0 0 20px rgba(255, 79, 216, 0.5)); transform: scale(1.04); }
+}
+
+@keyframes arsenalSlotCharge {
+  0% { transform: translateX(-100%); opacity: 0; }
+  28% { opacity: 0.9; }
+  100% { transform: translateX(120%); opacity: 0; }
 }
 
 .game-entry-grid {
@@ -10,10 +40,40 @@
 }
 
 .game-entry-secondary {
+  position: relative;
+  overflow: hidden;
   background:
+    linear-gradient(120deg, transparent 0 18%, rgba(255, 255, 255, 0.76) 21%, transparent 24% 100%),
     radial-gradient(circle at 86% 12%, rgba(255, 179, 71, 0.18), transparent 32%),
-    radial-gradient(circle at 14% 18%, rgba(88, 199, 255, 0.16), transparent 34%),
+    radial-gradient(circle at 14% 18%, rgba(255, 79, 216, 0.13), transparent 34%),
+    radial-gradient(circle at 36% 92%, rgba(88, 199, 255, 0.16), transparent 42%),
     linear-gradient(135deg, #fbfcff 0%, #f3f7fb 100%);
+}
+
+.game-entry-secondary::before {
+  content: "NEW";
+  position: absolute;
+  right: 16px;
+  top: 14px;
+  z-index: 1;
+  border: 1px solid rgba(255, 79, 216, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #bf2aa0;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 3px 7px;
+  letter-spacing: 0;
+}
+
+.game-entry-secondary::after {
+  content: "";
+  position: absolute;
+  inset: auto 18px 0;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: linear-gradient(90deg, var(--arsenal-cyan), var(--arsenal-magenta), var(--arsenal-orange));
+  opacity: 0.76;
 }
 
 .arsenal-error {
@@ -35,10 +95,21 @@
   place-items: center;
   padding: 22px;
   background:
+    linear-gradient(rgba(88, 199, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 79, 216, 0.045) 1px, transparent 1px),
     radial-gradient(circle at 54% 38%, rgba(88, 199, 255, 0.2), transparent 30%),
-    radial-gradient(circle at 78% 18%, rgba(255, 179, 71, 0.22), transparent 26%),
-    rgba(11, 20, 34, 0.76);
+    radial-gradient(circle at 78% 18%, rgba(255, 79, 216, 0.2), transparent 26%),
+    radial-gradient(circle at 24% 86%, rgba(255, 179, 71, 0.18), transparent 32%),
+    rgba(3, 9, 19, 0.82);
+  background-size:
+    44px 44px,
+    44px 44px,
+    auto,
+    auto,
+    auto,
+    auto;
   backdrop-filter: blur(14px) saturate(150%);
+  animation: arsenalGridDrift 18s linear infinite;
 }
 
 .arsenal-modal.is-open {
@@ -51,27 +122,81 @@ body.arsenal-open {
 
 .arsenal-shell {
   position: relative;
+  isolation: isolate;
   width: min(1040px, 100%);
   max-height: min(780px, calc(100dvh - 44px));
   overflow: hidden;
-  border: 1px solid rgba(130, 210, 255, 0.28);
-  border-radius: 16px;
+  border: 1px solid rgba(130, 210, 255, 0.42);
+  border-radius: 18px;
   background:
-    radial-gradient(circle at 17% 18%, rgba(88, 199, 255, 0.18), transparent 28%),
-    radial-gradient(circle at 82% 20%, rgba(255, 179, 71, 0.17), transparent 30%),
-    linear-gradient(135deg, #071729 0%, #0c2035 52%, #111825 100%);
-  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.44);
+    radial-gradient(circle at 17% 18%, rgba(88, 199, 255, 0.2), transparent 28%),
+    radial-gradient(circle at 82% 20%, rgba(255, 79, 216, 0.18), transparent 30%),
+    radial-gradient(circle at 50% 112%, rgba(255, 179, 71, 0.18), transparent 34%),
+    linear-gradient(135deg, #061322 0%, #0d2138 50%, #121527 100%);
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.52),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 0 48px rgba(88, 199, 255, 0.18),
+    inset 0 0 46px rgba(255, 79, 216, 0.06);
+}
+
+.arsenal-shell::before,
+.arsenal-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.arsenal-shell::before {
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(112, 255, 191, 0.8), rgba(88, 199, 255, 0.2), rgba(255, 79, 216, 0.65), rgba(255, 209, 102, 0.62));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.arsenal-shell::after {
+  background:
+    linear-gradient(90deg, transparent 0 40%, rgba(255, 255, 255, 0.12) 50%, transparent 60%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 5px);
+  mix-blend-mode: screen;
+  opacity: 0.34;
+  animation: arsenalSweep 5.2s var(--arsenal-ease) infinite;
 }
 
 .arsenal-header {
+  position: relative;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 52px;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(148, 201, 255, 0.14);
+  min-height: 58px;
+  padding: 13px 17px;
+  border-bottom: 1px solid rgba(148, 201, 255, 0.24);
+  background:
+    linear-gradient(90deg, rgba(88, 199, 255, 0.12), transparent 34%, rgba(255, 79, 216, 0.11)),
+    rgba(3, 10, 20, 0.34);
   color: #dceaff;
+}
+
+.arsenal-header::before {
+  content: "ARSENAL OS // 工坊在线";
+  position: absolute;
+  left: 18px;
+  bottom: -8px;
+  border: 1px solid rgba(112, 255, 191, 0.3);
+  border-radius: 999px;
+  background: rgba(4, 14, 26, 0.92);
+  color: #bafbe2;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0;
+  padding: 2px 8px;
+  box-shadow: 0 0 16px rgba(112, 255, 191, 0.18);
 }
 
 .arsenal-title {
@@ -83,11 +208,15 @@ body.arsenal-open {
 
 .arsenal-title strong {
   color: #fff;
-  font-size: 1.02em;
+  font-size: 1.08em;
+  letter-spacing: 0;
+  text-shadow:
+    0 0 10px rgba(88, 199, 255, 0.65),
+    0 0 24px rgba(255, 79, 216, 0.35);
 }
 
 .arsenal-title span {
-  color: #9fb5cc;
+  color: #b8d6f5;
   font-size: 0.88em;
 }
 
@@ -95,9 +224,11 @@ body.arsenal-open {
   appearance: none;
   width: 34px;
   height: 34px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(88, 199, 255, 0.38);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background:
+    radial-gradient(circle at 50% 36%, rgba(255, 255, 255, 0.2), transparent 34%),
+    rgba(255, 255, 255, 0.07);
   color: #eaf6ff;
   cursor: pointer;
   font: inherit;
@@ -108,8 +239,9 @@ body.arsenal-open {
 
 .arsenal-close:hover,
 .arsenal-close:focus {
-  border-color: rgba(255, 255, 255, 0.34);
-  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 79, 216, 0.66);
+  background: rgba(255, 79, 216, 0.16);
+  box-shadow: 0 0 22px rgba(255, 79, 216, 0.26);
   transform: rotate(4deg) scale(1.04);
 }
 
@@ -123,12 +255,42 @@ body.arsenal-open {
   overflow: hidden;
 }
 
+.arsenal-root::before,
+.arsenal-root::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.arsenal-root::before {
+  background:
+    radial-gradient(circle at 50% 52%, transparent 34%, rgba(2, 7, 14, 0.18) 76%, rgba(0, 0, 0, 0.38) 100%),
+    linear-gradient(90deg, rgba(88, 199, 255, 0.16), transparent 12% 88%, rgba(255, 79, 216, 0.13));
+}
+
+.arsenal-root::after {
+  inset: 10px;
+  border: 1px solid rgba(88, 199, 255, 0.16);
+  border-radius: 12px;
+  box-shadow:
+    inset 18px 0 0 -16px rgba(88, 199, 255, 0.55),
+    inset -18px 0 0 -16px rgba(255, 79, 216, 0.48),
+    inset 0 18px 0 -16px rgba(112, 255, 191, 0.42),
+    inset 0 -18px 0 -16px rgba(255, 179, 71, 0.4);
+}
+
 .arsenal-root canvas {
   display: block;
   width: 100%;
   height: 100%;
   background:
+    radial-gradient(circle at 48% 50%, rgba(88, 199, 255, 0.08), transparent 34%),
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
     linear-gradient(135deg, #092033 0%, #0d2941 52%, #162134 100%);
+  background-size: auto, 54px 54px, 54px 54px, auto;
   touch-action: none;
 }
 
@@ -139,44 +301,133 @@ body.arsenal-open {
   top: 12px;
   z-index: 3;
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(120px, 0.75fr) auto auto auto auto auto;
-  gap: 8px;
+  grid-template-columns: minmax(150px, 1fr) minmax(135px, 0.78fr) auto auto auto auto auto;
+  gap: 9px;
   align-items: center;
   pointer-events: none;
 }
 
+.arsenal-hud::before {
+  content: "COMBAT HUD";
+  position: absolute;
+  left: 0;
+  top: -10px;
+  color: rgba(202, 240, 255, 0.78);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-shadow: 0 0 10px rgba(88, 199, 255, 0.45);
+}
+
 .arsenal-bar {
+  position: relative;
   overflow: hidden;
-  height: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  height: 24px;
+  border: 1px solid rgba(88, 199, 255, 0.24);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.1), transparent),
+    rgba(3, 12, 24, 0.72);
+  box-shadow:
+    inset 0 0 12px rgba(0, 0, 0, 0.44),
+    0 7px 18px rgba(0, 0, 0, 0.22);
 }
 
 .arsenal-fill {
+  display: block;
   height: 100%;
   width: 100%;
   transform-origin: left center;
-  background: linear-gradient(90deg, #66f0b6, #58c7ff);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.26), transparent 28% 74%, rgba(255, 255, 255, 0.34)),
+    linear-gradient(90deg, var(--arsenal-lime), var(--arsenal-cyan));
+  box-shadow: 0 0 20px rgba(112, 255, 191, 0.55);
+}
+
+.arsenal-bar::before,
+.arsenal-bar::after {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #eaf6ff;
+  font-size: 10px;
+  font-weight: 950;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+.arsenal-bar::before {
+  content: "HP";
+  left: 9px;
+}
+
+.arsenal-bar:nth-child(2)::before {
+  content: "WAVE";
+}
+
+.arsenal-bar::after {
+  content: "";
+  inset: 0;
+  top: 0;
+  transform: none;
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px 12px);
+  opacity: 0.42;
 }
 
 .arsenal-wave-fill {
-  background: linear-gradient(90deg, #ffb347, #ffd166);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.22), transparent 28% 72%, rgba(255, 255, 255, 0.34)),
+    linear-gradient(90deg, var(--arsenal-orange), var(--arsenal-gold), var(--arsenal-magenta));
+  box-shadow: 0 0 20px rgba(255, 179, 71, 0.5);
 }
 
 .arsenal-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  min-height: 27px;
+  border: 1px solid rgba(88, 199, 255, 0.22);
   border-radius: 999px;
-  background: rgba(4, 12, 25, 0.58);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.16), transparent 38%),
+    rgba(4, 12, 25, 0.68);
   color: #eaf6ff;
   font-size: 12px;
   font-weight: 800;
-  padding: 3px 9px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+  padding: 4px 10px;
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.18),
+    inset 0 0 16px rgba(88, 199, 255, 0.08);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.66);
+}
+
+.arsenal-pill-wave {
+  border-color: rgba(88, 199, 255, 0.42);
+  color: #caf0ff;
+}
+
+.arsenal-pill-parts {
+  border-color: rgba(255, 209, 102, 0.42);
+  color: #ffe6a3;
+}
+
+.arsenal-pill-kills {
+  border-color: rgba(112, 255, 191, 0.4);
+  color: #c4ffe7;
+}
+
+.arsenal-pill-threat {
+  border-color: rgba(255, 79, 216, 0.5);
+  color: #ffd2f7;
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.18),
+    0 0 20px rgba(255, 79, 216, 0.12),
+    inset 0 0 16px rgba(255, 79, 216, 0.12);
+}
+
+.arsenal-pill-time {
+  border-color: rgba(255, 179, 71, 0.42);
+  color: #ffdf9a;
 }
 
 .arsenal-loadout {
@@ -186,23 +437,86 @@ body.arsenal-open {
   bottom: 12px;
   z-index: 3;
   display: flex;
-  gap: 6px;
+  gap: 7px;
   pointer-events: none;
 }
 
+.arsenal-loadout::before {
+  content: "武器矩阵";
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 5px);
+  color: rgba(255, 223, 154, 0.86);
+  font-size: 10px;
+  font-weight: 900;
+  text-shadow: 0 0 12px rgba(255, 179, 71, 0.42);
+}
+
 .arsenal-slot {
-  flex: 0 1 92px;
+  position: relative;
+  flex: 0 1 108px;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 8px;
-  background: rgba(5, 16, 28, 0.68);
+  border: 1px solid rgba(88, 199, 255, 0.24);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.09), transparent 38%),
+    rgba(5, 16, 28, 0.72);
   color: #dceaff;
   font-size: 11px;
   font-weight: 800;
-  padding: 5px 7px;
+  padding: 7px 8px 7px 14px;
   overflow: hidden;
-  white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22), inset 0 0 16px rgba(255, 255, 255, 0.04);
+}
+
+.arsenal-slot::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: currentColor;
+  box-shadow: 0 0 12px currentColor;
+}
+
+.arsenal-slot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--slot-color, #58c7ff) 52%, transparent), transparent);
+  transform: translateX(-100%);
+  opacity: 0;
+  animation: arsenalSlotCharge 3.4s linear infinite;
+}
+
+.arsenal-slot-dot {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--slot-color, currentColor);
+  box-shadow: 0 0 12px var(--slot-color, currentColor);
+}
+
+.arsenal-slot strong,
+.arsenal-slot em {
+  position: relative;
+  z-index: 1;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arsenal-slot em {
+  margin-top: 2px;
+  color: rgba(234, 246, 255, 0.68);
+  font-size: 10px;
+  font-style: normal;
 }
 
 .arsenal-overlay {
@@ -213,8 +527,12 @@ body.arsenal-open {
   place-items: center;
   padding: 18px;
   background:
-    radial-gradient(circle at 50% 34%, rgba(88, 199, 255, 0.15), transparent 30%),
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    radial-gradient(circle at 50% 34%, rgba(88, 199, 255, 0.18), transparent 30%),
+    radial-gradient(circle at 74% 18%, rgba(255, 79, 216, 0.16), transparent 28%),
     rgba(3, 12, 23, 0.62);
+  background-size: 38px 38px, 38px 38px, auto, auto, auto;
   backdrop-filter: blur(8px);
 }
 
@@ -223,34 +541,70 @@ body.arsenal-open {
 }
 
 .arsenal-panel {
+  position: relative;
   width: min(890px, 100%);
   max-height: 100%;
   overflow: auto;
-  border: 1px solid rgba(130, 210, 255, 0.28);
-  border-radius: 14px;
+  border: 1px solid rgba(130, 210, 255, 0.38);
+  border-radius: 16px;
   background:
-    radial-gradient(circle at 18% 12%, rgba(88, 199, 255, 0.16), transparent 24%),
-    linear-gradient(145deg, rgba(8, 24, 40, 0.96), rgba(17, 27, 44, 0.97));
-  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.45);
-  padding: 18px;
+    linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent 18% 82%, rgba(255, 255, 255, 0.06)),
+    radial-gradient(circle at 18% 12%, rgba(88, 199, 255, 0.18), transparent 24%),
+    radial-gradient(circle at 86% 8%, rgba(255, 79, 216, 0.16), transparent 26%),
+    linear-gradient(145deg, rgba(8, 24, 40, 0.96), rgba(17, 27, 44, 0.98));
+  box-shadow:
+    0 26px 70px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 0 0 42px rgba(88, 199, 255, 0.06);
+  padding: 20px;
+}
+
+.arsenal-panel::before {
+  content: "";
+  display: block;
+  width: 86px;
+  height: 3px;
+  margin-bottom: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--arsenal-cyan), var(--arsenal-magenta), var(--arsenal-gold));
+  box-shadow: 0 0 18px rgba(88, 199, 255, 0.45);
+}
+
+.arsenal-panel::after {
+  content: "";
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  width: 76px;
+  height: 76px;
+  border: 1px solid rgba(88, 199, 255, 0.2);
+  border-radius: 18px;
+  background:
+    linear-gradient(90deg, transparent 48%, rgba(88, 199, 255, 0.2) 50%, transparent 52%),
+    linear-gradient(0deg, transparent 48%, rgba(255, 79, 216, 0.18) 50%, transparent 52%);
+  opacity: 0.32;
+  transform: rotate(8deg);
+  pointer-events: none;
 }
 
 .arsenal-panel h3 {
   margin: 0 0 6px;
   color: #fff;
-  font-size: 1.35em;
+  font-size: 1.46em;
+  letter-spacing: 0;
+  text-shadow: 0 0 18px rgba(88, 199, 255, 0.36);
 }
 
 .arsenal-panel p {
   margin: 0;
-  color: #a8bed5;
+  color: #bdd6ee;
 }
 
 .arsenal-cards {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 14px;
+  gap: 12px;
+  margin-top: 16px;
 }
 
 .arsenal-card {
@@ -258,25 +612,70 @@ body.arsenal-open {
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 150px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 12px;
+  min-height: 162px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
   background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.12), transparent 24% 76%, rgba(255, 255, 255, 0.08)),
     radial-gradient(circle at 80% 10%, rgba(255, 255, 255, 0.08), transparent 34%),
-    rgba(255, 255, 255, 0.06);
+    rgba(255, 255, 255, 0.064);
   color: #eaf6ff;
   cursor: pointer;
   font: inherit;
-  padding: 12px;
+  padding: 14px 13px 13px 64px;
   text-align: left;
-  transition: transform 180ms var(--ease), border-color 180ms var(--ease), background-color 180ms var(--ease);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.22),
+    inset 0 0 18px rgba(255, 255, 255, 0.035);
+  transition:
+    transform 180ms var(--ease),
+    border-color 180ms var(--ease),
+    background-color 180ms var(--ease),
+    box-shadow 180ms var(--ease);
+}
+
+.arsenal-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(120deg, transparent 0 34%, rgba(255, 255, 255, 0.22) 44%, transparent 54% 100%);
+  transform: translateX(-120%);
+  opacity: 0;
+  transition: transform 420ms var(--arsenal-ease), opacity 180ms var(--arsenal-ease);
+  pointer-events: none;
+}
+
+.arsenal-card::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, var(--card-color, var(--arsenal-cyan)), transparent);
+  opacity: 0.9;
+  box-shadow: 0 0 16px var(--card-color, rgba(88, 199, 255, 0.4));
+  pointer-events: none;
 }
 
 .arsenal-card:hover,
 .arsenal-card:focus {
   border-color: rgba(88, 199, 255, 0.55);
   background-color: rgba(88, 199, 255, 0.12);
-  transform: translateY(-3px);
+  box-shadow:
+    0 20px 46px rgba(0, 0, 0, 0.26),
+    0 0 26px rgba(88, 199, 255, 0.2),
+    inset 0 0 20px rgba(88, 199, 255, 0.08);
+  transform: translateY(-4px);
+}
+
+.arsenal-card:hover::before,
+.arsenal-card:focus::before {
+  opacity: 1;
+  transform: translateX(120%);
 }
 
 .arsenal-card.is-disabled {
@@ -284,12 +683,24 @@ body.arsenal-open {
   opacity: 0.55;
 }
 
+.arsenal-card.is-character {
+  min-height: 188px;
+  background:
+    radial-gradient(circle at 26px 34px, color-mix(in srgb, var(--card-color, #58c7ff) 34%, transparent), transparent 34%),
+    radial-gradient(circle at 86% 14%, color-mix(in srgb, var(--card-color, #58c7ff) 22%, transparent), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.11), transparent 26% 82%, rgba(255, 255, 255, 0.06)),
+    rgba(255, 255, 255, 0.06);
+}
+
 .arsenal-card.is-skill {
   background:
     radial-gradient(circle at 84% 12%, rgba(255, 209, 102, 0.2), transparent 34%),
-    radial-gradient(circle at 16% 0%, rgba(88, 199, 255, 0.18), transparent 38%),
+    radial-gradient(circle at 16% 0%, rgba(255, 79, 216, 0.18), transparent 38%),
     rgba(255, 255, 255, 0.075);
-  box-shadow: inset 0 0 24px rgba(255, 179, 71, 0.06);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.24),
+    0 0 24px rgba(255, 79, 216, 0.12),
+    inset 0 0 24px rgba(255, 179, 71, 0.08);
 }
 
 .arsenal-card.is-skill::after {
@@ -304,6 +715,17 @@ body.arsenal-open {
   opacity: 0.75;
 }
 
+.arsenal-card.tier-4 {
+  box-shadow:
+    0 16px 42px rgba(0, 0, 0, 0.28),
+    0 0 34px rgba(255, 209, 102, 0.2),
+    inset 0 0 26px rgba(255, 209, 102, 0.08);
+}
+
+.arsenal-card.tier-4 strong {
+  color: #fff6c9;
+}
+
 .arsenal-card-key {
   position: absolute;
   right: 9px;
@@ -314,9 +736,54 @@ body.arsenal-open {
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.26), transparent 42%),
+    rgba(255, 255, 255, 0.14);
   color: #fff;
   font-weight: 900;
+  box-shadow: 0 0 16px rgba(88, 199, 255, 0.16);
+}
+
+.arsenal-card-orb {
+  position: absolute;
+  left: 13px;
+  top: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--card-color, #58c7ff) 64%, white);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 36% 24%, rgba(255, 255, 255, 0.86), transparent 24%),
+    radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--card-color, #58c7ff) 76%, #ffffff 8%), rgba(4, 12, 25, 0.7) 68%);
+  color: #061322;
+  font-size: 16px;
+  font-weight: 950;
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--card-color, #58c7ff) 54%, transparent),
+    inset 0 0 12px rgba(255, 255, 255, 0.26);
+  animation: arsenalPulseGlow 2.8s ease-in-out infinite;
+}
+
+.arsenal-card-type {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: calc(100% - 36px);
+  margin: 0 0 8px;
+  border: 1px solid color-mix(in srgb, var(--card-color, #58c7ff) 42%, transparent);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: color-mix(in srgb, var(--card-color, #58c7ff) 70%, white);
+  font-size: 10px;
+  font-weight: 950;
+  line-height: 1.2;
+  padding: 3px 7px;
+  white-space: nowrap;
+  text-shadow: 0 0 10px color-mix(in srgb, var(--card-color, #58c7ff) 44%, transparent);
 }
 
 .arsenal-card strong {
@@ -324,6 +791,7 @@ body.arsenal-open {
   margin-right: 28px;
   color: #fff;
   line-height: 1.25;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.12);
 }
 
 .arsenal-card em {
@@ -332,9 +800,10 @@ body.arsenal-open {
   color: #ffdf9a;
   font-style: normal;
   font-weight: 900;
+  text-shadow: 0 0 14px rgba(255, 179, 71, 0.24);
 }
 
-.arsenal-card span {
+.arsenal-card > span:not(.arsenal-card-key):not(.arsenal-card-orb) {
   color: #adc2da;
   font-size: 12px;
   line-height: 1.45;
@@ -349,26 +818,52 @@ body.arsenal-open {
 
 .arsenal-button {
   appearance: none;
-  border: 1px solid rgba(88, 199, 255, 0.28);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(88, 199, 255, 0.36);
   border-radius: 999px;
-  background: rgba(88, 199, 255, 0.15);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12), transparent 42%),
+    rgba(88, 199, 255, 0.16);
   color: #eaf6ff;
   cursor: pointer;
   font: inherit;
   font-weight: 900;
   padding: 8px 14px;
+  box-shadow: inset 0 0 16px rgba(88, 199, 255, 0.08);
+  transition: transform 160ms var(--arsenal-ease), box-shadow 160ms var(--arsenal-ease), border-color 160ms var(--arsenal-ease), background-color 160ms var(--arsenal-ease);
+}
+
+.arsenal-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 0 32%, rgba(255, 255, 255, 0.28) 46%, transparent 60% 100%);
+  transform: translateX(-120%);
+  transition: transform 360ms var(--arsenal-ease);
 }
 
 .arsenal-button:hover,
 .arsenal-button:focus {
   background: rgba(255, 179, 71, 0.2);
   border-color: rgba(255, 179, 71, 0.4);
+  box-shadow: 0 0 24px rgba(255, 179, 71, 0.16), inset 0 0 18px rgba(255, 179, 71, 0.08);
+  transform: translateY(-2px);
+}
+
+.arsenal-button:hover::after,
+.arsenal-button:focus::after {
+  transform: translateX(120%);
 }
 
 .arsenal-note {
   margin-top: 10px;
-  color: #8fa8c1;
+  color: #a9c2dc;
   font-size: 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(88, 199, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
 }
 
 @media (max-width: 760px) {
@@ -401,12 +896,31 @@ body.arsenal-open {
     gap: 6px;
   }
 
+  .arsenal-bar {
+    height: 22px;
+  }
+
+  .arsenal-pill {
+    min-height: 24px;
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
   .arsenal-cards {
     grid-template-columns: 1fr;
   }
 
   .arsenal-card {
-    min-height: 112px;
+    min-height: 124px;
+    padding-left: 58px;
+  }
+
+  .arsenal-card-orb {
+    left: 12px;
+    top: 38px;
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
   }
 
   .arsenal-loadout {
@@ -414,13 +928,26 @@ body.arsenal-open {
   }
 
   .arsenal-slot {
-    flex-basis: 72px;
+    flex-basis: 84px;
+    padding-right: 18px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .arsenal-card,
+  .arsenal-card::before,
+  .arsenal-card-orb,
+  .arsenal-button,
+  .arsenal-button::after,
+  .arsenal-slot::after,
+  .arsenal-shell::after,
   .arsenal-close {
+    animation: none !important;
     transition: none !important;
+  }
+
+  .arsenal-modal,
+  .arsenal-root canvas {
+    background-attachment: initial;
   }
 }
