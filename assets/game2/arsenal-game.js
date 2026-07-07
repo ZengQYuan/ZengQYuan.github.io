@@ -265,6 +265,7 @@
       '  <span class="arsenal-pill arsenal-wave-pill">第 1 波</span>',
       '  <span class="arsenal-pill arsenal-parts-pill">零件 0</span>',
       '  <span class="arsenal-pill arsenal-kill-pill">击杀 0</span>',
+      '  <span class="arsenal-pill arsenal-threat-pill">威胁 I</span>',
       '  <span class="arsenal-pill arsenal-time-pill">0:00</span>',
       '</div>',
       '<div class="arsenal-loadout"></div>',
@@ -280,6 +281,7 @@
     var wavePill = root.querySelector(".arsenal-wave-pill");
     var partsPill = root.querySelector(".arsenal-parts-pill");
     var killPill = root.querySelector(".arsenal-kill-pill");
+    var threatPill = root.querySelector(".arsenal-threat-pill");
     var timePill = root.querySelector(".arsenal-time-pill");
     var loadout = root.querySelector(".arsenal-loadout");
     var audio = makeAudio();
@@ -404,7 +406,11 @@
         spitterClock: 0,
         bossClock: 0,
         director: 1,
-        lastWaveStrong: false,
+        currentPressure: makePressure(1, 0, "威胁校准：稳定"),
+        nextPressure: makePressure(1, 0, "威胁校准：稳定"),
+        pressureSummary: "威胁校准：稳定",
+        steamrollStreak: 0,
+        performance: null,
         shopOffers: [],
         rerollCost: 4,
         screenShake: 0,
@@ -526,6 +532,151 @@
       return state && state.flags ? (state.flags[id] || 0) : 0;
     }
 
+    function makePressure(level, delta, summary, siege) {
+      level = clamp(level || 1, 0.85, 2.4);
+      var over = Math.max(0, level - 1);
+      return {
+        level: level,
+        delta: delta || 0,
+        spawnMult: clamp(level, 0.85, 2.4),
+        hpMult: clamp(1 + (level - 1) * 0.43, 0.84, 1.72),
+        damageMult: clamp(1 + (level - 1) * 0.22, 0.86, 1.34),
+        eliteChance: clamp(0.035 + over * 0.09, 0.025, 0.22),
+        rangedChance: clamp(over * 0.09, 0, 0.2),
+        bossMechanicLevel: level >= 2.05 ? 3 : level >= 1.55 ? 2 : level >= 1.2 ? 1 : 0,
+        siege: Boolean(siege || level >= 1.85),
+        summary: summary || "威胁校准：稳定"
+      };
+    }
+
+    function resetPerformance() {
+      state.performance = {
+        wave: state.wave,
+        damageDealt: 0,
+        damageTaken: 0,
+        hitsTaken: 0,
+        nearDeath: 0,
+        minHpRatio: clamp(state.player.hp / state.stats.maxHp, 0, 1),
+        eliteKills: 0,
+        bossKills: 0,
+        bossKillTime: 0,
+        objectiveTimeLeft: 0,
+        objectiveMarked: false,
+        startElapsed: state.elapsed
+      };
+    }
+
+    function estimateBuildPower() {
+      var tierSum = 0;
+      var goldCount = 0;
+      state.weapons.forEach(function (weapon) {
+        tierSum += weapon.tier;
+        if (weapon.tier >= 4) {
+          goldCount += 1;
+        }
+      });
+      var skillRanks = 0;
+      CFG.items.forEach(function (item) {
+        if (item.skill && item.flag) {
+          skillRanks += state.flags[item.flag] || 0;
+        }
+      });
+      var offense = Math.max(0, state.stats.damage) + Math.max(0, state.stats.attackSpeed) * 0.65 + Math.max(0, state.stats.crit) * 0.8;
+      offense += Math.max(0, state.stats.ranged) + Math.max(0, state.stats.melee) + Math.max(0, state.stats.elemental) + Math.max(0, state.stats.engineering) + Math.max(0, state.stats.explosive);
+      return clamp((tierSum - 6) * 0.035 + goldCount * 0.08 + skillRanks * 0.045 + offense / 900, 0, 0.9);
+    }
+
+    function markObjectiveComplete() {
+      var perf = state.performance;
+      if (!perf || perf.objectiveMarked) {
+        return;
+      }
+      perf.objectiveMarked = true;
+      perf.objectiveTimeLeft = Math.max(0, state.waveTime);
+    }
+
+    function pressureRoman(level) {
+      if (level >= 2.05) return "V";
+      if (level >= 1.7) return "IV";
+      if (level >= 1.35) return "III";
+      if (level >= 1.08) return "II";
+      return "I";
+    }
+
+    function pressureSummary(delta, pressure, relief) {
+      if (relief) {
+        return "威胁校准：" + Math.round(delta * 100) + "% · 修整窗口";
+      }
+      if (delta > 0.105 && pressure.siege) {
+        return "威胁校准：+" + Math.round(delta * 100) + "% · 围剿增援";
+      }
+      if (delta > 0.075) {
+        return "威胁校准：+" + Math.round(delta * 100) + "% · 精英增援";
+      }
+      if (delta > 0.025) {
+        return "威胁校准：+" + Math.round(delta * 100) + "% · 敌潮升温";
+      }
+      if (delta < -0.025) {
+        return "威胁校准：" + Math.round(delta * 100) + "% · 压力回落";
+      }
+      return "威胁校准：稳定 · 威胁等级 " + pressureRoman(pressure.level);
+    }
+
+    function calculateNextPressure() {
+      var perf = state.performance;
+      var current = state.currentPressure || makePressure(1, 0, "威胁校准：稳定");
+      if (!perf) {
+        return current;
+      }
+      var hpRatio = clamp(state.player.hp / state.stats.maxHp, 0, 1);
+      var killRate = state.waveTarget > 0 ? state.waveKills / state.waveTarget : 1;
+      var partRate = state.partsTarget > 0 ? state.waveParts / state.partsTarget : 1;
+      var earlyRatio = perf.objectiveTimeLeft / Math.max(1, state.waveDuration);
+      var damageTakenRatio = perf.damageTaken / Math.max(1, state.stats.maxHp);
+      var buildPower = estimateBuildPower();
+      var eliteBonus = clamp((perf.eliteKills + perf.bossKills * 2) * 0.025, 0, 0.16);
+      var powerScore = Math.max(0, killRate - 1) * 0.52 + Math.max(0, partRate - 1) * 0.2 + earlyRatio * 0.72 + buildPower + eliteBonus;
+      if (hpRatio > 0.78 && damageTakenRatio < 0.34) {
+        powerScore += 0.14;
+      }
+      var survivalStress = damageTakenRatio * 0.55 + perf.hitsTaken * 0.035 + perf.nearDeath * 0.36 + Math.max(0, 0.42 - hpRatio) * 0.8;
+      var crushed = powerScore > 0.62 && survivalStress < 0.44 && killRate > 1.18 && hpRatio > 0.58;
+      state.steamrollStreak = crushed ? Math.min(4, state.steamrollStreak + 1) : Math.max(0, state.steamrollStreak - 1);
+
+      var target = current.level;
+      if (hpRatio < 0.3 || damageTakenRatio > 0.6 || perf.nearDeath > 0) {
+        target -= 0.12 + Math.min(0.1, survivalStress * 0.08);
+      } else {
+        var net = powerScore - survivalStress * 0.58;
+        if (net > 0.68) {
+          target += 0.16;
+        } else if (net > 0.46) {
+          target += 0.12;
+        } else if (net > 0.24) {
+          target += 0.075;
+        } else if (net < -0.28) {
+          target -= 0.1;
+        } else {
+          target += 0.025;
+        }
+        if (state.steamrollStreak >= 3) {
+          target += 0.14;
+        }
+      }
+
+      var rawDelta = target - current.level;
+      var danger = hpRatio < 0.3 || damageTakenRatio > 0.6 || perf.nearDeath > 0;
+      var delta = danger ? clamp(rawDelta, -0.1, 0) : clamp(rawDelta, -0.1, 0.14);
+      var nextLevel = clamp(current.level + delta, danger ? 0.85 : 0.9, 2.4);
+      var next = makePressure(nextLevel, delta, "", state.steamrollStreak >= 3);
+      next.powerScore = powerScore;
+      next.survivalStress = survivalStress;
+      next.killRate = killRate;
+      next.partRate = partRate;
+      next.summary = pressureSummary(delta, next, danger);
+      return next;
+    }
+
     function weaponDamage(weapon, cfg) {
       var tier = tierData(weapon.tier).power;
       var kindBonus = state.stats[cfg.kind] || 0;
@@ -548,6 +699,9 @@
         var used = Math.min(enemy.shield, amount * 0.75);
         enemy.shield -= used;
         amount -= used * 0.55;
+      }
+      if (state.performance) {
+        state.performance.damageDealt += Math.min(amount, Math.max(0, enemy.hp));
       }
       enemy.hp -= amount;
       enemy.flash = 0.08;
@@ -590,6 +744,15 @@
       state.waveKills += 1;
       state.killsTotal += 1;
       state.score += enemy.score || 5;
+      if (state.performance) {
+        if (enemy.elite) {
+          state.performance.eliteKills += 1;
+        }
+        if (enemy.boss) {
+          state.performance.bossKills += 1;
+          state.performance.bossKillTime = Math.max(0, state.elapsed - (enemy.spawnElapsed || state.elapsed));
+        }
+      }
       var value = Math.max(1, enemy.parts || 1);
       if (state.stats.harvest) {
         value *= 1 + state.stats.harvest / 100;
@@ -682,12 +845,10 @@
       state.waveTime = state.waveDuration;
       state.waveTarget = CFG.wave.targetBase + state.wave * CFG.wave.targetStep;
       state.partsTarget = CFG.wave.partsBase + state.wave * CFG.wave.partsStep;
-      if (state.lastWaveStrong) {
-        state.director = Math.min(2.2, state.director + 0.12);
-      }
-      if (state.player.hp / state.stats.maxHp < 0.25) {
-        state.director = Math.max(0.82, state.director - 0.08);
-      }
+      state.currentPressure = state.nextPressure || makePressure(1, 0, "威胁校准：稳定");
+      state.pressureSummary = state.currentPressure.summary;
+      state.director = state.currentPressure.level;
+      resetPerformance();
       if (state.flags.waveTurret) {
         state.turrets.push({ x: state.player.x + 80, y: state.player.y + 30, cd: 0.2, life: state.waveDuration, temp: true });
       }
@@ -710,7 +871,8 @@
       var survivalBonus = Math.round(12 + state.wave * 2 + (state.player.hp / state.stats.maxHp) * 12);
       state.partsMoney += survivalBonus + (state.stats.endParts || 0);
       state.score += survivalBonus * 3;
-      state.lastWaveStrong = state.waveKills > state.waveTarget * 1.25 && state.player.hp / state.stats.maxHp > 0.7;
+      state.nextPressure = calculateNextPressure();
+      state.pressureSummary = state.nextPressure.summary;
       if (!shopLocked || !lockedOffers) {
         state.shopOffers = makeShopOffers();
         lockedOffers = null;
@@ -869,7 +1031,7 @@
         '  <button class="arsenal-button" data-action="lock">锁定商店</button>',
         '  <button class="arsenal-button" data-action="mute">' + (audio.isMuted() ? "打开音效" : "静音") + '</button>',
         '</div>',
-        '<p class="arsenal-note">零件 ' + state.partsMoney + ' · 武器 ' + state.weapons.length + '/6 · 套装：' + familySummary() + '</p>'
+        '<p class="arsenal-note">零件 ' + state.partsMoney + ' · 武器 ' + state.weapons.length + '/6 · 套装：' + familySummary() + ' · ' + (state.pressureSummary || "威胁校准：稳定") + '</p>'
       ].join("");
     }
 
@@ -1025,11 +1187,13 @@
       var side = Math.floor(rand() * 4);
       var x = side === 0 ? -80 : side === 1 ? CFG.world.width + 80 : rand() * CFG.world.width;
       var y = side === 2 ? -80 : side === 3 ? CFG.world.height + 80 : rand() * CFG.world.height;
+      var pressure = state.currentPressure || makePressure(1, 0, "威胁校准：稳定");
       var scale = 1 + state.wave * 0.095 + (state.wave > 20 ? (state.wave - 20) * 0.06 : 0);
-      scale *= state.director * (1 + (state.stats.threat || 0) / 100);
       if (bossScale) {
         scale *= bossScale;
       }
+      var hpScale = scale * pressure.hpMult;
+      var damageScale = pressure.damageMult;
       var enemy = {
         kind: kind,
         name: base.name,
@@ -1037,11 +1201,11 @@
         y: y,
         vx: 0,
         vy: 0,
-        hp: base.hp * scale,
-        maxHp: base.hp * scale,
+        hp: base.hp * hpScale,
+        maxHp: base.hp * hpScale,
         shield: base.shield || 0,
-        speed: base.speed * (1 + state.wave * 0.012),
-        damage: base.damage * (1 + state.wave * 0.055) * state.director,
+        speed: base.speed * (1 + state.wave * 0.012 + Math.max(0, pressure.level - 1) * 0.018),
+        damage: base.damage * (1 + state.wave * 0.055) * damageScale,
         radius: base.radius,
         parts: base.parts,
         score: base.score,
@@ -1053,6 +1217,7 @@
         elite: base.elite,
         boss: base.boss,
         cd: 0.8 + rand() * 1.5,
+        spawnElapsed: state.elapsed,
         flash: 0
       };
       state.enemies.push(enemy);
@@ -1095,6 +1260,7 @@
         gameOver();
       }
       if (state.waveKills >= state.waveTarget && state.waveParts >= state.partsTarget && state.waveTime > 8) {
+        markObjectiveComplete();
         state.waveTime = 8;
       }
       if (state.waveTime <= 0) {
@@ -1160,8 +1326,9 @@
 
     function updateSpawning(dt) {
       var wave = state.wave;
+      var pressure = state.currentPressure || makePressure(1, 0, "威胁校准：稳定");
       var rate = 0.52 + wave * 0.055;
-      rate *= state.director * (1 + (state.stats.threat || 0) / 100);
+      rate *= pressure.spawnMult * (1 + (state.stats.threat || 0) / 100);
       if (wave > 20) {
         rate += (wave - 20) * 0.045;
       }
@@ -1177,7 +1344,15 @@
         if (wave >= 7 && roll > 0.86) kind = "shield";
         if (wave >= 9 && roll > 0.38 && roll < 0.46) kind = "healer";
         if (wave >= 11 && roll > 0.27 && roll < 0.33) kind = "sniper";
-        if (wave >= 4 && rand() < Math.min(0.06 + wave * 0.006, 0.22)) kind = "elite";
+        if (wave >= 4 && rand() < pressure.rangedChance) {
+          var pressureKinds = ["spitter"];
+          if (wave >= 7) pressureKinds.push("shield");
+          if (wave >= 9) pressureKinds.push("healer");
+          if (wave >= 11) pressureKinds.push("sniper");
+          if (pressure.siege && wave >= 5) pressureKinds.push("bomber");
+          kind = choice(pressureKinds);
+        }
+        if (wave >= 4 && rand() < Math.min(0.055 + wave * 0.005 + pressure.eliteChance, 0.32)) kind = "elite";
         spawnEnemy(kind);
       }
     }
@@ -1674,18 +1849,34 @@
     }
 
     function fireEnemy(enemy) {
-      enemy.cd = enemy.boss ? 1.2 : enemy.sniper ? 2.1 : 1.5 + rand() * 0.8;
+      var pressure = state.currentPressure || makePressure(1, 0, "威胁校准：稳定");
+      var bossLevel = pressure.bossMechanicLevel || 0;
+      enemy.cd = enemy.boss ? Math.max(0.78, 1.22 - bossLevel * 0.12) : enemy.sniper ? 2.1 : 1.5 + rand() * 0.8;
       var dx = state.player.x - enemy.x;
       var dy = state.player.y - enemy.y;
       var l = len(dx, dy);
       if (enemy.boss) {
-        for (var i = -2; i <= 2; i++) {
-          var a = Math.atan2(dy, dx) + i * 0.18;
+        var spreadCount = 2 + bossLevel;
+        for (var i = -spreadCount; i <= spreadCount; i++) {
+          var a = Math.atan2(dy, dx) + i * (0.18 - bossLevel * 0.018);
           addEnemyProjectile({ x: enemy.x, y: enemy.y, vx: Math.cos(a) * 250, vy: Math.sin(a) * 250, radius: 7, damage: enemy.damage * 0.65, life: 3, color: "#ffd166" });
         }
-        if (rand() < 0.35) {
-          addField(state.player.x, state.player.y, 88, 1.4, 8 + state.wave, "#ff6473", "danger");
-          addParticle({ x: state.player.x, y: state.player.y, vx: 0, vy: 0, life: 0.9, maxLife: 0.9, radius: 88, color: "#ff6473", type: "warning" });
+        if (rand() < 0.35 + bossLevel * 0.12) {
+          var fields = 1 + (bossLevel >= 2 ? 1 : 0);
+          for (var f = 0; f < fields; f++) {
+            var offset = f === 0 ? 0 : (rand() - 0.5) * 180;
+            addField(state.player.x + offset, state.player.y + (rand() - 0.5) * 120, 88 + bossLevel * 8, 1.4, 8 + state.wave * (0.9 + bossLevel * 0.08), "#ff6473", "danger");
+            addParticle({ x: state.player.x + offset, y: state.player.y, vx: 0, vy: 0, life: 0.9, maxLife: 0.9, radius: 88 + bossLevel * 8, color: "#ff6473", type: "warning" });
+          }
+        }
+        if (bossLevel >= 3 && rand() < 0.24 && state.enemies.length < CFG.caps.enemies - 4) {
+          for (var s = 0; s < 2; s++) {
+            var add = spawnEnemy(rand() < 0.5 ? "runner" : "bomber", 0.72);
+            if (add) {
+              add.x = enemy.x + (rand() - 0.5) * 120;
+              add.y = enemy.y + (rand() - 0.5) * 120;
+            }
+          }
         }
       } else {
         addEnemyProjectile({ x: enemy.x, y: enemy.y, vx: dx / l * (enemy.sniper ? 360 : 230), vy: dy / l * (enemy.sniper ? 360 : 230), radius: enemy.sniper ? 5 : 6, damage: enemy.damage, life: 3, color: enemy.color });
@@ -1714,6 +1905,14 @@
       var reduction = clamp(state.stats.armor / (state.stats.armor + 18), -0.6, 0.65);
       var damage = raw * (1 - reduction) * (1 + (state.stats.damageTaken || 0) / 100);
       state.player.hp -= damage;
+      if (state.performance) {
+        state.performance.damageTaken += damage;
+        state.performance.hitsTaken += 1;
+        state.performance.minHpRatio = Math.min(state.performance.minHpRatio, clamp(state.player.hp / state.stats.maxHp, 0, 1));
+        if (state.player.hp / state.stats.maxHp < 0.25) {
+          state.performance.nearDeath += 1;
+        }
+      }
       state.player.invuln = 0.18;
       state.screenShake = Math.max(state.screenShake, 4);
       audio.hurt();
@@ -2311,6 +2510,10 @@
       wavePill.textContent = "第 " + state.wave + " 波";
       partsPill.textContent = "零件 " + state.partsMoney;
       killPill.textContent = "击杀 " + state.waveKills + "/" + state.waveTarget;
+      if (threatPill) {
+        var pressure = state.currentPressure || makePressure(1, 0, "威胁校准：稳定");
+        threatPill.textContent = "威胁 " + pressureRoman(pressure.level);
+      }
       timePill.textContent = fmtTime(state.waveTime);
     }
 
