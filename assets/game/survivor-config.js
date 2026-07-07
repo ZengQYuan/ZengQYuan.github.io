@@ -171,7 +171,7 @@
     enemyCap: 680,
     projectileCap: 820,
     gemCap: 420,
-    particleCap: 1100,
+    particleCap: 2100,
     world: {
       width: 5200,
       height: 3600
