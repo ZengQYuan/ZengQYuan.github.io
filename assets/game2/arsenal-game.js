@@ -392,6 +392,10 @@
       return counts[family] || 0;
     }
 
+    function flagRank(id) {
+      return state && state.flags ? (state.flags[id] || 0) : 0;
+    }
+
     function weaponDamage(weapon, cfg) {
       var tier = tierData(weapon.tier).power;
       var kindBonus = state.stats[cfg.kind] || 0;
@@ -417,12 +421,21 @@
       }
       enemy.hp -= amount;
       enemy.flash = 0.08;
+      var kx = enemy.x - state.player.x;
+      var ky = enemy.y - state.player.y;
+      var kd = len(kx, ky);
+      var push = clamp(amount * 0.045, 0.8, enemy.boss ? 2.8 : enemy.elite ? 5 : 8);
+      enemy.x = clamp(enemy.x + kx / kd * push, enemy.radius, CFG.world.width - enemy.radius);
+      enemy.y = clamp(enemy.y + ky / kd * push, enemy.radius, CFG.world.height - enemy.radius);
       addDamageText(enemy.x, enemy.y - enemy.radius, Math.round(amount), color, crit);
       if (crit) {
         audio.crit();
         if (state.flags.sparkCrit) {
           explode(enemy.x, enemy.y, 52, 6 + state.stats.elemental * 0.08, "#f472ff", false);
         }
+      }
+      if ((enemy.elite || enemy.boss) && amount > enemy.maxHp * 0.035) {
+        burst(enemy.x, enemy.y, color, enemy.boss ? 10 : 6, 0.55);
       }
       if (state.stats.lifesteal > 0 && rand() * 100 < state.stats.lifesteal * 0.36) {
         state.player.hp = Math.min(state.stats.maxHp, state.player.hp + 1.2 + weaponTierValue(source) * 0.4);
@@ -611,11 +624,37 @@
       var offers = [];
       var pool = [];
       CFG.weapons.forEach(function (weapon) { pool.push({ type: "weapon", id: weapon.id }); });
-      CFG.items.forEach(function (item) { pool.push({ type: "item", id: item.id }); });
+      CFG.items.forEach(function (item) {
+        if (isItemAvailable(item)) {
+          pool.push({ type: "item", id: item.id });
+          if (item.skill) {
+            pool.push({ type: "item", id: item.id });
+          }
+        }
+      });
       for (var i = 0; i < 4; i++) {
         offers.push(makeOffer(choice(pool), i));
       }
       return offers;
+    }
+
+    function hasWeapon(id, minTier) {
+      return state.weapons.some(function (weapon) {
+        return weapon.id === id && weapon.tier >= (minTier || 1);
+      });
+    }
+
+    function isItemAvailable(item) {
+      if (!item) {
+        return false;
+      }
+      if (item.requiresWeapon && !hasWeapon(item.requiresWeapon, item.requiresTier || 1)) {
+        return false;
+      }
+      if (item.maxRank && item.flag && (state.flags[item.flag] || 0) >= item.maxRank) {
+        return false;
+      }
+      return true;
     }
 
     function makeOffer(base, index) {
@@ -679,11 +718,13 @@
           var data = offer.type === "weapon" ? weaponById(offer.id) : itemById(offer.id);
           var tier = offer.type === "weapon" ? tierData(offer.tier) : CFG.tiers[Math.max(0, Math.min(3, (data.rarity || 1) - 1))];
           var disabled = state.partsMoney < offer.price || (offer.type === "weapon" && state.weapons.length >= 6 && !canMerge(offer.id, offer.tier));
+          var kindText = offer.type === "weapon" ? tier.label + "阶武器" : data.skill ? "技能进阶" : "道具";
+          var rankText = data.skill && data.flag ? " · Lv." + ((state.flags[data.flag] || 0) + 1) + (data.maxRank ? "/" + data.maxRank : "") : "";
           return [
-            '<button class="arsenal-card' + (disabled ? " is-disabled" : "") + '" data-buy="' + index + '" style="border-color:' + tier.color + '88">',
+            '<button class="arsenal-card' + (disabled ? " is-disabled" : "") + (data.skill ? " is-skill" : "") + '" data-buy="' + index + '" style="border-color:' + tier.color + '88">',
             '  <span class="arsenal-card-key">' + (index + 1) + '</span>',
             '  <strong>' + data.name + '</strong>',
-            '  <em>' + (offer.type === "weapon" ? tier.label + "阶武器" : "道具") + ' · ' + offer.price + ' 零件</em>',
+            '  <em>' + kindText + rankText + ' · ' + offer.price + ' 零件</em>',
             '  <span>' + data.text + '</span>',
             '</button>'
           ].join("");
@@ -833,8 +874,12 @@
       }
     }
 
-    function addField(x, y, radius, life, damage, color, mode) {
-      addProjectile({ type: "field", x: x, y: y, radius: radius, life: life, maxLife: life, damage: damage, color: color, mode: mode, tick: 0, pierce: 999 });
+    function addField(x, y, radius, life, damage, color, mode, extra) {
+      var field = { type: "field", x: x, y: y, radius: radius, life: life, maxLife: life, damage: damage, color: color, mode: mode, tick: 0, pierce: 999 };
+      Object.keys(extra || {}).forEach(function (key) {
+        field[key] = extra[key];
+      });
+      addProjectile(field);
       addParticle({ x: x, y: y, vx: 0, vy: 0, life: life, maxLife: life, radius: radius, color: color, type: "field" });
     }
 
@@ -1043,25 +1088,31 @@
         return;
       }
       if (cfg.id === "needle") {
-        var count = cfg.count + (weapon.tier >= 3 ? 1 : 0) + (protocol ? 2 : 0);
+        var count = cfg.count + (weapon.tier >= 3 ? 1 : 0) + flagRank("needleRail") + (protocol ? 2 : 0);
         for (var i = 0; i < count; i++) {
           shootLinear(weapon, target, damage * (protocol ? 0.9 : 1), color, 0.06 * (i - (count - 1) / 2), cfg.speed);
         }
       } else if (cfg.id === "spark") {
-        var spread = cfg.spread + weapon.tier * 0.05;
-        var pellets = cfg.count + weapon.tier + (protocol ? 3 : 0);
+        var star = flagRank("sparkStar");
+        var spread = cfg.spread + weapon.tier * 0.05 + star * 0.18;
+        var pellets = cfg.count + weapon.tier + star * 2 + (protocol ? 3 : 0);
         for (var s = 0; s < pellets; s++) {
           shootLinear(weapon, target, damage, color, spread * ((s / Math.max(1, pellets - 1)) - 0.5), cfg.speed);
         }
+        if (star && weapon.tier >= 3) {
+          for (var ss = 0; ss < 8; ss++) {
+            shootLinear(weapon, { x: state.player.x + Math.cos(ss * TWO_PI / 8) * 140, y: state.player.y + Math.sin(ss * TWO_PI / 8) * 140 }, damage * 0.58, "#ffd166", 0, cfg.speed * 0.78);
+          }
+        }
       } else if (cfg.id === "grenade") {
-        shootLinear(weapon, target, damage, color, 0, cfg.speed, "grenade", cfg.radius * (1 + (state.stats.explosive || 0) / 180));
+        shootLinear(weapon, target, damage, color, 0, cfg.speed, "grenade", cfg.radius * (1 + (state.stats.explosive || 0) / 180 + flagRank("grenadeCluster") * 0.16));
       } else if (cfg.id === "rocket") {
-        var rockets = cfg.count + Math.floor(weapon.tier / 2) + (protocol ? 3 : 0);
+        var rockets = cfg.count + Math.floor(weapon.tier / 2) + flagRank("rocketBarrage") * 3 + (protocol ? 3 : 0);
         for (var r = 0; r < rockets; r++) {
           shootHoming(weapon, target, damage, color, cfg.speed * (1 + r * 0.02), cfg.radius);
         }
       } else if (cfg.id === "arc") {
-        chainArc(weapon, target, damage, cfg.jumps + weapon.tier - 1 + (state.flags.extraArc || 0) + (protocol ? 2 : 0), color);
+        chainArc(weapon, target, damage, cfg.jumps + weapon.tier - 1 + (state.flags.extraArc || 0) + flagRank("arcFork") * 2 + (protocol ? 2 : 0), color);
       } else if (cfg.id === "torch") {
         flameSweep(weapon, damage, color, protocol);
       } else if (cfg.id === "saw") {
@@ -1072,7 +1123,7 @@
         droneShot(weapon, damage, color, protocol);
       } else if (cfg.id === "anchor") {
         var where = target || state.player;
-        addField(where.x, where.y, cfg.radius + weapon.tier * 18 + (protocol ? 45 : 0), 2.2 + weapon.tier * 0.12, damage * 0.42, color, "gravity");
+        addField(where.x, where.y, cfg.radius + weapon.tier * 18 + flagRank("anchorTether") * 28 + (protocol ? 45 : 0), 2.2 + weapon.tier * 0.12, damage * 0.42, color, "gravity", { collapse: flagRank("anchorCollapse") > 0 });
       }
       if (rand() < 0.28) {
         audio.shoot();
@@ -1095,9 +1146,11 @@
         damage: damage,
         radius: type === "grenade" ? 7 : 4 + weapon.tier,
         blastRadius: radius || 0,
-        life: 1.2,
+        life: 1.2 + (weapon.id === "needle" ? flagRank("needleRail") * 0.12 : 0),
         color: color,
-        pierce: (state.stats.pierce || 0) + (familyBonus("ballistic") >= 4 ? 1 : 0)
+        pierce: (state.stats.pierce || 0) + (familyBonus("ballistic") >= 4 ? 1 : 0) + (weapon.id === "needle" ? flagRank("needleRail") : 0),
+        rail: weapon.id === "needle" ? flagRank("needleRail") : 0,
+        cluster: weapon.id === "grenade" ? flagRank("grenadeCluster") : 0
       });
     }
 
@@ -1117,7 +1170,9 @@
         blastRadius: radius,
         life: 1.8,
         color: color,
-        pierce: 0
+        pierce: 0,
+        split: flagRank("rocketSplit"),
+        barrage: flagRank("rocketBarrage")
       });
     }
 
@@ -1127,6 +1182,9 @@
       for (var i = 0; i < jumps && current; i++) {
         dealDamage(current, damage * Math.pow(0.82, i), color, critRoll(), weapon);
         addParticle({ x: current.x, y: current.y, fromX: i === 0 ? state.player.x : hit[hit.length - 1].x, fromY: i === 0 ? state.player.y : hit[hit.length - 1].y, life: 0.16, maxLife: 0.16, color: color, type: "line" });
+        if (flagRank("arcFork")) {
+          burst(current.x, current.y, "#f472ff", 3 + flagRank("arcFork") * 2, 0.45);
+        }
         hit.push(current);
         var next = null;
         var best = 180 * 180;
@@ -1141,13 +1199,26 @@
         });
         current = next;
       }
+      if (flagRank("arcNet") && hit.length >= 3) {
+        for (var n = 0; n < hit.length - 2; n++) {
+          addParticle({ x: hit[n + 2].x, y: hit[n + 2].y, fromX: hit[n].x, fromY: hit[n].y, life: 0.22 + flagRank("arcNet") * 0.08, maxLife: 0.34, color: "#f472ff", type: "line", width: 5 });
+        }
+      }
+      if (flagRank("arcStorm") && hit.length) {
+        var center = hit[Math.floor(hit.length / 2)];
+        explode(center.x, center.y, 82 + hit.length * 8, damage * 0.85, "#f472ff", false);
+        addParticle({ x: center.x, y: center.y, vx: 0, vy: 0, life: 0.42, maxLife: 0.42, radius: 120, color: "#58c7ff", type: "ring" });
+      }
     }
 
     function flameSweep(weapon, damage, color, protocol) {
       var target = findTarget(260);
       var a = target ? Math.atan2(target.y - state.player.y, target.x - state.player.x) : weapon.spin;
-      var range = 165 + weapon.tier * 18 + (protocol ? 50 : 0);
-      var arc = 0.8 + weapon.tier * 0.08;
+      var nozzle = flagRank("plasmaNozzle");
+      var wall = flagRank("plasmaWall");
+      var nova = flagRank("plasmaNova");
+      var range = 165 + weapon.tier * 18 + nozzle * 38 + (protocol ? 50 : 0);
+      var arc = 0.8 + weapon.tier * 0.08 + nozzle * 0.14;
       state.enemies.forEach(function (enemy) {
         if (enemy.dead) return;
         var dx = enemy.x - state.player.x;
@@ -1158,26 +1229,64 @@
           dealDamage(enemy, damage, color, critRoll(), weapon);
         }
       });
-      for (var i = 0; i < 7 + weapon.tier * 2; i++) {
+      for (var i = 0; i < 12 + weapon.tier * 4 + nozzle * 8; i++) {
         var aa = a + (rand() - 0.5) * arc * 2;
-        var dd = rand() * range;
-        addParticle({ x: state.player.x + Math.cos(aa) * dd, y: state.player.y + Math.sin(aa) * dd, vx: Math.cos(aa) * 70, vy: Math.sin(aa) * 70, life: 0.24 + rand() * 0.2, maxLife: 0.45, size: 3 + rand() * 4, color: color, type: "spark" });
+        var dd = 24 + rand() * range;
+        var hot = rand() < 0.34;
+        addParticle({
+          x: state.player.x + Math.cos(aa) * dd,
+          y: state.player.y + Math.sin(aa) * dd,
+          vx: Math.cos(aa) * (75 + rand() * 120),
+          vy: Math.sin(aa) * (75 + rand() * 120) - rand() * 30,
+          life: 0.22 + rand() * 0.24,
+          maxLife: 0.5,
+          size: hot ? 8 + rand() * 9 : 4 + rand() * 8,
+          color: hot ? "#fff0a4" : rand() < 0.5 ? "#ff6b4a" : "#ffb347",
+          type: "flame"
+        });
+        if (rand() < 0.18) {
+          addParticle({
+            x: state.player.x + Math.cos(aa) * dd * 0.82,
+            y: state.player.y + Math.sin(aa) * dd * 0.82,
+            vx: Math.cos(aa) * 22,
+            vy: Math.sin(aa) * 22 - 28,
+            life: 0.55,
+            maxLife: 0.55,
+            size: 9 + rand() * 10,
+            color: "#24354a",
+            type: "smoke"
+          });
+        }
+      }
+      if (wall && rand() < 0.22) {
+        var fx = state.player.x + Math.cos(a) * (range * 0.64);
+        var fy = state.player.y + Math.sin(a) * (range * 0.64);
+        addField(fx, fy, 58 + wall * 18, 0.72 + wall * 0.16, damage * 0.35, "#ff6b4a", "fire");
+      }
+      if (nova && rand() < 0.035) {
+        var nx = state.player.x + Math.cos(a) * (range * 0.72);
+        var ny = state.player.y + Math.sin(a) * (range * 0.72);
+        explode(nx, ny, 130, damage * 3.4, "#fff0a4", false);
+        state.flash = Math.max(state.flash, 0.12);
       }
     }
 
     function orbitHit(weapon, damage, color, protocol) {
-      var blades = 2 + weapon.tier + (protocol ? 3 : 0);
-      var range = 72 + weapon.tier * 16 + (familyBonus("blade") >= 4 ? 18 : 0);
+      var blades = 2 + weapon.tier + flagRank("sawTwin") * 2 + (protocol ? 3 : 0);
+      var range = 72 + weapon.tier * 16 + flagRank("sawHalo") * 24 + (familyBonus("blade") >= 4 ? 18 : 0);
       for (var i = 0; i < blades; i++) {
         var a = weapon.spin + i * TWO_PI / blades;
         var x = state.player.x + Math.cos(a) * range;
         var y = state.player.y + Math.sin(a) * range;
-        addParticle({ x: x, y: y, vx: -Math.sin(a) * 30, vy: Math.cos(a) * 30, life: 0.12, maxLife: 0.12, size: 8, color: color, type: "slash" });
+        addParticle({ x: x, y: y, vx: -Math.sin(a) * 44, vy: Math.cos(a) * 44, life: 0.16, maxLife: 0.16, size: 12 + weapon.tier * 2, color: color, type: flagRank("sawStorm") ? "crossSlash" : "slash" });
         state.enemies.forEach(function (enemy) {
           if (!enemy.dead) {
-            var r = enemy.radius + 18;
+            var r = enemy.radius + 20 + flagRank("sawHalo") * 8;
             if ((enemy.x - x) * (enemy.x - x) + (enemy.y - y) * (enemy.y - y) < r * r) {
               dealDamage(enemy, damage, color, critRoll(), weapon);
+              if (flagRank("sawStorm") && rand() < 0.12) {
+                explode(enemy.x, enemy.y, 54, damage * 0.55, "#66f0b6", false);
+              }
             }
           }
         });
@@ -1194,17 +1303,60 @@
     }
 
     function droneShot(weapon, damage, color, protocol) {
-      var drones = 1 + weapon.tier + (protocol ? 3 : 0);
+      var drones = 1 + weapon.tier + flagRank("droneHalo") * 3 + (protocol ? 3 : 0);
       for (var i = 0; i < drones; i++) {
         var a = weapon.spin + i * TWO_PI / drones;
-        var origin = { x: state.player.x + Math.cos(a) * 58, y: state.player.y + Math.sin(a) * 58 };
+        var origin = { x: state.player.x + Math.cos(a) * (58 + flagRank("droneHalo") * 14), y: state.player.y + Math.sin(a) * (58 + flagRank("droneHalo") * 14) };
         var target = findTarget(520);
         if (!target) continue;
         var dx = target.x - origin.x;
         var dy = target.y - origin.y;
         var l = len(dx, dy);
-        addProjectile({ type: "bullet", id: weapon.id, tier: weapon.tier, x: origin.x, y: origin.y, vx: dx / l * 690, vy: dy / l * 690, damage: damage * (1 + state.stats.engineering / 180), radius: 4, life: 1.1, color: color, pierce: familyBonus("engineering") >= 4 ? 1 : 0 });
-        addParticle({ x: origin.x, y: origin.y, vx: 0, vy: 0, life: 0.14, maxLife: 0.14, size: 7, color: color, type: "spark" });
+        if (flagRank("droneBeam")) {
+          dealDamage(target, damage * (0.8 + flagRank("droneBeam") * 0.22) * (1 + state.stats.engineering / 180), color, critRoll(), weapon);
+          addParticle({ x: target.x, y: target.y, fromX: origin.x, fromY: origin.y, life: 0.18 + flagRank("droneBeam") * 0.04, maxLife: 0.24, color: color, type: "beam", width: 5 + flagRank("droneBeam") * 3 });
+          burst(target.x, target.y, color, 4 + flagRank("droneBeam") * 2, 0.45);
+        } else {
+          addProjectile({ type: "bullet", id: weapon.id, tier: weapon.tier, x: origin.x, y: origin.y, vx: dx / l * 690, vy: dy / l * 690, damage: damage * (1 + state.stats.engineering / 180), radius: 4, life: 1.1, color: color, pierce: familyBonus("engineering") >= 4 ? 1 : 0 });
+          addParticle({ x: origin.x, y: origin.y, vx: 0, vy: 0, life: 0.14, maxLife: 0.14, size: 7, color: color, type: "spark" });
+        }
+      }
+    }
+
+    function clusterExplode(x, y, rank, damage, color) {
+      var count = 3 + rank * 2;
+      for (var i = 0; i < count; i++) {
+        var a = i * TWO_PI / count + rand() * 0.24;
+        var d = 42 + rand() * 64;
+        var px = x + Math.cos(a) * d;
+        var py = y + Math.sin(a) * d;
+        addParticle({ x: px, y: py, vx: 0, vy: 0, life: 0.22, maxLife: 0.22, radius: 26 + rank * 5, color: color, type: "warning" });
+        explode(px, py, 34 + rank * 8, damage, color, false);
+      }
+    }
+
+    function rocketSplinters(x, y, rank, damage, color) {
+      var count = 4 + rank * 2;
+      for (var i = 0; i < count; i++) {
+        var target = findTarget(380);
+        var a = target ? Math.atan2(target.y - y, target.x - x) + (rand() - 0.5) * 1.5 : i * TWO_PI / count;
+        addProjectile({
+          type: "rocket",
+          id: "rocketSplit",
+          tier: 1,
+          target: target,
+          x: x + Math.cos(a) * 12,
+          y: y + Math.sin(a) * 12,
+          vx: Math.cos(a) * 390,
+          vy: Math.sin(a) * 390,
+          damage: damage,
+          radius: 4,
+          blastRadius: 26 + rank * 5,
+          life: 0.85,
+          color: color,
+          pierce: 0,
+          split: 0
+        });
       }
     }
 
@@ -1221,9 +1373,12 @@
               var dy = p.y - enemy.y;
                 var d = len(dx, dy);
                 if (d < p.radius * 1.25) {
-                  enemy.x += dx / d * 55 * dt;
-                  enemy.y += dy / d * 55 * dt;
-              }
+                  enemy.x += dx / d * (55 + flagRank("anchorTether") * 32) * dt;
+                  enemy.y += dy / d * (55 + flagRank("anchorTether") * 32) * dt;
+                  if (flagRank("anchorTether") && rand() < 0.025) {
+                    addParticle({ x: enemy.x, y: enemy.y, fromX: p.x, fromY: p.y, life: 0.16, maxLife: 0.16, color: "#9b7cff", type: "line", width: 2 + flagRank("anchorTether") });
+                  }
+                }
             }
           });
         } else if (p.mode === "danger") {
@@ -1248,6 +1403,10 @@
           }
         }
           if (p.life <= 0) {
+            if (p.collapse) {
+              explode(p.x, p.y, p.radius * 1.22, p.damage * 3.4, "#9b7cff", false);
+              state.screenShake = Math.max(state.screenShake, 6);
+            }
             state.projectiles.splice(i, 1);
           }
           continue;
@@ -1262,7 +1421,17 @@
         }
         p.x += p.vx * dt;
         p.y += p.vy * dt;
-        addParticle({ x: p.x, y: p.y, vx: -p.vx * 0.04, vy: -p.vy * 0.04, life: 0.12, maxLife: 0.12, size: p.type === "rocket" ? 3.5 : 2, color: p.color, type: "spark" });
+        addParticle({
+          x: p.x,
+          y: p.y,
+          vx: -p.vx * (p.type === "rocket" ? 0.08 : 0.04),
+          vy: -p.vy * (p.type === "rocket" ? 0.08 : 0.04),
+          life: p.type === "rocket" ? 0.18 : 0.12,
+          maxLife: p.type === "rocket" ? 0.18 : 0.12,
+          size: p.type === "rocket" ? 5.5 : p.rail ? 3.5 : 2,
+          color: p.type === "rocket" ? "#ffb347" : p.color,
+          type: p.type === "rocket" ? "flame" : "spark"
+        });
         var hit = false;
         for (var e = 0; e < state.enemies.length; e++) {
           var enemy = state.enemies[e];
@@ -1273,6 +1442,12 @@
             var damage = p.damage * (crit ? state.stats.critDamage / 100 : 1);
             if (p.type === "grenade" || p.type === "rocket") {
               explode(p.x, p.y, p.blastRadius || 48, damage, p.color, false);
+              if (p.cluster) {
+                clusterExplode(p.x, p.y, p.cluster, damage * 0.42, p.color);
+              }
+              if (p.split) {
+                rocketSplinters(p.x, p.y, p.split, damage * 0.34, p.color);
+              }
             } else {
               dealDamage(enemy, damage, p.color, crit, p);
             }
@@ -1521,6 +1696,7 @@
       drawProjectiles();
       drawEnemies();
       drawTurrets();
+      drawWeapons();
       drawPlayer();
       drawParticles();
       drawDamageTexts();
@@ -1625,6 +1801,124 @@
       });
     }
 
+    function drawWeapons() {
+      state.weapons.forEach(function (weapon) {
+        var cfg = weaponById(weapon.id);
+        if (!cfg) {
+          return;
+        }
+        if (weapon.id === "saw") {
+          drawOrbitBlades(weapon);
+        } else if (weapon.id === "drone") {
+          drawOrbitDrones(weapon);
+        } else if (weapon.id === "anchor" && flagRank("anchorTether")) {
+          drawGravityHalo(weapon);
+        }
+      });
+    }
+
+    function drawOrbitBlades(weapon) {
+      var tier = tierData(weapon.tier);
+      var blades = 2 + weapon.tier + flagRank("sawTwin") * 2 + (familyBonus("blade") >= 6 ? 3 : 0);
+      var radius = 72 + weapon.tier * 16 + flagRank("sawHalo") * 24 + (familyBonus("blade") >= 4 ? 18 : 0);
+      ctx.save();
+      ctx.translate(state.player.x, state.player.y);
+      if (flagRank("sawHalo") || flagRank("sawStorm")) {
+        ctx.globalAlpha = flagRank("sawStorm") ? 0.62 : 0.35;
+        ctx.strokeStyle = flagRank("sawStorm") ? "#ffd166" : "#66f0b6";
+        ctx.lineWidth = flagRank("sawStorm") ? 7 : 4;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, TWO_PI);
+        ctx.stroke();
+        ctx.globalAlpha = 0.18;
+        ctx.lineWidth = 18;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius + Math.sin(state.elapsed * 6) * 4, 0, TWO_PI);
+        ctx.stroke();
+      }
+      for (var i = 0; i < blades; i++) {
+        var a = weapon.spin + i * TWO_PI / blades;
+        var x = Math.cos(a) * radius;
+        var y = Math.sin(a) * radius;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(a + Math.PI / 2);
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = tier.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 18, 7 + weapon.tier * 2, 28 + weapon.tier * 4, 0, 0, TWO_PI);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        var bladeGradient = ctx.createLinearGradient(0, -24, 0, 24);
+        bladeGradient.addColorStop(0, "#ffffff");
+        bladeGradient.addColorStop(0.45, tier.color);
+        bladeGradient.addColorStop(1, flagRank("sawStorm") ? "#ffd166" : "#0b1220");
+        ctx.fillStyle = bladeGradient;
+        ctx.beginPath();
+        ctx.moveTo(0, -28 - weapon.tier * 3);
+        ctx.lineTo(12 + weapon.tier * 2, 10);
+        ctx.lineTo(0, 24 + weapon.tier * 2);
+        ctx.lineTo(-12 - weapon.tier * 2, 10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.72)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    function drawOrbitDrones(weapon) {
+      var tier = tierData(weapon.tier);
+      var drones = 1 + weapon.tier + flagRank("droneHalo") * 3 + (familyBonus("engineering") >= 6 ? 3 : 0);
+      var radius = 58 + flagRank("droneHalo") * 14;
+      ctx.save();
+      ctx.translate(state.player.x, state.player.y);
+      if (flagRank("droneHalo")) {
+        ctx.globalAlpha = 0.28;
+        ctx.strokeStyle = "#ffb347";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, TWO_PI);
+        ctx.stroke();
+      }
+      for (var i = 0; i < drones; i++) {
+        var a = weapon.spin + i * TWO_PI / drones;
+        var x = Math.cos(a) * radius;
+        var y = Math.sin(a) * radius;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(a);
+        ctx.fillStyle = tier.color;
+        roundRect(-11, -7, 22, 14, 4);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.58)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(6, -2, 8, 4);
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    function drawGravityHalo(weapon) {
+      var radius = 40 + weapon.tier * 7;
+      ctx.save();
+      ctx.translate(state.player.x, state.player.y);
+      ctx.rotate(-state.elapsed * 1.2);
+      ctx.globalAlpha = 0.26;
+      ctx.strokeStyle = "#9b7cff";
+      ctx.lineWidth = 3;
+      for (var i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.ellipse(0, 0, radius + i * 10, radius * 0.45 + i * 5, i * 0.65, 0, TWO_PI);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     function drawParts() {
       state.parts.forEach(function (part) {
         ctx.save();
@@ -1660,9 +1954,38 @@
           var a = Math.atan2(p.vy, p.vx);
           ctx.translate(p.x, p.y);
           ctx.rotate(a);
+          if (p.rail) {
+            ctx.globalAlpha = 0.38;
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = 7 + p.rail * 3;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(-34 - p.rail * 12, 0);
+            ctx.lineTo(12, 0);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
+          if (p.type === "rocket") {
+            ctx.globalAlpha = 0.35;
+            ctx.fillStyle = "#ffb347";
+            ctx.beginPath();
+            ctx.moveTo(-26, 0);
+            ctx.lineTo(-8, -7);
+            ctx.lineTo(-8, 7);
+            ctx.closePath();
+            ctx.fill();
+            ctx.globalAlpha = 1;
+          }
           ctx.fillStyle = p.color;
           roundRect(-p.radius * 1.8, -p.radius * 0.75, p.radius * 3.6, p.radius * 1.5, p.radius);
           ctx.fill();
+          if (p.type === "grenade") {
+            ctx.strokeStyle = "#fff0a4";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, p.radius + 4, 0, TWO_PI);
+            ctx.stroke();
+          }
         }
         ctx.restore();
       });
@@ -1753,18 +2076,54 @@
           } else {
             ctx.stroke();
           }
-        } else if (p.type === "line") {
-          ctx.lineWidth = 3;
+        } else if (p.type === "line" || p.type === "beam") {
+          ctx.lineWidth = p.width || (p.type === "beam" ? 6 : 3);
+          ctx.lineCap = "round";
+          if (p.type === "beam") {
+            ctx.shadowColor = p.color;
+            ctx.shadowBlur = reduceMotion ? 0 : 14;
+          }
           ctx.beginPath();
           ctx.moveTo(p.fromX, p.fromY);
           ctx.lineTo(p.x, p.y);
           ctx.stroke();
-        } else if (p.type === "slash") {
-          ctx.lineWidth = 4;
+          if (p.type === "beam") {
+            ctx.globalAlpha = alpha * 0.9;
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = Math.max(1, (p.width || 6) * 0.32);
+            ctx.beginPath();
+            ctx.moveTo(p.fromX, p.fromY);
+            ctx.lineTo(p.x, p.y);
+            ctx.stroke();
+          }
+        } else if (p.type === "slash" || p.type === "crossSlash") {
+          ctx.lineWidth = p.type === "crossSlash" ? 5 : 4;
+          ctx.lineCap = "round";
           ctx.beginPath();
           ctx.moveTo(p.x - 12, p.y + 4);
           ctx.lineTo(p.x + 12, p.y - 4);
           ctx.stroke();
+          if (p.type === "crossSlash") {
+            ctx.beginPath();
+            ctx.moveTo(p.x - 12, p.y - 4);
+            ctx.lineTo(p.x + 12, p.y + 4);
+            ctx.stroke();
+          }
+        } else if (p.type === "flame") {
+          var gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size || 10);
+          gradient.addColorStop(0, "#ffffff");
+          gradient.addColorStop(0.28, p.color);
+          gradient.addColorStop(1, "rgba(255, 80, 32, 0)");
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size || 10, 0, TWO_PI);
+          ctx.fill();
+        } else if (p.type === "smoke") {
+          ctx.globalAlpha = alpha * 0.32;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size || 12, 0, TWO_PI);
+          ctx.fill();
         } else {
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size || 3, 0, TWO_PI);

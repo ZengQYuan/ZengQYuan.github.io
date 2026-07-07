@@ -284,6 +284,26 @@ body.arsenal-open {
   opacity: 0.55;
 }
 
+.arsenal-card.is-skill {
+  background:
+    radial-gradient(circle at 84% 12%, rgba(255, 209, 102, 0.2), transparent 34%),
+    radial-gradient(circle at 16% 0%, rgba(88, 199, 255, 0.18), transparent 38%),
+    rgba(255, 255, 255, 0.075);
+  box-shadow: inset 0 0 24px rgba(255, 179, 71, 0.06);
+}
+
+.arsenal-card.is-skill::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 9px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(255, 209, 102, 0.82), transparent);
+  opacity: 0.75;
+}
+
 .arsenal-card-key {
   position: absolute;
   right: 9px;

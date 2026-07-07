@@ -242,6 +242,31 @@
     { id: "bloodClock", name: "血色秒表", family: "curse", rarity: 3, price: 66, text: "低血时 +55%攻速，满血时 -12%伤害", stats: { damage: -12 }, flag: "lowHpHaste" },
     { id: "veteran", name: "老兵徽章", family: "output", rarity: 3, price: 66, text: "+22%伤害，+16最大生命，敌潮 +6%", stats: { damage: 22, maxHp: 16, threat: 6 } },
 
+    { id: "sawTwin", name: "双齿同步", family: "blade", rarity: 2, price: 38, text: "回旋齿刃专属：额外刀片常驻绕身，刀光更密。", stats: { melee: 8 }, flag: "sawTwin", skill: true, requiresWeapon: "saw", maxRank: 2 },
+    { id: "sawHalo", name: "锯刃光环", family: "blade", rarity: 3, price: 66, text: "回旋齿刃专属：刀片拖出青色圆环，范围明显扩大。", stats: { melee: 12, lifesteal: 2 }, flag: "sawHalo", skill: true, requiresWeapon: "saw", requiresTier: 2, maxRank: 2 },
+    { id: "sawStorm", name: "齿刃风暴", family: "blade", rarity: 4, price: 118, text: "回旋齿刃终式：金色齿轮风暴常驻，命中时爆出十字刀芒。", stats: { melee: 22 }, flag: "sawStorm", skill: true, requiresWeapon: "saw", requiresTier: 3, maxRank: 1 },
+
+    { id: "plasmaNozzle", name: "热浪喷口", family: "element", rarity: 2, price: 40, text: "等离子喷灯专属：火舌变宽变长，喷出橙红外焰和火星。", stats: { elemental: 10 }, flag: "plasmaNozzle", skill: true, requiresWeapon: "torch", maxRank: 2 },
+    { id: "plasmaWall", name: "熔痕地带", family: "element", rarity: 3, price: 70, text: "等离子喷灯专属：火焰扫过后留下短暂燃烧地带。", stats: { elemental: 16 }, flag: "plasmaWall", skill: true, requiresWeapon: "torch", requiresTier: 2, maxRank: 2 },
+    { id: "plasmaNova", name: "白热爆燃", family: "element", rarity: 4, price: 125, text: "等离子喷灯终式：持续喷火会触发白热爆燃，满屏火花炸开。", stats: { elemental: 28 }, flag: "plasmaNova", skill: true, requiresWeapon: "torch", requiresTier: 3, maxRank: 1 },
+
+    { id: "arcFork", name: "分叉雷纹", family: "element", rarity: 2, price: 42, text: "高压电弧专属：闪电分叉更多，击中点爆出蓝紫电花。", stats: { elemental: 10, crit: 3 }, flag: "arcFork", skill: true, requiresWeapon: "arc", maxRank: 2 },
+    { id: "arcNet", name: "三角雷网", family: "element", rarity: 3, price: 74, text: "高压电弧专属：电弧会在敌群之间拉出雷网。", stats: { elemental: 18 }, flag: "arcNet", skill: true, requiresWeapon: "arc", requiresTier: 2, maxRank: 2 },
+    { id: "arcStorm", name: "超载雷暴", family: "element", rarity: 4, price: 128, text: "高压电弧终式：连锁结束时落下小型雷暴。", stats: { elemental: 30 }, flag: "arcStorm", skill: true, requiresWeapon: "arc", requiresTier: 3, maxRank: 1 },
+
+    { id: "grenadeCluster", name: "子母裂爆", family: "explosive", rarity: 3, price: 72, text: "裂爆榴弹专属：主爆后分裂二次小爆点。", stats: { explosive: 16 }, flag: "grenadeCluster", skill: true, requiresWeapon: "grenade", requiresTier: 2, maxRank: 2 },
+    { id: "rocketSplit", name: "蜂巢分裂", family: "explosive", rarity: 3, price: 74, text: "蜂群飞弹专属：命中后散出小型追踪爆点。", stats: { ranged: 10, explosive: 12 }, flag: "rocketSplit", skill: true, requiresWeapon: "rocket", requiresTier: 2, maxRank: 2 },
+    { id: "rocketBarrage", name: "天幕轰炸", family: "explosive", rarity: 4, price: 126, text: "蜂群飞弹终式：周期性齐射一轮橙金飞弹雨。", stats: { ranged: 20, explosive: 20 }, flag: "rocketBarrage", skill: true, requiresWeapon: "rocket", requiresTier: 3, maxRank: 1 },
+
+    { id: "droneBeam", name: "同步激光", family: "engineering", rarity: 3, price: 72, text: "轨道无人机专属：无人机射击变成短促激光束。", stats: { engineering: 18 }, flag: "droneBeam", skill: true, requiresWeapon: "drone", requiresTier: 2, maxRank: 2 },
+    { id: "droneHalo", name: "蜂巢阵列", family: "engineering", rarity: 4, price: 120, text: "轨道无人机终式：无人机实体更醒目，形成环形同步炮阵。", stats: { engineering: 30 }, flag: "droneHalo", skill: true, requiresWeapon: "drone", requiresTier: 3, maxRank: 1 },
+
+    { id: "anchorTether", name: "引力牵索", family: "gravity", rarity: 3, price: 72, text: "引力锚专属：敌人被紫色牵索拉向核心。", stats: { elemental: 14 }, flag: "anchorTether", skill: true, requiresWeapon: "anchor", requiresTier: 2, maxRank: 2 },
+    { id: "anchorCollapse", name: "奇点坍缩", family: "gravity", rarity: 4, price: 124, text: "引力锚终式：力场结束时坍缩爆炸，黑紫冲击波扩散。", stats: { elemental: 24, damage: 8 }, flag: "anchorCollapse", skill: true, requiresWeapon: "anchor", requiresTier: 3, maxRank: 1 },
+
+    { id: "needleRail", name: "轨道针束", family: "ballistic", rarity: 3, price: 70, text: "速射针枪专属：高阶针弹变成带残影的穿透光束。", stats: { ranged: 18, projectileSpeed: 12 }, flag: "needleRail", skill: true, requiresWeapon: "needle", requiresTier: 2, maxRank: 2 },
+    { id: "sparkStar", name: "星形散射", family: "ballistic", rarity: 3, price: 68, text: "散弹火花专属：散弹变成星形弹幕，近距离更华丽。", stats: { ranged: 14, crit: 4 }, flag: "sparkStar", skill: true, requiresWeapon: "spark", requiresTier: 2, maxRank: 2 },
+
     { id: "terminal", name: "终端密钥", family: "legend", rarity: 4, price: 120, text: "套装计数 +1，终端协议更容易启动", stats: { familyPlus: 1, luck: 20 } },
     { id: "sunEngine", name: "太阳炉", family: "legend", rarity: 4, price: 130, text: "+45%伤害，+35元素，每波开始爆发一次", stats: { damage: 45, elemental: 35 }, flag: "sunBurst" },
     { id: "immortalPlate", name: "不熄装甲", family: "legend", rarity: 4, price: 128, text: "+50最大生命，+18护甲，-12%移速", stats: { maxHp: 50, armor: 18, speedPct: -12 } },
@@ -302,7 +327,7 @@
       projectiles: 520,
       enemyProjectiles: 100,
       parts: 360,
-      particles: 980,
+      particles: 1280,
       damageTexts: 120
     }
   };
