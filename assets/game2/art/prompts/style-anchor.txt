@@ -1,0 +1,10 @@
+Use case: stylized-concept
+Asset type: game visual direction anchor and 16:9 website/game-modal cover art
+Primary request: an original dark biomechanical alien survival-arena scene for a top-down sci-fi action roguelite, showing a small ivory-and-gunmetal arsenal survivor at the center facing waves of distinct alien creatures made of matte carapace, bone spines, fungal fibers and restrained glowing organs
+Scene/backdrop: vast alien industrial hive floor with low-contrast chitin plates, fossil-like machinery, sparse cyan fungi and deep negative space suitable for UI overlay
+Style/medium: polished stylized game concept art, graphic readable silhouettes, slightly painterly 3D illustration, original design
+Composition/framing: wide 16:9 composition, top-down three-quarter view, strong clear central focal area, enemies framing the edges without hiding the survivor, generous dark negative space for interface text
+Lighting/mood: oppressive but stylish, cold cyan-white player light against indigo-black and muted violet hive darkness, small amber highlights
+Color palette: charcoal, midnight indigo, desaturated violet, ivory bone, restrained cyan and acid green emissive details; hostile warning coral only in tiny accents
+Materials/textures: dry matte shell, ridged chitin, fossil bone, fibrous fungal membranes; no wet flesh
+Constraints: no text, no logos, no trademarks, no watermark, no copied characters, no photorealistic gore, no blood, no excessive fog, preserve high gameplay readability
