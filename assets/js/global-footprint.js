@@ -532,6 +532,22 @@
       labels: labels,
       arcs: arcs
     };
+
+    var defaultAutoRotate = Boolean(controls.autoRotate);
+    function syncPageActivity() {
+      var paused = document.hidden || document.body.classList.contains("lighthouse-open");
+      controls.autoRotate = paused ? false : defaultAutoRotate;
+      if (paused && typeof globe.pauseAnimation === "function") {
+        globe.pauseAnimation();
+      } else if (!paused && typeof globe.resumeAnimation === "function") {
+        globe.resumeAnimation();
+      }
+    }
+    syncPageActivity();
+    if (window.MutationObserver && document.body) {
+      new MutationObserver(syncPageActivity).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    }
+    document.addEventListener("visibilitychange", syncPageActivity);
   }
 
   if (document.readyState === "loading") {

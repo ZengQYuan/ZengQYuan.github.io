@@ -1,0 +1,5 @@
+# macOS metadata
+.DS_Store
+
+# Local Game 3 credentials
+.env.game3.local

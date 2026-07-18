@@ -1,0 +1,2084 @@
+:root {
+  --lighthouse-ink: #f6f3df;
+  --lighthouse-muted: #b9c8c2;
+  --lighthouse-night: #07191d;
+  --lighthouse-deep: #0b2528;
+  --lighthouse-panel: rgba(8, 29, 31, 0.9);
+  --lighthouse-line: rgba(204, 237, 209, 0.2);
+  --lighthouse-mint: #79e1bd;
+  --lighthouse-teal: #2e9f8d;
+  --lighthouse-gold: #f3c96d;
+  --lighthouse-coral: #f28a70;
+  --lighthouse-header-height: 58px;
+  --lighthouse-ease: cubic-bezier(0.22, 0.8, 0.28, 1);
+}
+
+.game-entry-lighthouse {
+  position: relative;
+  isolation: isolate;
+  min-height: 204px;
+  overflow: hidden;
+  border-color: rgba(47, 116, 104, 0.32);
+  border-radius: 14px;
+  background: #0c292b;
+  box-shadow: 0 18px 42px rgba(12, 60, 57, 0.2);
+  color: var(--lighthouse-ink);
+}
+
+.game-entry-lighthouse::before {
+  content: "NEW WORLD";
+  position: absolute;
+  z-index: 4;
+  top: 14px;
+  right: 16px;
+  padding: 4px 8px;
+  border: 1px solid rgba(243, 201, 109, 0.48);
+  border-radius: 999px;
+  background: rgba(7, 25, 29, 0.84);
+  color: #ffe7a9;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.game-entry-lighthouse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, rgba(4, 24, 27, 0.98) 0%, rgba(4, 24, 27, 0.88) 43%, rgba(4, 24, 27, 0.28) 77%, rgba(4, 24, 27, 0.48) 100%),
+    linear-gradient(0deg, rgba(4, 20, 22, 0.82), transparent 64%),
+    radial-gradient(circle at 82% 22%, rgba(243, 201, 109, 0.2), transparent 27%);
+  pointer-events: none;
+}
+
+.lighthouse-entry-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 62% 48%;
+  filter: saturate(0.88) contrast(1.05) brightness(0.78);
+  transition: transform 520ms var(--lighthouse-ease), filter 520ms var(--lighthouse-ease);
+}
+
+.lighthouse-entry-copy,
+.lighthouse-play-button {
+  position: relative;
+  z-index: 3;
+}
+
+.lighthouse-entry-copy {
+  max-width: 700px;
+}
+
+.lighthouse-entry-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+  color: #9fe5cc;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.game-entry-lighthouse h3 {
+  color: #fff9e6;
+  font-size: 1.2em;
+  text-shadow: 0 2px 15px rgba(0, 0, 0, 0.7);
+}
+
+.game-entry-lighthouse p {
+  color: #c9d9d1;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.82);
+}
+
+.game-entry-lighthouse .lighthouse-entry-stats {
+  color: #e0eee8;
+}
+
+.game-entry-lighthouse .lighthouse-entry-stats span {
+  border-color: rgba(194, 235, 214, 0.2);
+  background: rgba(5, 27, 29, 0.76);
+}
+
+.game-entry-lighthouse .lighthouse-entry-stats strong {
+  color: #ffe29b;
+}
+
+.lighthouse-entry-error {
+  display: none;
+  margin-top: 8px !important;
+  color: #ffb9aa !important;
+  font-weight: 800;
+}
+
+.lighthouse-entry-error.is-visible {
+  display: block;
+}
+
+.game-entry-lighthouse .lighthouse-play-button {
+  border-color: rgba(243, 201, 109, 0.46);
+  background: linear-gradient(135deg, #d49f42, #ad7131);
+  color: #fff9e7;
+  box-shadow: 0 10px 25px rgba(1, 13, 14, 0.34), inset 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.game-entry-lighthouse .lighthouse-play-button:hover,
+.game-entry-lighthouse .lighthouse-play-button:focus-visible {
+  border-color: rgba(255, 232, 172, 0.82);
+  background: linear-gradient(135deg, #e0af55, #bb7e39);
+  box-shadow: 0 14px 32px rgba(1, 13, 14, 0.42), 0 0 22px rgba(243, 201, 109, 0.16);
+}
+
+.game-entry-lighthouse .lighthouse-play-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+  transform: none;
+}
+
+.game-entry-lighthouse:hover .lighthouse-entry-cover,
+.game-entry-lighthouse:focus-within .lighthouse-entry-cover {
+  filter: saturate(1) contrast(1.08) brightness(0.84);
+  transform: scale(1.025);
+}
+
+body.lighthouse-open {
+  overflow: hidden;
+}
+
+.lighthouse-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 135;
+  display: none;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background: #061619;
+  color: var(--lighthouse-ink);
+}
+
+.lighthouse-modal.is-open {
+  display: block;
+}
+
+.lighthouse-shell {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 76% 18%, rgba(243, 201, 109, 0.1), transparent 29%),
+    linear-gradient(145deg, #0d3030, #06191d 70%);
+}
+
+.lighthouse-header {
+  position: relative;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: var(--lighthouse-header-height);
+  padding: 8px 14px 8px 18px;
+  border-bottom: 1px solid var(--lighthouse-line);
+  background: #092326;
+  box-shadow: 0 4px 18px rgba(0, 11, 12, 0.24);
+}
+
+.lighthouse-title,
+.lighthouse-title > span:last-child,
+.lighthouse-header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.lighthouse-title {
+  min-width: 0;
+  gap: 10px;
+}
+
+.lighthouse-title > span:last-child {
+  min-width: 0;
+  align-items: flex-start;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.lighthouse-title strong {
+  overflow: hidden;
+  color: #fff8df;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lighthouse-title small {
+  overflow: hidden;
+  margin-top: 3px;
+  color: #9db7af;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lighthouse-title-mark {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgba(243, 201, 109, 0.38);
+  border-radius: 50% 50% 44% 44%;
+  background: rgba(243, 201, 109, 0.1);
+  color: var(--lighthouse-gold);
+  box-shadow: 0 0 18px rgba(243, 201, 109, 0.1);
+}
+
+.lighthouse-header-actions {
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+.lighthouse-mode-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 190px;
+  padding: 5px 9px;
+  border: 1px solid rgba(121, 225, 189, 0.18);
+  border-radius: 999px;
+  background: rgba(3, 16, 19, 0.54);
+  color: #b8d3ca;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.lighthouse-mode-status i {
+  color: #e3b958;
+  font-size: 6px;
+}
+
+.lighthouse-mode-status[data-state="ready"] i,
+.lighthouse-mode-status[data-state="online"] i {
+  color: #69e2ad;
+}
+
+.lighthouse-mode-status[data-state="local"] i {
+  color: #78b7d3;
+}
+
+.lighthouse-mode-status[data-state="error"] i {
+  color: var(--lighthouse-coral);
+}
+
+.lighthouse-close,
+.lighthouse-icon-button {
+  appearance: none;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(230, 246, 236, 0.18);
+  background: rgba(230, 246, 236, 0.06);
+  color: #eaf5ed;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease;
+}
+
+.lighthouse-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 23px;
+  line-height: 1;
+}
+
+.lighthouse-icon-button {
+  min-width: 38px;
+  min-height: 38px;
+  border-radius: 10px;
+}
+
+.lighthouse-close:hover,
+.lighthouse-close:focus-visible,
+.lighthouse-icon-button:hover,
+.lighthouse-icon-button:focus-visible {
+  border-color: rgba(243, 201, 109, 0.58);
+  background: rgba(243, 201, 109, 0.12);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.lighthouse-root {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - var(--lighthouse-header-height));
+  height: calc(100dvh - var(--lighthouse-header-height));
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(57, 128, 111, 0.18), transparent 35%),
+    #061719;
+  outline: none;
+}
+
+.lighthouse-root canvas,
+.lighthouse-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  touch-action: none;
+}
+
+.lighthouse-game {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: var(--lighthouse-ink);
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+  user-select: none;
+}
+
+.lighthouse-game [hidden] {
+  display: none !important;
+}
+
+.lighthouse-speech-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.lighthouse-avatar-dot {
+  position: relative;
+  display: block;
+  width: 28px;
+  height: 38px;
+  border: 5px solid var(--avatar-secondary, #e8d8bb);
+  border-radius: 12px 12px 8px 8px;
+  background: var(--avatar-primary, #3f7fa6);
+  box-shadow: 0 14px 18px rgba(1, 13, 14, 0.2);
+}
+
+.lighthouse-avatar-dot::before {
+  content: "";
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  border: 4px solid var(--avatar-hair, #26343b);
+  border-radius: 50%;
+  background: #d7a47d;
+  transform: translateX(-50%);
+}
+
+.lighthouse-scene-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: #061719;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.lighthouse-scene-fade.is-active {
+  opacity: 1;
+}
+
+.lighthouse-stage-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 9px;
+  padding: 28px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(243, 201, 109, 0.12), transparent 20%),
+    linear-gradient(145deg, #0c2d2f, #07191d);
+  color: var(--lighthouse-muted);
+  text-align: center;
+}
+
+.lighthouse-stage-state strong {
+  color: #fff6db;
+  font-size: 17px;
+}
+
+.lighthouse-stage-state > span:last-child {
+  max-width: 480px;
+  font-size: 12px;
+}
+
+.lighthouse-stage-state.is-error .lighthouse-loading-mark {
+  border-color: rgba(242, 138, 112, 0.52);
+  color: #ffae99;
+  animation: none;
+}
+
+.lighthouse-loading-mark {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 4px;
+  place-items: center;
+  border: 1px solid rgba(243, 201, 109, 0.4);
+  border-radius: 50%;
+  background: rgba(243, 201, 109, 0.08);
+  color: var(--lighthouse-gold);
+  box-shadow: 0 0 0 0 rgba(243, 201, 109, 0.2);
+  font-size: 20px;
+  animation: lighthouseBeacon 1.8s ease-in-out infinite;
+}
+
+@keyframes lighthouseBeacon {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(243, 201, 109, 0.2); transform: scale(0.96); }
+  50% { box-shadow: 0 0 0 16px rgba(243, 201, 109, 0); transform: scale(1); }
+}
+
+.lighthouse-action-button,
+.lighthouse-primary-button,
+.lighthouse-secondary-button {
+  appearance: none;
+  min-height: 38px;
+  border: 1px solid rgba(243, 201, 109, 0.42);
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  padding: 8px 15px;
+}
+
+.lighthouse-action-button,
+.lighthouse-primary-button {
+  background: linear-gradient(135deg, #d9aa51, #b17735);
+  color: #fff9e8;
+}
+
+.lighthouse-secondary-button {
+  border-color: var(--lighthouse-line);
+  background: rgba(231, 247, 237, 0.07);
+  color: #e8f4ec;
+}
+
+.lighthouse-action-button:hover,
+.lighthouse-action-button:focus-visible,
+.lighthouse-primary-button:hover,
+.lighthouse-primary-button:focus-visible,
+.lighthouse-secondary-button:hover,
+.lighthouse-secondary-button:focus-visible {
+  border-color: rgba(255, 231, 169, 0.72);
+  box-shadow: 0 8px 22px rgba(1, 13, 14, 0.24);
+  outline: 2px solid rgba(243, 201, 109, 0.22);
+  outline-offset: 2px;
+}
+
+/* Runtime HUD scaffolding */
+.lighthouse-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.lighthouse-hud-top,
+.lighthouse-hud-bottom {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.lighthouse-hud-top {
+  top: 14px;
+  right: 14px;
+  left: 14px;
+  justify-content: space-between;
+}
+
+.lighthouse-hud-bottom {
+  right: 14px;
+  bottom: 14px;
+  left: 14px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.lighthouse-hud-panel,
+.lighthouse-time-card,
+.lighthouse-resident-card,
+.lighthouse-minimap,
+.lighthouse-controls-card {
+  border: 1px solid var(--lighthouse-line);
+  border-radius: 12px;
+  background: var(--lighthouse-panel);
+  box-shadow: 0 8px 26px rgba(0, 12, 13, 0.24);
+  color: var(--lighthouse-ink);
+  pointer-events: auto;
+}
+
+.lighthouse-time-card,
+.lighthouse-resident-card,
+.lighthouse-controls-card {
+  padding: 9px 11px;
+}
+
+.lighthouse-time-card strong {
+  display: block;
+  color: #fff6dc;
+  font-size: 16px;
+  line-height: 1.1;
+}
+
+.lighthouse-time-card span,
+.lighthouse-resident-card span,
+.lighthouse-controls-card {
+  color: #b5c9c1;
+  font-size: 10px;
+}
+
+.lighthouse-minimap {
+  position: relative;
+  width: 146px;
+  height: 146px;
+  overflow: hidden;
+  background: rgba(8, 33, 34, 0.92);
+}
+
+.lighthouse-minimap canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.lighthouse-interaction-prompt {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(460px, calc(100% - 32px));
+  padding: 9px 13px;
+  border: 1px solid rgba(243, 201, 109, 0.36);
+  border-radius: 999px;
+  background: rgba(5, 24, 26, 0.92);
+  box-shadow: 0 8px 25px rgba(0, 10, 11, 0.3);
+  color: #f6f0d9;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.lighthouse-keycap {
+  display: inline-grid;
+  min-width: 28px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid rgba(255, 240, 195, 0.34);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffe4a3;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.lighthouse-toast-stack {
+  position: absolute;
+  top: 82px;
+  left: 50%;
+  display: grid;
+  width: min(420px, calc(100% - 32px));
+  gap: 7px;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.lighthouse-toast {
+  padding: 9px 12px;
+  border: 1px solid var(--lighthouse-line);
+  border-radius: 10px;
+  background: rgba(6, 27, 29, 0.92);
+  box-shadow: 0 10px 30px rgba(0, 10, 11, 0.26);
+  color: #e8f3ed;
+  font-size: 12px;
+  text-align: center;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.lighthouse-toast.is-leaving {
+  opacity: 0;
+  transform: translateY(-7px);
+}
+
+.lighthouse-speech-label {
+  position: absolute;
+  z-index: 8;
+  max-width: 220px;
+  padding: 6px 9px;
+  border: 1px solid rgba(228, 245, 234, 0.25);
+  border-radius: 10px 10px 10px 2px;
+  background: rgba(6, 25, 27, 0.88);
+  color: #eff6ef;
+  font-size: 11px;
+  line-height: 1.35;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+
+/* Onboarding, pause and shared overlay scaffolding */
+.lighthouse-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 24;
+  display: grid;
+  overflow: auto;
+  place-items: center;
+  padding: 24px;
+  background: rgba(3, 18, 20, 0.86);
+}
+
+.lighthouse-onboarding,
+.lighthouse-pause-card {
+  width: min(720px, 100%);
+  max-height: calc(100dvh - var(--lighthouse-header-height) - 48px);
+  overflow: auto;
+  border: 1px solid rgba(200, 235, 212, 0.24);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 88% 5%, rgba(243, 201, 109, 0.12), transparent 28%),
+    #0b292b;
+  box-shadow: 0 24px 70px rgba(0, 9, 10, 0.44);
+  padding: clamp(20px, 4vw, 34px);
+}
+
+.lighthouse-onboarding h2,
+.lighthouse-pause-card h2,
+.lighthouse-dialogue h2,
+.lighthouse-settings h2 {
+  margin: 0;
+  color: #fff5da;
+  font-size: clamp(20px, 3vw, 28px);
+}
+
+.lighthouse-onboarding-intro {
+  margin: 8px 0 20px;
+  color: #b8cbc4;
+}
+
+.lighthouse-field {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+  color: #d8e7df;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.lighthouse-field input,
+.lighthouse-field select,
+.lighthouse-dialogue-input,
+.lighthouse-settings select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(208, 236, 220, 0.24);
+  border-radius: 10px;
+  outline: none;
+  background: rgba(3, 19, 21, 0.72);
+  color: #f1f7f2;
+  font: inherit;
+  padding: 9px 11px;
+}
+
+.lighthouse-field input:focus,
+.lighthouse-field select:focus,
+.lighthouse-dialogue-input:focus,
+.lighthouse-settings select:focus {
+  border-color: rgba(243, 201, 109, 0.64);
+  box-shadow: 0 0 0 3px rgba(243, 201, 109, 0.1);
+}
+
+.lighthouse-character-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.lighthouse-character-preset {
+  appearance: none;
+  min-width: 0;
+  min-height: 94px;
+  border: 1px solid rgba(202, 235, 215, 0.18);
+  border-radius: 12px;
+  background: rgba(4, 20, 22, 0.54);
+  color: #d9e8e0;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.lighthouse-character-preset[aria-pressed="true"],
+.lighthouse-character-preset.is-selected,
+.lighthouse-character-preset:focus-visible {
+  border-color: rgba(243, 201, 109, 0.7);
+  background: rgba(243, 201, 109, 0.1);
+  outline: 2px solid rgba(243, 201, 109, 0.14);
+}
+
+.lighthouse-character-preview {
+  display: grid;
+  height: 58px;
+  margin-bottom: 5px;
+  place-items: center;
+  border-radius: 8px;
+  background: linear-gradient(160deg, rgba(121, 225, 189, 0.16), rgba(23, 66, 67, 0.2));
+}
+
+.lighthouse-onboarding-actions,
+.lighthouse-dialogue-actions,
+.lighthouse-settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 20px;
+}
+
+/* Dialogue scaffolding */
+.lighthouse-dialogue-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 22px;
+  background: linear-gradient(transparent 40%, rgba(2, 13, 15, 0.7));
+  pointer-events: none;
+}
+
+.lighthouse-dialogue {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  width: min(820px, 100%);
+  max-height: min(460px, calc(100dvh - 100px));
+  overflow: hidden;
+  border: 1px solid rgba(216, 239, 223, 0.24);
+  border-radius: 17px;
+  background: rgba(7, 30, 32, 0.96);
+  box-shadow: 0 24px 70px rgba(0, 9, 10, 0.48);
+  pointer-events: auto;
+}
+
+.lighthouse-dialogue-profile {
+  padding: 15px 12px;
+  border-right: 1px solid var(--lighthouse-line);
+  background: rgba(15, 52, 51, 0.58);
+  text-align: center;
+}
+
+.lighthouse-dialogue-avatar {
+  display: grid;
+  width: 74px;
+  height: 74px;
+  margin: 0 auto 9px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(243, 201, 109, 0.3);
+  border-radius: 50%;
+  background: #153f3e;
+}
+
+.lighthouse-dialogue-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lighthouse-dialogue-avatar > span {
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.lighthouse-dialogue-profile strong {
+  display: block;
+  color: #fff1cc;
+  font-size: 13px;
+}
+
+.lighthouse-dialogue-profile span {
+  color: #9fbbb2;
+  font-size: 10px;
+}
+
+.lighthouse-dialogue-profile > span,
+.lighthouse-dialogue-profile > small {
+  display: block;
+  margin-top: 4px;
+}
+
+.lighthouse-dialogue-main {
+  display: grid;
+  grid-template-rows: auto minmax(72px, 1fr) auto;
+  min-width: 0;
+  max-height: inherit;
+  padding: 14px;
+}
+
+.lighthouse-dialogue-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lighthouse-dialogue-heading h2 {
+  font-size: 16px;
+}
+
+.lighthouse-dialogue-history {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  overflow: auto;
+  margin: 10px -3px;
+  padding: 0 3px;
+}
+
+.lighthouse-dialogue-message {
+  max-width: 84%;
+  padding: 8px 10px;
+  border-radius: 11px 11px 11px 3px;
+  background: rgba(229, 243, 233, 0.09);
+  color: #e8f2ec;
+  font-size: 12px;
+  line-height: 1.45;
+  user-select: text;
+}
+
+.lighthouse-dialogue-message.is-player {
+  justify-self: end;
+  border-radius: 11px 11px 3px 11px;
+  background: rgba(243, 201, 109, 0.16);
+  color: #fff1cb;
+}
+
+.lighthouse-dialogue-message.is-thinking {
+  color: #9fb9b0;
+  font-style: italic;
+  animation: lighthouseThinking 1.3s ease-in-out infinite;
+}
+
+@keyframes lighthouseThinking {
+  0%, 100% { opacity: 0.48; }
+  50% { opacity: 1; }
+}
+
+.lighthouse-dialogue-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.lighthouse-dialogue-suggestions {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lighthouse-dialogue-suggestion {
+  appearance: none;
+  border: 1px solid rgba(190, 229, 208, 0.2);
+  border-radius: 999px;
+  background: rgba(224, 243, 230, 0.06);
+  color: #cfe0d8;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  padding: 5px 8px;
+}
+
+/* Settings scaffolding */
+.lighthouse-settings-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 28;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 20px;
+  background: rgba(2, 15, 17, 0.82);
+}
+
+.lighthouse-settings {
+  width: min(560px, 100%);
+  max-height: calc(100dvh - var(--lighthouse-header-height) - 40px);
+  overflow: auto;
+  border: 1px solid rgba(205, 237, 216, 0.24);
+  border-radius: 16px;
+  background: #0a282a;
+  box-shadow: 0 24px 70px rgba(0, 8, 9, 0.46);
+  padding: 22px;
+}
+
+.lighthouse-settings h2 {
+  font-size: 21px;
+}
+
+.lighthouse-settings-list {
+  display: grid;
+  gap: 1px;
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid var(--lighthouse-line);
+  border-radius: 12px;
+  background: var(--lighthouse-line);
+}
+
+.lighthouse-settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 0.6fr);
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+  padding: 10px 12px;
+  background: #0c2e30;
+}
+
+.lighthouse-settings-row label,
+.lighthouse-settings-row strong {
+  color: #e7f1eb;
+  font-size: 12px;
+}
+
+.lighthouse-settings-row small {
+  display: block;
+  margin-top: 2px;
+  color: #91aaa2;
+  font-size: 10px;
+}
+
+.lighthouse-toggle {
+  appearance: none;
+  justify-self: end;
+  width: 42px;
+  height: 24px;
+  border: 1px solid rgba(222, 240, 227, 0.2);
+  border-radius: 999px;
+  background: rgba(224, 242, 230, 0.12);
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+
+.lighthouse-toggle::after {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 2px;
+  border-radius: 50%;
+  background: #cadbd3;
+  transition: transform 160ms ease;
+}
+
+.lighthouse-toggle:checked {
+  background: var(--lighthouse-teal);
+}
+
+.lighthouse-toggle:checked::after {
+  background: #fff8de;
+  transform: translateX(18px);
+}
+
+.lighthouse-danger-button {
+  appearance: none;
+  min-height: 36px;
+  border: 1px solid rgba(242, 138, 112, 0.44);
+  border-radius: 9px;
+  background: rgba(242, 138, 112, 0.08);
+  color: #ffb6a4;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  padding: 7px 11px;
+}
+
+@media (max-width: 760px) {
+  .game-entry-lighthouse {
+    min-height: 270px;
+    align-items: end;
+  }
+
+  .game-entry-lighthouse::after {
+    background:
+      linear-gradient(90deg, rgba(4, 24, 27, 0.94), rgba(4, 24, 27, 0.48) 88%),
+      linear-gradient(0deg, rgba(4, 20, 22, 0.96), rgba(4, 20, 22, 0.2) 88%);
+  }
+
+  .lighthouse-entry-cover {
+    object-position: 68% 44%;
+  }
+
+  .lighthouse-entry-kicker {
+    margin-top: 36px;
+  }
+
+  .lighthouse-header {
+    padding-inline: 10px;
+  }
+
+  .lighthouse-title-mark,
+  .lighthouse-mode-status {
+    display: none;
+  }
+
+  .lighthouse-title small {
+    max-width: calc(100vw - 72px);
+  }
+
+  .lighthouse-hud-top,
+  .lighthouse-hud-bottom {
+    inset-inline: 9px;
+  }
+
+  .lighthouse-hud-top {
+    top: 9px;
+  }
+
+  .lighthouse-hud-bottom {
+    bottom: 9px;
+  }
+
+  .lighthouse-minimap {
+    width: 108px;
+    height: 108px;
+  }
+
+  .lighthouse-controls-card {
+    display: none;
+  }
+
+  .lighthouse-character-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .lighthouse-dialogue-layer {
+    padding: 9px;
+  }
+
+  .lighthouse-dialogue {
+    grid-template-columns: 1fr;
+    max-height: min(70dvh, 520px);
+  }
+
+  .lighthouse-dialogue-profile {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--lighthouse-line);
+    text-align: left;
+  }
+
+  .lighthouse-dialogue-avatar {
+    width: 42px;
+    height: 42px;
+    margin: 0;
+  }
+
+  .lighthouse-settings-row {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .lighthouse-toggle {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 480px) {
+  .lighthouse-title small {
+    display: none;
+  }
+
+  .lighthouse-overlay,
+  .lighthouse-settings-layer {
+    padding: 10px;
+  }
+
+  .lighthouse-onboarding,
+  .lighthouse-pause-card,
+  .lighthouse-settings {
+    max-height: calc(100dvh - var(--lighthouse-header-height) - 20px);
+    border-radius: 13px;
+    padding: 16px;
+  }
+
+  .lighthouse-dialogue-form {
+    grid-template-columns: 1fr;
+  }
+
+  .lighthouse-dialogue-form .lighthouse-primary-button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lighthouse-entry-cover,
+  .lighthouse-loading-mark,
+  .lighthouse-toggle::after {
+    animation: none;
+    transition: none;
+  }
+
+  .game-entry-lighthouse:hover .lighthouse-entry-cover,
+  .game-entry-lighthouse:focus-within .lighthouse-entry-cover {
+    transform: none;
+  }
+}
+
+/* Lighthouse Town 2.0: readable high-angle life-sandbox interface. */
+.lighthouse-game-v2 {
+  --lighthouse-hud-bg: rgba(7, 28, 29, 0.94);
+  --lighthouse-hud-bg-strong: rgba(8, 34, 34, 0.98);
+  --lighthouse-hud-line: rgba(221, 239, 218, 0.22);
+  --lighthouse-paper: #f5efd9;
+  --lighthouse-paper-muted: #b9cdc3;
+  --lighthouse-shadow: 0 14px 38px rgba(0, 13, 14, 0.34);
+  --lighthouse-panel-width: min(390px, calc(100% - 32px));
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+.lighthouse-game-v2::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: linear-gradient(180deg, rgba(3, 18, 19, 0.16), transparent 18%, transparent 77%, rgba(3, 18, 19, 0.15));
+  pointer-events: none;
+}
+
+.lighthouse-game-v2 .lighthouse-hud {
+  z-index: 12;
+}
+
+.lighthouse-game-v2 :where(button, input, select, textarea):focus-visible {
+  outline: 2px solid rgba(255, 226, 154, 0.92);
+  outline-offset: 2px;
+}
+
+.lighthouse-game-v2 :where(input, select, textarea) {
+  user-select: text;
+}
+
+.lighthouse-save-loading {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(360px, calc(100% - 32px));
+  padding: 30px;
+  border: 1px solid rgba(221, 239, 218, 0.24);
+  border-radius: 18px;
+  background: rgba(7, 28, 29, 0.95);
+  box-shadow: var(--lighthouse-shadow);
+  color: #f5efd9;
+  text-align: center;
+}
+
+.lighthouse-save-loading[hidden] {
+  display: none;
+}
+
+.lighthouse-save-loading small {
+  color: var(--lighthouse-paper-muted);
+  line-height: 1.6;
+}
+
+.lighthouse-game-v2 .lighthouse-hud-top {
+  top: max(14px, env(safe-area-inset-top));
+  right: 16px;
+  left: 16px;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.lighthouse-game-v2 .lighthouse-hud-bottom {
+  right: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 16px;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.lighthouse-game-v2 .lighthouse-time-card,
+.lighthouse-game-v2 .lighthouse-resident-card,
+.lighthouse-game-v2 .lighthouse-controls-card,
+.lighthouse-game-v2 .lighthouse-minimap,
+.lighthouse-game-v2 .lighthouse-hover-card,
+.lighthouse-game-v2 .lighthouse-needs-strip {
+  border-color: var(--lighthouse-hud-line);
+  border-radius: 13px;
+  background: var(--lighthouse-hud-bg);
+  box-shadow: var(--lighthouse-shadow);
+}
+
+.lighthouse-game-v2 .lighthouse-time-card {
+  display: grid;
+  min-width: 112px;
+  padding: 10px 13px;
+}
+
+.lighthouse-game-v2 .lighthouse-time-card strong {
+  color: #fff4d2;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.lighthouse-game-v2 .lighthouse-resident-card {
+  display: grid;
+  min-width: 188px;
+  max-width: 300px;
+  padding: 10px 13px;
+}
+
+.lighthouse-game-v2 .lighthouse-resident-card strong {
+  overflow: hidden;
+  color: #eaf5e9;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lighthouse-game-v2 .lighthouse-time-card span,
+.lighthouse-game-v2 .lighthouse-resident-card span {
+  overflow: hidden;
+  color: var(--lighthouse-paper-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lighthouse-time-controls {
+  display: inline-flex;
+  align-self: center;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--lighthouse-hud-line);
+  border-radius: 11px;
+  background: var(--lighthouse-hud-bg);
+  box-shadow: var(--lighthouse-shadow);
+  pointer-events: auto;
+}
+
+.lighthouse-time-control {
+  appearance: none;
+  min-width: 30px;
+  min-height: 29px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #abc1b7;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.lighthouse-time-control:hover,
+.lighthouse-time-control:focus-visible,
+.lighthouse-time-control.is-active {
+  background: rgba(244, 205, 116, 0.16);
+  color: #ffe6a7;
+  outline: none;
+}
+
+.lighthouse-hud-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-left: auto;
+  pointer-events: auto;
+}
+
+.lighthouse-story-chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  max-width: min(330px, 34vw);
+  padding: 8px 12px;
+  border: 1px solid rgba(244, 205, 116, 0.42);
+  border-radius: 999px;
+  background: rgba(37, 48, 35, 0.94);
+  box-shadow: var(--lighthouse-shadow);
+  color: #ffe6a7;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.lighthouse-effective-speed {
+  align-self: center;
+  max-width: 92px;
+  padding: 0 4px;
+  color: #ffe6a7;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.lighthouse-effective-speed:empty {
+  display: none;
+}
+
+.lighthouse-story-chip:hover,
+.lighthouse-story-chip:focus-visible {
+  border-color: rgba(255, 229, 164, 0.82);
+  background: rgba(50, 61, 41, 0.98);
+  outline: 2px solid rgba(244, 205, 116, 0.2);
+  outline-offset: 2px;
+}
+
+.lighthouse-needs-strip {
+  position: absolute;
+  top: 62px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(540px, calc(100vw - 32px));
+  padding: 5px;
+  color: #d9e7df;
+  pointer-events: auto;
+}
+
+.lighthouse-game-v2 .lighthouse-needs-strip {
+  background: rgba(7, 28, 29, 0.84);
+  box-shadow: 0 8px 24px rgba(0, 13, 14, 0.22);
+}
+
+.lighthouse-need {
+  display: grid;
+  grid-template-columns: auto minmax(34px, 62px) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 74px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: rgba(232, 244, 233, 0.06);
+  color: #c7d8d0;
+  font-size: 9px;
+}
+
+.lighthouse-need > i,
+.lighthouse-need > progress {
+  grid-column: 2;
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.lighthouse-need > b {
+  grid-column: 1;
+  color: inherit;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.lighthouse-need > em {
+  grid-column: 3;
+  color: #dce9e1;
+  font-size: 9px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.lighthouse-need > i {
+  display: block;
+  transform-origin: left center;
+}
+
+.lighthouse-need[data-state="low"] {
+  color: #ffd1a8;
+}
+
+.lighthouse-need[data-state="critical"] {
+  color: #ffad9d;
+}
+
+.lighthouse-game-v2 .lighthouse-minimap {
+  width: 154px;
+  height: 154px;
+  margin-left: auto;
+  border-radius: 18px;
+  background: rgba(8, 35, 35, 0.96);
+}
+
+.lighthouse-game-v2 .lighthouse-minimap::after {
+  content: "已知区域";
+  position: absolute;
+  top: 7px;
+  left: 9px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: rgba(3, 18, 19, 0.72);
+  color: #b9d0c4;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+}
+
+.lighthouse-game-v2 .lighthouse-controls-card {
+  order: -1;
+  max-width: 320px;
+  padding: 8px 11px;
+  color: #abc1b7;
+  font-size: 9px;
+}
+
+.lighthouse-game-v2 .lighthouse-interaction-prompt {
+  bottom: max(24px, env(safe-area-inset-bottom));
+  min-height: 42px;
+  padding: 8px 14px 8px 8px;
+  border-color: rgba(248, 213, 132, 0.46);
+  background: rgba(7, 29, 30, 0.97);
+  box-shadow: 0 12px 36px rgba(0, 12, 13, 0.38);
+}
+
+.lighthouse-game-v2 .lighthouse-toast-stack {
+  top: 116px;
+  width: min(460px, calc(100% - 40px));
+}
+
+.lighthouse-game-v2 .lighthouse-toast {
+  border-left: 3px solid var(--lighthouse-gold);
+  background: rgba(8, 34, 34, 0.97);
+  color: #edf5ed;
+  text-align: left;
+}
+
+.lighthouse-hover-card {
+  position: absolute;
+  z-index: 18;
+  top: 108px;
+  left: 16px;
+  display: grid;
+  width: min(270px, calc(100% - 32px));
+  gap: 4px;
+  padding: 12px 13px;
+  color: #e9f2ea;
+  pointer-events: none;
+}
+
+.lighthouse-hover-card strong {
+  color: #fff1ca;
+  font-size: 13px;
+}
+
+.lighthouse-hover-card span,
+.lighthouse-hover-card small {
+  color: #abc2b7;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.lighthouse-resident-label {
+  position: absolute;
+  z-index: 9;
+  max-width: 180px;
+  padding: 4px 7px;
+  border: 1px solid rgba(220, 239, 222, 0.22);
+  border-radius: 7px;
+  background: rgba(5, 24, 25, 0.88);
+  color: #eef6ee;
+  font-size: 9px;
+  line-height: 1.3;
+  text-align: center;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+
+.lighthouse-resident-label > strong,
+.lighthouse-resident-label > span {
+  display: block;
+}
+
+.lighthouse-resident-label > strong {
+  color: #fff1ca;
+  font-size: 10px;
+}
+
+.lighthouse-resident-label > span {
+  max-width: 160px;
+  overflow: hidden;
+  color: #b7ccc1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lighthouse-resident-label.is-speaking {
+  z-index: 11;
+  max-width: 230px;
+  padding: 7px 10px;
+  border-color: rgba(255, 225, 151, 0.48);
+  border-radius: 11px 11px 11px 3px;
+  background: rgba(7, 31, 32, 0.97);
+  box-shadow: 0 10px 26px rgba(0, 12, 13, 0.3);
+  font-size: 11px;
+  text-align: left;
+}
+
+.lighthouse-resident-label.is-speaking > span {
+  max-width: 210px;
+  color: #edf4ec;
+  line-height: 1.42;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.lighthouse-side-panel,
+.lighthouse-journal-panel,
+.lighthouse-observer-panel {
+  position: absolute;
+  z-index: 23;
+  top: 14px;
+  right: 14px;
+  bottom: 14px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: var(--lighthouse-panel-width);
+  overflow: hidden;
+  border: 1px solid rgba(218, 238, 218, 0.24);
+  border-radius: 18px;
+  background: var(--lighthouse-hud-bg-strong);
+  box-shadow: -14px 20px 60px rgba(0, 10, 11, 0.44);
+  color: #eaf3ea;
+  pointer-events: auto;
+  overscroll-behavior: contain;
+  user-select: text;
+}
+
+.lighthouse-journal-panel {
+  grid-template-rows: auto minmax(96px, 0.42fr) minmax(0, 1fr);
+}
+
+.lighthouse-observer-panel {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.lighthouse-side-panel > header,
+.lighthouse-journal-panel > header,
+.lighthouse-observer-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 58px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--lighthouse-hud-line);
+  background: rgba(17, 52, 49, 0.72);
+}
+
+.lighthouse-side-panel h2,
+.lighthouse-journal-panel h2,
+.lighthouse-observer-panel h2,
+.lighthouse-side-panel h3,
+.lighthouse-journal-panel h3,
+.lighthouse-observer-panel h3 {
+  margin: 0;
+  color: #fff1ca;
+}
+
+.lighthouse-side-panel h2,
+.lighthouse-journal-panel h2,
+.lighthouse-observer-panel h2 {
+  font-size: 17px;
+}
+
+.lighthouse-clue-list,
+.lighthouse-journal-list,
+.lighthouse-observer-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  scrollbar-color: rgba(183, 213, 196, 0.32) transparent;
+  scrollbar-width: thin;
+}
+
+.lighthouse-clue,
+.lighthouse-journal-entry,
+.lighthouse-observer-entry,
+.lighthouse-observer-intro,
+.lighthouse-observer-memory {
+  padding: 10px 11px;
+  border: 1px solid rgba(214, 236, 216, 0.14);
+  border-radius: 11px;
+  background: rgba(231, 244, 232, 0.055);
+  color: #dce9e0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.lighthouse-journal-entry :where(h3, p),
+.lighthouse-observer-entry :where(p) {
+  margin: 4px 0 0;
+}
+
+.lighthouse-journal-entry > small,
+.lighthouse-observer-entry > header span,
+.lighthouse-observer-entry > header small {
+  color: #9db9ad;
+  font-size: 9px;
+}
+
+.lighthouse-observer-entry > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lighthouse-observer-entry > header > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.lighthouse-observer-entry > header strong {
+  color: #fff0c8;
+  font-size: 12px;
+}
+
+.lighthouse-clue::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--lighthouse-gold);
+  box-shadow: 0 0 10px rgba(243, 201, 109, 0.28);
+}
+
+.lighthouse-clue.is-done {
+  opacity: 0.58;
+}
+
+.lighthouse-clue.is-done::before {
+  background: var(--lighthouse-mint);
+  box-shadow: none;
+}
+
+.lighthouse-observer-intro {
+  border-color: rgba(243, 201, 109, 0.24);
+  background: rgba(243, 201, 109, 0.07);
+  color: #f3e8c8;
+}
+
+.lighthouse-observer-needs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.lighthouse-observer-needs > span {
+  padding: 5px 7px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #bcd0c5;
+  font-size: 9px;
+}
+
+.lighthouse-observer-memory {
+  border-left: 3px solid rgba(121, 225, 189, 0.7);
+  color: #c9ddd2;
+}
+
+.lighthouse-dialogue-layer-v2,
+.lighthouse-dialogue-layer.lighthouse-dialogue-layer-v2 {
+  align-items: flex-end;
+  padding: 18px max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, transparent 48%, rgba(2, 14, 15, 0.68));
+}
+
+.lighthouse-dialogue-layer-v2 .lighthouse-dialogue {
+  grid-template-columns: 142px minmax(0, 1fr);
+  width: min(900px, calc(100% - 20px));
+  max-height: min(360px, 30dvh);
+  border-color: rgba(223, 239, 219, 0.28);
+  border-radius: 16px;
+  background: rgba(8, 31, 32, 0.985);
+  box-shadow: 0 24px 70px rgba(0, 9, 10, 0.52);
+}
+
+.lighthouse-dialogue-layer-v2 .lighthouse-dialogue-main {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lighthouse-dialogue-layer-v2 .lighthouse-dialogue-profile {
+  padding: 14px;
+  background: rgba(24, 61, 56, 0.72);
+}
+
+.lighthouse-dialogue-layer-v2 .lighthouse-dialogue-avatar {
+  width: 78px;
+  height: 78px;
+  border-radius: 18px;
+}
+
+.lighthouse-dialogue-layer-v2 .lighthouse-dialogue-history {
+  min-height: 44px;
+  max-height: none;
+  overscroll-behavior: contain;
+}
+
+.lighthouse-dialogue-layer-v2 .lighthouse-dialogue-message {
+  max-width: 78%;
+  background: rgba(235, 245, 235, 0.08);
+}
+
+.lighthouse-dialogue-layer-v2 .lighthouse-dialogue-message.is-player {
+  background: rgba(241, 199, 105, 0.17);
+}
+
+.lighthouse-dialogue-layer-v2 .lighthouse-dialogue-suggestion {
+  flex: 0 0 auto;
+  border-color: rgba(193, 224, 204, 0.25);
+  background: rgba(229, 243, 231, 0.07);
+  color: #d3e2d8;
+  padding: 6px 9px;
+}
+
+.lighthouse-dialogue-layer-v2 .lighthouse-dialogue-suggestions {
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px 2px 5px;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: rgba(183, 213, 196, 0.32) transparent;
+  scrollbar-width: thin;
+}
+
+.lighthouse-dialogue-layer-v2 .lighthouse-dialogue-input {
+  min-width: 0;
+}
+
+.lighthouse-dialogue-layer-v2 .lighthouse-dialogue-suggestion:hover,
+.lighthouse-dialogue-layer-v2 .lighthouse-dialogue-suggestion:focus-visible {
+  border-color: rgba(244, 205, 116, 0.62);
+  color: #ffe6a7;
+  outline: none;
+}
+
+.lighthouse-activity-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 20px;
+  background: rgba(2, 15, 17, 0.72);
+}
+
+.lighthouse-activity-card {
+  width: min(520px, 100%);
+  max-height: min(620px, calc(100dvh - 48px));
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid rgba(218, 238, 218, 0.25);
+  border-radius: 16px;
+  background: var(--lighthouse-hud-bg-strong);
+  box-shadow: 0 24px 70px rgba(0, 9, 10, 0.5);
+  color: #eaf3ea;
+  overscroll-behavior: contain;
+}
+
+.lighthouse-game-v2 .lighthouse-settings-actions {
+  position: sticky;
+  z-index: 2;
+  bottom: -22px;
+  padding: 12px 0 2px;
+  background: linear-gradient(180deg, transparent, #0a282a 24%);
+}
+
+.lighthouse-activity-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--lighthouse-hud-line);
+}
+
+.lighthouse-activity-card h2 {
+  margin: 0;
+  color: #fff1ca;
+  font-size: 19px;
+}
+
+.lighthouse-activity-card > p {
+  margin: 12px 0;
+  color: #b9cdc3;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.lighthouse-activity-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.lighthouse-activity-option {
+  appearance: none;
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  padding: 11px 12px;
+  border: 1px solid rgba(207, 233, 214, 0.18);
+  border-radius: 11px;
+  background: rgba(231, 244, 232, 0.055);
+  color: #e8f2ea;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.lighthouse-activity-option strong {
+  color: #fff0c6;
+  font-size: 12px;
+}
+
+.lighthouse-activity-option span {
+  color: #adc3b8;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.lighthouse-activity-option:hover,
+.lighthouse-activity-option:focus-visible {
+  border-color: rgba(244, 205, 116, 0.58);
+  background: rgba(244, 205, 116, 0.1);
+  outline: none;
+}
+
+@media (max-width: 1100px) {
+  .lighthouse-game-v2 .lighthouse-controls-card {
+    display: none;
+  }
+}
+
+@media (max-height: 760px) and (min-width: 701px) {
+  .lighthouse-dialogue-layer-v2 .lighthouse-dialogue-suggestions {
+    display: none;
+  }
+
+  .lighthouse-dialogue-layer-v2 .lighthouse-dialogue-main {
+    padding-block: 10px;
+  }
+}
+
+@media (max-width: 900px) {
+  .lighthouse-story-chip {
+    max-width: 240px;
+  }
+
+  .lighthouse-game-v2 .lighthouse-resident-card {
+    display: none;
+  }
+
+  .lighthouse-needs-strip {
+    max-width: min(460px, calc(100vw - 32px));
+  }
+}
+
+@media (max-width: 700px) {
+  .lighthouse-game-v2 {
+    --lighthouse-panel-width: calc(100% - 16px);
+  }
+
+  .lighthouse-game-v2 .lighthouse-hud-top {
+    top: max(8px, env(safe-area-inset-top));
+    right: 8px;
+    left: 8px;
+  }
+
+  .lighthouse-game-v2 .lighthouse-time-card {
+    min-width: 94px;
+    padding: 8px 10px;
+  }
+
+  .lighthouse-time-controls {
+    display: none;
+  }
+
+  .lighthouse-story-chip {
+    max-width: 42vw;
+    min-height: 36px;
+    padding-inline: 10px;
+  }
+
+  .lighthouse-needs-strip {
+    top: 57px;
+    left: 8px;
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
+  }
+
+  .lighthouse-need {
+    flex: 0 0 74px;
+  }
+
+  .lighthouse-game-v2 .lighthouse-minimap {
+    width: 112px;
+    height: 112px;
+  }
+
+  .lighthouse-game-v2 .lighthouse-controls-card,
+  .lighthouse-hover-card {
+    display: none;
+  }
+
+  .lighthouse-side-panel,
+  .lighthouse-journal-panel,
+  .lighthouse-observer-panel {
+    top: 8px;
+    right: 8px;
+    bottom: 8px;
+    border-radius: 15px;
+  }
+
+  .lighthouse-dialogue-layer-v2,
+  .lighthouse-dialogue-layer.lighthouse-dialogue-layer-v2 {
+    padding: 8px;
+  }
+
+  .lighthouse-dialogue-layer-v2 .lighthouse-dialogue {
+    grid-template-columns: 1fr;
+    width: 100%;
+    max-height: min(70dvh, 560px);
+  }
+
+  .lighthouse-dialogue-layer-v2 .lighthouse-dialogue-profile {
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr);
+    min-height: 58px;
+    padding: 8px 12px;
+  }
+
+  .lighthouse-dialogue-layer-v2 .lighthouse-dialogue-avatar {
+    grid-row: 1 / span 2;
+    width: 42px;
+    height: 42px;
+  }
+
+  .lighthouse-dialogue-layer-v2 .lighthouse-dialogue-profile > strong,
+  .lighthouse-dialogue-layer-v2 .lighthouse-dialogue-profile > [data-ui="dialogue-role"] {
+    grid-column: 2;
+  }
+
+  .lighthouse-dialogue-layer-v2 .lighthouse-dialogue-profile > [data-ui="dialogue-relation"],
+  .lighthouse-dialogue-layer-v2 .lighthouse-dialogue-profile > [data-ui="dialogue-state"] {
+    display: none;
+  }
+
+  .lighthouse-dialogue-layer-v2 .lighthouse-dialogue-input {
+    font-size: 16px;
+  }
+
+  .lighthouse-activity-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .lighthouse-story-chip {
+    display: none;
+  }
+
+  .lighthouse-game-v2 .lighthouse-minimap {
+    display: none;
+  }
+
+  .lighthouse-game-v2 .lighthouse-hud-bottom {
+    display: none;
+  }
+
+  .lighthouse-game-v2 .lighthouse-interaction-prompt {
+    right: 8px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: 8px;
+    justify-content: center;
+    max-width: none;
+    transform: none;
+  }
+
+  .lighthouse-observer-needs {
+    grid-template-columns: 1fr;
+  }
+
+  .lighthouse-game-v2 .lighthouse-settings-actions {
+    bottom: -16px;
+  }
+}
+
+@media (pointer: coarse) {
+  .lighthouse-game-v2 .lighthouse-icon-button,
+  .lighthouse-game-v2 .lighthouse-time-control {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lighthouse-story-chip,
+  .lighthouse-clue,
+  .lighthouse-journal-entry,
+  .lighthouse-observer-entry,
+  .lighthouse-dialogue-layer-v2 .lighthouse-dialogue-message {
+    animation: none;
+    transition: none;
+  }
+
+  .lighthouse-time-control,
+  .lighthouse-activity-option,
+  .lighthouse-scene-fade,
+  .lighthouse-toast,
+  .lighthouse-close,
+  .lighthouse-icon-button {
+    transition: none;
+  }
+}

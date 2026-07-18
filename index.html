@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="assets/game/survivor.css?v=20260707-vfx1">
   <link rel="stylesheet" href="assets/game2/arsenal.css?v=20260714-game2-swarm3">
+  <link rel="stylesheet" href="assets/game3/lighthouse.css?v=20260718-game3-v21">
   
   <style>
     :root {
@@ -1903,6 +1904,25 @@
               开始游戏
             </button>
           </div>
+
+          <div class="game-entry game-entry-lighthouse">
+            <img class="lighthouse-entry-cover" src="assets/game3/art/lighthouse-cover.webp?v=20260718-game3-v21" alt="" width="1600" height="900" loading="lazy" decoding="async" aria-hidden="true">
+            <div class="lighthouse-entry-copy">
+              <span class="lighthouse-entry-kicker"><i class="fas fa-compass" aria-hidden="true"></i> 3D GENERATIVE TOWN</span>
+              <h3>灯塔小镇 2.0：生成式生活沙盒</h3>
+              <p>进入 25 位居民持续生活的 3D 学术小镇，观察他们的计划与关系，亲自介入对话、传闻和社区事件。</p>
+              <div class="game-entry-stats lighthouse-entry-stats" aria-label="灯塔小镇本地记录">
+                <span>小镇生活 <strong id="lighthouse-days">1</strong> 天</span>
+                <span>对话 <strong id="lighthouse-conversations">0</strong> 次</span>
+                <span>最亲近 <strong id="lighthouse-closest-friend">尚未结识</strong></span>
+              </div>
+              <p class="lighthouse-entry-error" id="lighthouse-entry-error" role="status" aria-live="polite"></p>
+            </div>
+            <button class="game-play-button lighthouse-play-button" id="lighthouse-open" type="button" aria-haspopup="dialog" aria-controls="lighthouse-modal">
+              <i class="fas fa-door-open" aria-hidden="true"></i>
+              <span>进入小镇</span>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -1952,6 +1972,34 @@
     </div>
   </div>
 
+  <div class="lighthouse-modal" id="lighthouse-modal" aria-hidden="true">
+    <div class="lighthouse-shell" role="dialog" aria-modal="true" aria-labelledby="lighthouse-heading" aria-describedby="lighthouse-controls-help">
+      <header class="lighthouse-header">
+        <div class="lighthouse-title">
+          <span class="lighthouse-title-mark" aria-hidden="true"><i class="fas fa-lightbulb"></i></span>
+          <span>
+            <strong id="lighthouse-heading">灯塔小镇 2.0：生活沙盒</strong>
+            <small id="lighthouse-controls-help">WASD 移动 · Shift 慢跑 · E 互动 · Tab 切换 · J 手账 · Esc 暂停</small>
+          </span>
+        </div>
+        <div class="lighthouse-header-actions">
+          <span class="lighthouse-mode-status" id="lighthouse-mode-status" role="status">
+            <i class="fas fa-circle" aria-hidden="true"></i>
+            <span>正在唤醒小镇</span>
+          </span>
+          <button class="lighthouse-close" id="lighthouse-close" type="button" aria-label="退出灯塔小镇">&times;</button>
+        </div>
+      </header>
+      <div class="lighthouse-root" id="lighthouse-root" tabindex="-1">
+        <div class="lighthouse-stage-state" id="lighthouse-loading" role="status" aria-live="polite">
+          <span class="lighthouse-loading-mark" aria-hidden="true"><i class="fas fa-lightbulb"></i></span>
+          <strong>正在点亮灯塔……</strong>
+          <span>首次进入需要加载本地 3D 资源</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <footer>
     <p>Last updated: July 3, 2026. &copy; 2026 Qingyuan Zeng. All rights reserved.</p>
   </footer>
@@ -1961,7 +2009,7 @@
   <script src="assets/game2/arsenal-art.js?v=20260714-game2-swarm3" defer></script>
   <script src="assets/game2/arsenal-game.js?v=20260714-game2-swarm3" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/globe.gl" defer></script>
-  <script src="assets/js/global-footprint.js?v=20260704-hover6" defer></script>
+  <script src="assets/js/global-footprint.js?v=20260718-game3-pause1" defer></script>
   <script>
     (function () {
       var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -2302,6 +2350,390 @@
           }
         });
       }
+    });
+  </script>
+  <script>
+    window.addEventListener("DOMContentLoaded", function () {
+      var VERSION = "20260718-game3-v21";
+      var SUMMARY_KEY = "zqy-lighthouse-town:summary:v2";
+      var openButton = document.getElementById("lighthouse-open");
+      var closeButton = document.getElementById("lighthouse-close");
+      var modal = document.getElementById("lighthouse-modal");
+      var root = document.getElementById("lighthouse-root");
+      var entryError = document.getElementById("lighthouse-entry-error");
+      var days = document.getElementById("lighthouse-days");
+      var conversations = document.getElementById("lighthouse-conversations");
+      var closestFriend = document.getElementById("lighthouse-closest-friend");
+      var modeStatus = document.getElementById("lighthouse-mode-status");
+      var controller = null;
+      var loadPromise = null;
+      var lastFocus = null;
+      var isOpen = false;
+      var globeAutoRotateBeforeGame = null;
+
+      function setBackgroundGlobePaused(paused) {
+        var globeRoot = document.getElementById("global-footprint-globe");
+        var globe = globeRoot && globeRoot.__globalFootprint && globeRoot.__globalFootprint.globe;
+        if (!globe) {
+          return;
+        }
+        var controls = typeof globe.controls === "function" ? globe.controls() : null;
+        if (paused) {
+          if (controls && globeAutoRotateBeforeGame === null) {
+            globeAutoRotateBeforeGame = Boolean(controls.autoRotate);
+          }
+          if (controls) {
+            controls.autoRotate = false;
+          }
+          if (typeof globe.pauseAnimation === "function") {
+            globe.pauseAnimation();
+          }
+        } else {
+          if (typeof globe.resumeAnimation === "function") {
+            globe.resumeAnimation();
+          }
+          if (controls && globeAutoRotateBeforeGame !== null) {
+            controls.autoRotate = globeAutoRotateBeforeGame;
+          }
+          globeAutoRotateBeforeGame = null;
+        }
+      }
+
+      function clampCount(value, fallback) {
+        var number = Math.floor(Number(value));
+        return Number.isFinite(number) && number >= 0 ? number : fallback;
+      }
+
+      function readCachedSummary() {
+        try {
+          return JSON.parse(window.localStorage.getItem(SUMMARY_KEY) || "null");
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function renderSummary(summary) {
+        summary = summary || {};
+        if (days) {
+          days.textContent = String(Math.max(1, clampCount(summary.days, 1)));
+        }
+        if (conversations) {
+          conversations.textContent = String(clampCount(summary.conversations, 0));
+        }
+        if (closestFriend) {
+          closestFriend.textContent = String(summary.closestResident || summary.closestFriend || "尚未结识");
+        }
+      }
+
+      function updateSummary() {
+        var summary = null;
+        try {
+          summary = window.LighthouseTown && typeof window.LighthouseTown.readSummary === "function"
+            ? window.LighthouseTown.readSummary()
+            : null;
+        } catch (error) {
+          summary = null;
+        }
+        renderSummary(summary || readCachedSummary());
+      }
+
+      function showError(message) {
+        if (!entryError) {
+          return;
+        }
+        entryError.textContent = message || "";
+        entryError.classList.toggle("is-visible", Boolean(message));
+      }
+
+      function setModeStatus(label, state) {
+        if (!modeStatus) {
+          return;
+        }
+        modeStatus.dataset.state = state || "loading";
+        var text = modeStatus.querySelector("span");
+        if (text) {
+          text.textContent = label;
+        }
+      }
+
+      function showStageError(message) {
+        if (!root) {
+          return;
+        }
+        root.replaceChildren();
+        var state = document.createElement("div");
+        state.className = "lighthouse-stage-state is-error";
+        state.setAttribute("role", "alert");
+        var mark = document.createElement("span");
+        mark.className = "lighthouse-loading-mark";
+        mark.setAttribute("aria-hidden", "true");
+        mark.textContent = "!";
+        var title = document.createElement("strong");
+        title.textContent = "小镇暂时无法打开";
+        var detail = document.createElement("span");
+        detail.textContent = message;
+        var retry = document.createElement("button");
+        retry.className = "lighthouse-action-button";
+        retry.type = "button";
+        retry.textContent = "重新加载";
+        retry.addEventListener("click", function () {
+          loadPromise = null;
+          openGame();
+        });
+        state.append(mark, title, detail, retry);
+        root.appendChild(state);
+      }
+
+      function showLoading() {
+        if (!root) {
+          return;
+        }
+        root.replaceChildren();
+        var state = document.createElement("div");
+        state.className = "lighthouse-stage-state";
+        state.setAttribute("role", "status");
+        state.setAttribute("aria-live", "polite");
+        var mark = document.createElement("span");
+        mark.className = "lighthouse-loading-mark";
+        mark.setAttribute("aria-hidden", "true");
+        var icon = document.createElement("i");
+        icon.className = "fas fa-lightbulb";
+        mark.appendChild(icon);
+        var title = document.createElement("strong");
+        title.textContent = "正在点亮灯塔……";
+        var detail = document.createElement("span");
+        detail.textContent = "首次进入需要加载本地 3D 资源";
+        state.append(mark, title, detail);
+        root.appendChild(state);
+      }
+
+      function loadScript(path) {
+        return new Promise(function (resolve, reject) {
+          var existing = document.querySelector('script[data-lighthouse-src="' + path + '"]');
+          if (existing && existing.dataset.loaded === "true") {
+            resolve();
+            return;
+          }
+          if (existing) {
+            existing.addEventListener("load", resolve, { once: true });
+            existing.addEventListener("error", reject, { once: true });
+            return;
+          }
+          var script = document.createElement("script");
+          script.src = path + "?v=" + VERSION;
+          script.defer = true;
+          script.dataset.lighthouseSrc = path;
+          script.addEventListener("load", function () {
+            script.dataset.loaded = "true";
+            resolve();
+          }, { once: true });
+          script.addEventListener("error", function () {
+            script.remove();
+            reject(new Error("无法加载 " + path));
+          }, { once: true });
+          document.head.appendChild(script);
+        });
+      }
+
+      function loadRuntime() {
+        if (window.LighthouseTown && typeof window.LighthouseTown.mount === "function") {
+          return Promise.resolve();
+        }
+        if (loadPromise) {
+          return loadPromise;
+        }
+        loadPromise = loadScript("assets/game3/vendor/three.global.min.js")
+          .then(function () {
+            if (!window.THREE || typeof window.THREE.WebGLRenderer !== "function") {
+              throw new Error("本地 3D 引擎未正确加载");
+            }
+            return loadScript("assets/game3/lighthouse-config.js");
+          })
+          .then(function () {
+            return loadScript("assets/game3/lighthouse-art.js");
+          })
+          .then(function () {
+            return loadScript("assets/game3/lighthouse-persistence.js");
+          })
+          .then(function () {
+            return loadScript("assets/game3/lighthouse-agents.js");
+          })
+          .then(function () {
+            return loadScript("assets/game3/lighthouse-spatial.js");
+          })
+          .then(function () {
+            return loadScript("assets/game3/lighthouse-game.js");
+          })
+          .then(function () {
+            if (!window.LighthouseTown || typeof window.LighthouseTown.mount !== "function") {
+              throw new Error("游戏运行时未正确初始化");
+            }
+            updateSummary();
+          })
+          .catch(function (error) {
+            loadPromise = null;
+            throw error;
+          });
+        return loadPromise;
+      }
+
+      function closeGame() {
+        if (!modal) {
+          return;
+        }
+        isOpen = false;
+        if (controller && typeof controller.deactivate === "function") {
+          controller.deactivate();
+        }
+        modal.classList.remove("is-open");
+        modal.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("lighthouse-open");
+        setBackgroundGlobePaused(false);
+        updateSummary();
+        if (lastFocus && typeof lastFocus.focus === "function") {
+          lastFocus.focus({ preventScroll: true });
+        }
+      }
+
+      function mountAndActivate() {
+        if (!isOpen || !root) {
+          return;
+        }
+        if (!controller) {
+          root.replaceChildren();
+          setModeStatus("小镇运行中", "ready");
+          controller = window.LighthouseTown.mount(root, {
+            onClose: closeGame,
+            onSummaryChange: updateSummary,
+            onStatusChange: function (status) {
+              status = status || {};
+              setModeStatus(status.label || "本地智能模式", status.state || "local");
+            }
+          });
+        }
+        if (controller && typeof controller.activate === "function") {
+          controller.activate();
+        }
+      }
+
+      function openGame() {
+        if (!modal || !root) {
+          showError("游戏容器未正确加载。");
+          return;
+        }
+        showError("");
+        lastFocus = document.activeElement;
+        isOpen = true;
+        modal.classList.add("is-open");
+        modal.setAttribute("aria-hidden", "false");
+        document.body.classList.add("lighthouse-open");
+        setBackgroundGlobePaused(true);
+        if (controller) {
+          mountAndActivate();
+          return;
+        }
+        showLoading();
+        root.focus({ preventScroll: true });
+        setModeStatus("正在唤醒小镇", "loading");
+        if (openButton) {
+          openButton.disabled = true;
+          openButton.classList.add("is-loading");
+        }
+        loadRuntime()
+          .then(mountAndActivate)
+          .catch(function (error) {
+            var message = error && error.message ? error.message : "未知加载错误";
+            showError(message);
+            setModeStatus("加载失败", "error");
+            if (isOpen) {
+              showStageError(message);
+            }
+          })
+          .finally(function () {
+            if (openButton) {
+              openButton.disabled = false;
+              openButton.classList.remove("is-loading");
+            }
+          });
+      }
+
+      updateSummary();
+
+      if (openButton) {
+        openButton.addEventListener("click", openGame);
+      }
+      if (closeButton) {
+        closeButton.addEventListener("click", closeGame);
+      }
+      if (modal) {
+        modal.addEventListener("click", function (event) {
+          if (event.target === modal) {
+            closeGame();
+          }
+        });
+        modal.addEventListener("keydown", function (event) {
+          if (event.key !== "Tab" || event.defaultPrevented) {
+            return;
+          }
+          function isVisible(element) {
+            if (!element || element.closest("[hidden]")) {
+              return false;
+            }
+            var style = window.getComputedStyle(element);
+            return style.display !== "none" && style.visibility !== "hidden" && element.getClientRects().length > 0;
+          }
+
+          /* When a nested activity/dialogue/settings window is open, keep
+             keyboard focus inside that window instead of moving to HUD
+             controls hidden visually behind it. */
+          var nestedDialogs = Array.prototype.slice.call(modal.querySelectorAll('[role="dialog"][aria-modal="true"]')).filter(function (element) {
+            return element !== modal.firstElementChild && isVisible(element);
+          });
+          var activeLayers = Array.prototype.slice.call(modal.querySelectorAll("[data-layer]")).filter(isVisible);
+          var focusScope = nestedDialogs.length
+            ? nestedDialogs[nestedDialogs.length - 1]
+            : activeLayers.length
+              ? activeLayers[activeLayers.length - 1]
+              : modal;
+          var focusable = Array.prototype.slice.call(focusScope.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(isVisible);
+          if (!focusable.length) {
+            event.preventDefault();
+            root.focus();
+            return;
+          }
+          var first = focusable[0];
+          var last = focusable[focusable.length - 1];
+          if (!focusScope.contains(document.activeElement)) {
+            event.preventDefault();
+            (event.shiftKey ? last : first).focus();
+          } else if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        });
+      }
+
+      document.addEventListener("visibilitychange", function () {
+        if (!controller || !isOpen) {
+          return;
+        }
+        if (document.hidden && typeof controller.deactivate === "function") {
+          controller.deactivate();
+        } else {
+          if (typeof controller.activate === "function") {
+            controller.activate();
+          }
+        }
+      });
+
+      window.addEventListener("beforeunload", function () {
+        if (controller && typeof controller.dispose === "function") {
+          controller.dispose();
+        }
+      });
     });
   </script>
 </body>
